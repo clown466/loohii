@@ -1,0 +1,500 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountProvider {
+  EMAIL
+  GOOGLE
+  GITHUB
+  WECHAT
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum CharacterRole {
+  PROTAGONIST
+  SUPPORTING
+  BACKGROUND
+}
+
+enum SceneStatus {
+  DRAFT
+  READY
+  GENERATING
+  COMPLETE
+}
+
+enum CanvasNodeType {
+  CHARACTER
+  SCENE
+  ASSET
+  GENERATION
+}
+
+enum GenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  OTHER
+}
+
+enum TransactionType {
+  CREDIT_PURCHASE
+  CREDIT_SPEND
+  CREDIT_REFUND
+  ADMIN_ADJUSTMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum PaymentOrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+}
+
+enum AgentMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  displayName   String?
+  avatarUrl     String?
+  passwordHash  String?
+  locale        String    @default("zh-CN")
+  timezone      String    @default("Asia/Shanghai")
+  creditBalance Int       @default(0)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  accounts          Account[]
+  ownedTeams        Team[]         @relation("TeamOwner")
+  teamMemberships   TeamMember[]
+  ownedProjects     Project[]      @relation("ProjectOwner")
+  createdCharacters Character[]    @relation("CharacterCreator")
+  createdScenes     Scene[]        @relation("SceneCreator")
+  uploadedAssets    Asset[]        @relation("AssetUploader")
+  generations       Generation[]
+  stylePresets      StylePreset[]  @relation("StylePresetCreator")
+  transactions      Transaction[]
+  paymentOrders     PaymentOrder[]
+  agentMessages     AgentMessage[]
+
+  @@index([deletedAt])
+}
+
+model Account {
+  id                String          @id @default(cuid())
+  userId            String
+  provider          AccountProvider
+  providerAccountId String
+  email             String?
+  accessToken       String?
+  refreshToken      String?
+  expiresAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Team {
+  id          String    @id @default(cuid())
+  ownerId     String
+  name        String
+  slug        String    @unique
+  description String?
+  settings    Json      @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  owner        User          @relation("TeamOwner", fields: [ownerId], references: [id])
+  members      TeamMember[]
+  projects     Project[]
+  stylePresets StylePreset[]
+
+  @@index([ownerId])
+  @@index([deletedAt])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  userId    String
+  role      TeamRole @default(MEMBER)
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+}
+
+model Project {
+  id            String        @id @default(cuid())
+  teamId        String
+  ownerId       String
+  stylePresetId String?
+  coverAssetId  String?
+  name          String
+  description   String?
+  status        ProjectStatus @default(DRAFT)
+  aspectRatio   String        @default("16:9")
+  settings      Json          @default("{}")
+  metadata      Json          @default("{}")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  archivedAt    DateTime?
+  deletedAt     DateTime?
+
+  team        Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  owner       User         @relation("ProjectOwner", fields: [ownerId], references: [id])
+  stylePreset StylePreset? @relation(fields: [stylePresetId], references: [id])
+  coverAsset  Asset?       @relation("ProjectCoverAsset", fields: [coverAssetId], references: [id])
+
+  characters    Character[]
+  scenes        Scene[]
+  canvasEdges   CanvasEdge[]
+  generations   Generation[]
+  assets        Asset[]        @relation("ProjectAssets")
+  agentMessages AgentMessage[]
+
+  @@index([teamId, status])
+  @@index([ownerId])
+  @@index([deletedAt])
+}
+
+model Character {
+  id          String        @id @default(cuid())
+  projectId   String
+  createdById String?
+  name        String
+  role        CharacterRole @default(SUPPORTING)
+  bio         String?
+  prompt      String?
+  traits      Json          @default("{}")
+  position    Json          @default("{}")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User?            @relation("CharacterCreator", fields: [createdById], references: [id])
+  scenes      SceneCharacter[]
+  assets      Asset[]
+  generations Generation[]
+
+  @@index([projectId])
+  @@index([deletedAt])
+}
+
+model Scene {
+  id          String      @id @default(cuid())
+  projectId   String
+  createdById String?
+  title       String
+  summary     String?
+  prompt      String?
+  orderIndex  Int         @default(0)
+  status      SceneStatus @default(DRAFT)
+  position    Json        @default("{}")
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User?            @relation("SceneCreator", fields: [createdById], references: [id])
+  characters  SceneCharacter[]
+  assets      Asset[]
+  generations Generation[]
+
+  @@index([projectId, orderIndex])
+  @@index([deletedAt])
+}
+
+model SceneCharacter {
+  id          String   @id @default(cuid())
+  sceneId     String
+  characterId String
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  scene     Scene     @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([sceneId, characterId])
+  @@index([characterId])
+}
+
+model CanvasEdge {
+  id             String         @id @default(cuid())
+  projectId      String
+  sourceNodeId   String
+  sourceNodeType CanvasNodeType
+  targetNodeId   String
+  targetNodeType CanvasNodeType
+  label          String?
+  animated       Boolean        @default(false)
+  data           Json           @default("{}")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+}
+
+model Generation {
+  id             String           @id @default(cuid())
+  projectId      String
+  userId         String
+  aiModelId      String?
+  stylePresetId  String?
+  sceneId        String?
+  characterId    String?
+  prompt         String
+  negativePrompt String?
+  input          Json             @default("{}")
+  parameters     Json             @default("{}")
+  status         GenerationStatus @default(QUEUED)
+  providerJobId  String?
+  errorMessage   String?
+  creditCost     Int              @default(0)
+  queuedAt       DateTime         @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id])
+  aiModel       AiModel?       @relation(fields: [aiModelId], references: [id])
+  stylePreset   StylePreset?   @relation(fields: [stylePresetId], references: [id])
+  scene         Scene?         @relation(fields: [sceneId], references: [id])
+  character     Character?     @relation(fields: [characterId], references: [id])
+  assets        Asset[]
+  transactions  Transaction[]
+  agentMessages AgentMessage[]
+
+  @@index([projectId, status])
+  @@index([userId, createdAt])
+  @@index([providerJobId])
+}
+
+model Asset {
+  id           String    @id @default(cuid())
+  projectId    String
+  uploadedById String?
+  generationId String?
+  sceneId      String?
+  characterId  String?
+  type         AssetType
+  title        String?
+  url          String
+  storageKey   String?
+  mimeType     String?
+  sizeBytes    Int?
+  width        Int?
+  height       Int?
+  durationMs   Int?
+  checksum     String?
+  metadata     Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  project          Project     @relation("ProjectAssets", fields: [projectId], references: [id], onDelete: Cascade)
+  uploadedBy       User?       @relation("AssetUploader", fields: [uploadedById], references: [id])
+  generation       Generation? @relation(fields: [generationId], references: [id])
+  scene            Scene?      @relation(fields: [sceneId], references: [id])
+  character        Character?  @relation(fields: [characterId], references: [id])
+  coverForProjects Project[]   @relation("ProjectCoverAsset")
+
+  @@index([projectId, type])
+  @@index([generationId])
+  @@index([deletedAt])
+}
+
+model StylePreset {
+  id             String   @id @default(cuid())
+  teamId         String?
+  createdById    String?
+  name           String
+  slug           String   @unique
+  description    String?
+  prompt         String
+  negativePrompt String?
+  settings       Json     @default("{}")
+  isSystem       Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team        Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy   User?        @relation("StylePresetCreator", fields: [createdById], references: [id])
+  projects    Project[]
+  generations Generation[]
+
+  @@index([teamId])
+  @@index([isSystem, isActive])
+}
+
+model AiModel {
+  id               String          @id @default(cuid())
+  providerConfigId String?
+  provider         String
+  model            String
+  displayName      String
+  modality         String
+  capabilities     Json            @default("{}")
+  defaultParams    Json            @default("{}")
+  costCredits      Int             @default(1)
+  apiKeyEncrypted  String?
+  apiKeyLast4      String?
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  providerConfig ProviderConfig? @relation(fields: [providerConfigId], references: [id], onDelete: SetNull)
+  generations    Generation[]
+
+  @@unique([provider, model, modality])
+  @@index([providerConfigId])
+  @@index([provider, isActive])
+}
+
+model ProviderConfig {
+  id              String    @id @default(cuid())
+  displayName     String
+  providerType    String
+  baseUrl         String?
+  apiKeyEncrypted String?
+  apiKeyLast4     String?
+  isActive        Boolean   @default(true)
+  testStatus      String?
+  testLatencyMs   Int?
+  testError       String?
+  lastTestedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  models AiModel[]
+
+  @@index([providerType, isActive])
+}
+
+model Transaction {
+  id             String            @id @default(cuid())
+  userId         String
+  generationId   String?
+  paymentOrderId String?
+  type           TransactionType
+  status         TransactionStatus @default(PENDING)
+  amountCredits  Int
+  balanceAfter   Int?
+  description    String?
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  generation   Generation?   @relation(fields: [generationId], references: [id])
+  paymentOrder PaymentOrder? @relation(fields: [paymentOrderId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([generationId])
+  @@index([paymentOrderId])
+}
+
+model PaymentOrder {
+  id              String             @id @default(cuid())
+  userId          String
+  provider        String
+  providerOrderId String?            @unique
+  status          PaymentOrderStatus @default(PENDING)
+  amountCents     Int
+  currency        String             @default("CNY")
+  credits         Int
+  metadata        Json               @default("{}")
+  paidAt          DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model AgentMessage {
+  id           String           @id @default(cuid())
+  projectId    String
+  userId       String?
+  generationId String?
+  parentId     String?
+  role         AgentMessageRole
+  content      String
+  payload      Json             @default("{}")
+  createdAt    DateTime         @default(now())
+
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user       User?          @relation(fields: [userId], references: [id])
+  generation Generation?    @relation(fields: [generationId], references: [id])
+  parent     AgentMessage?  @relation("AgentMessageThread", fields: [parentId], references: [id])
+  replies    AgentMessage[] @relation("AgentMessageThread")
+
+  @@index([projectId, createdAt])
+  @@index([userId])
+  @@index([generationId])
+  @@index([parentId])
+}

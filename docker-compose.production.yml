@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: loohii-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: loohii
+      POSTGRES_USER: loohii
+      POSTGRES_PASSWORD: loohii_dev_password
+    volumes:
+      - loohii_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loohii -d loohii"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: loohii-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - loohii_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.loohii
+    container_name: loohii-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env.production
+    ports:
+      - "3001:3001"
+
+volumes:
+  loohii_postgres_data:
+  loohii_redis_data:

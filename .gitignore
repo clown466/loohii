@@ -1,0 +1,23 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+# Environment / secrets
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+*.crt
+# Build / dependencies / runtime
+coverage/
+.cache/
+.DS_Store
+# Local DB/uploads/runtime files
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+output/
+tmp/
