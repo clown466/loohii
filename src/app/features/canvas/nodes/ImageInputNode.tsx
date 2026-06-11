@@ -1,0 +1,229 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Position } from '@xyflow/react';
+import { Image as ImageIcon } from 'lucide-react';
+import { useParams } from 'react-router';
+import { Button } from '../../../components/ui/button';
+import { cn } from '../../../utils/cn';
+import { useCanvasStore } from '../../../stores/useCanvasStore';
+import {
+  type CanvasNodeProps,
+  CanvasNodeResizer,
+  CanvasHandle,
+  publicImageUrl,
+  previewCanvasImage,
+  positiveNumber,
+  uploadCanvasReferenceFile,
+} from './shared';
+
+export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const nodes = useCanvasStore((s) => s.nodes);
+  const edges = useCanvasStore((s) => s.edges);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const { id: projectId } = useParams();
+  const [uploading, setUploading] = useState(false);
+  const imageUrl = typeof data.imageUrl === 'string' ? data.imageUrl : '';
+  const imageAspectRatio = positiveNumber(data.imageAspectRatio) ?? 1;
+  const clampedImageAspectRatio = Math.min(Math.max(imageAspectRatio, 0.45), 3.4);
+  const imageIsLandscape = clampedImageAspectRatio > 1.15;
+  const isPreviousStoryboardReference = data.clipNodeKind === 'storyboard-reference';
+  const isStoryboardSlot = data.storyboardSlotForClip === true || data.clipSyncRole === 'storyboard-slot';
+  const isStoryboardSpecialNode = isPreviousStoryboardReference || isStoryboardSlot;
+  const upstreamStoryboardOutput = useMemo(() => {
+    if (!isStoryboardSlot) return null;
+    for (const edge of edges.filter((item) => item.target === id)) {
+      const source = nodes.find((node) => node.id === edge.source);
+      const sourceUrl = source?.type === 'generation'
+        ? publicImageUrl(source.data?.outputImage)
+        : source?.type === 'imageInput'
+          ? publicImageUrl(source.data?.imageUrl)
+          : '';
+      if (!sourceUrl) continue;
+      return {
+        url: sourceUrl,
+        assetId: String(source?.data?.outputImageAssetId || source?.data?.assetId || ''),
+        title: String(source?.data?.title || source?.data?.label || data.label || '对应故事板'),
+      };
+    }
+    return null;
+  }, [data.label, edges, id, isStoryboardSlot, nodes]);
+  const displayImageUrl = imageUrl || upstreamStoryboardOutput?.url || '';
+  const imageUnavailable = Boolean(data.imageLoadError || (displayImageUrl && displayImageUrl.startsWith('blob:')));
+  const effectivePublicImageUrl = publicImageUrl(displayImageUrl);
+
+  useEffect(() => {
+    if (!isStoryboardSlot || !upstreamStoryboardOutput?.url) return;
+    if (publicImageUrl(imageUrl) === upstreamStoryboardOutput.url && String(data.assetId || '') === upstreamStoryboardOutput.assetId) return;
+    updateNodeData(id, {
+      imageUrl: upstreamStoryboardOutput.url,
+      assetId: upstreamStoryboardOutput.assetId,
+      clipSyncAssetId: upstreamStoryboardOutput.assetId,
+      clipSyncUrl: upstreamStoryboardOutput.url,
+      fileName: `${upstreamStoryboardOutput.title || 'storyboard'}.png`,
+      uploadStatus: 'linked',
+      imageLoadError: false,
+      uploadError: '',
+    });
+  }, [data.assetId, id, imageUrl, isStoryboardSlot, updateNodeData, upstreamStoryboardOutput]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      updateNodeData(id, { uploadError: '请选择图片文件。' });
+      return;
+    }
+    if (!projectId || projectId === 'local') {
+      updateNodeData(id, { uploadError: '当前项目不存在，无法上传参考图。' });
+      return;
+    }
+    setUploading(true);
+    updateNodeData(id, { uploadError: '', uploadStatus: 'uploading', imageLoadError: false, fileName: file.name });
+    try {
+      const publicUrl = await uploadCanvasReferenceFile(projectId, file);
+      updateNodeData(id, {
+        imageUrl: publicUrl,
+        fileName: file.name,
+        uploadStatus: 'uploaded',
+        uploadError: '',
+        imageLoadError: false,
+      });
+    } catch (error) {
+      updateNodeData(id, {
+        uploadStatus: 'failed',
+        uploadError: error instanceof Error ? error.message : '参考图上传失败',
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUrlPaste = () => {
+    const url = window.prompt('输入图片 URL：');
+    if (url) {
+      const cleanUrl = url.trim();
+      updateNodeData(id, {
+        imageUrl: cleanUrl,
+        fileName: '',
+        imageLoadError: false,
+        uploadError: publicImageUrl(cleanUrl) ? '' : '参考图需要公网 http(s) URL，图片模型才能读取。',
+      });
+    }
+  };
+
+  return (
+    <>
+      <CanvasNodeResizer selected={selected} minWidth={imageIsLandscape ? 340 : 260} minHeight={180} />
+      <div className={cn(
+        "h-full w-full overflow-hidden rounded-lg border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500",
+        isStoryboardSpecialNode ? "border-amber-500/70 ring-1 ring-amber-500/30" : "border-zinc-700",
+        imageIsLandscape ? "min-w-[340px]" : "min-w-[260px]",
+      )}>
+      <div className={cn(
+        "px-3 py-2 text-xs font-medium flex items-center gap-1.5 cursor-grab active:cursor-grabbing",
+        isStoryboardSpecialNode ? "bg-amber-500/15 text-amber-100" : "bg-zinc-800/50 text-zinc-300",
+      )}>
+        <ImageIcon className={cn("h-3.5 w-3.5", isStoryboardSpecialNode ? "text-amber-300" : "text-sky-400")} />
+        {isPreviousStoryboardReference ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">上一板</span> : null}
+        {isStoryboardSlot ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">故事板</span> : null}
+        {data.label || '图片输入'}
+      </div>
+      <div className="p-2">
+        {displayImageUrl && !imageUnavailable ? (
+          <div className="relative group">
+            <img
+              src={displayImageUrl}
+              alt="参考图"
+              className="w-full cursor-zoom-in rounded border border-zinc-800 object-cover"
+              style={{ aspectRatio: String(clampedImageAspectRatio) }}
+              onClick={(event) => previewCanvasImage(event, {
+                url: displayImageUrl,
+                title: data.label || '图片输入',
+                subtitle: data.fileName || '参考图',
+              })}
+              onDoubleClick={(event) => previewCanvasImage(event, {
+                url: displayImageUrl,
+                title: data.label || '图片输入',
+                subtitle: data.fileName || '参考图',
+              })}
+              onLoad={(event) => {
+                const img = event.currentTarget;
+                const ratio = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null;
+                if (ratio && Math.abs(ratio - imageAspectRatio) > 0.01) {
+                  updateNodeData(id, { imageAspectRatio: ratio, imageLoadError: false });
+                }
+              }}
+              onError={() => {
+                if (!data.imageLoadError) updateNodeData(id, { imageLoadError: true });
+              }}
+            />
+            <div
+              className="absolute inset-0 hidden cursor-zoom-in items-center justify-center gap-1 rounded bg-black/60 group-hover:flex"
+              onClick={(event) => previewCanvasImage(event, {
+                url: displayImageUrl,
+                title: data.label || '图片输入',
+                subtitle: data.fileName || '参考图',
+              })}
+              onDoubleClick={(event) => previewCanvasImage(event, {
+                url: displayImageUrl,
+                title: data.label || '图片输入',
+                subtitle: data.fileName || '参考图',
+              })}
+            >
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] text-zinc-200 hover:bg-zinc-700"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  fileRef.current?.click();
+                }}
+              >
+                替换
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-[10px] text-red-300 hover:bg-red-500/20"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  updateNodeData(id, { imageUrl: '', fileName: '', imageLoadError: false, uploadError: '' });
+                }}
+              >
+                移除
+              </Button>
+            </div>
+            {data.fileName && <div className="mt-1 truncate text-[10px] text-zinc-500">{data.fileName}</div>}
+          </div>
+        ) : (
+          <div
+            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-zinc-700 bg-zinc-900/50 hover:border-zinc-500 hover:bg-zinc-900"
+            style={{ aspectRatio: imageIsLandscape ? String(clampedImageAspectRatio) : "1" }}
+            onClick={() => fileRef.current?.click()}
+          >
+            <ImageIcon className="h-6 w-6 text-zinc-600" />
+            <span className="text-[11px] text-zinc-500">{uploading ? '上传中...' : imageUnavailable ? '图片已失效，重新上传' : isStoryboardSlot ? '等待故事板' : '点击上传'}</span>
+            <button
+              type="button"
+              className="text-[10px] text-sky-400 hover:text-sky-300"
+              onClick={(e) => { e.stopPropagation(); handleUrlPaste(); }}
+            >
+              或粘贴 URL
+            </button>
+          </div>
+        )}
+        {data.uploadError ? (
+          <div className="mt-1 text-[10px] leading-4 text-red-400">{data.uploadError}</div>
+        ) : displayImageUrl && !effectivePublicImageUrl ? (
+          <div className="mt-1 text-[10px] leading-4 text-amber-400">这不是公网 URL，不能作为图生图参考。</div>
+        ) : null}
+      </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
+        {isStoryboardSlot ? <CanvasHandle type="target" position={Position.Left} tone="sky" /> : null}
+        <CanvasHandle type="source" position={Position.Right} tone="sky" />
+      </div>
+    </>
+  );
+};
+

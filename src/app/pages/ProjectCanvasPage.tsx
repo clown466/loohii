@@ -76,6 +76,7 @@ import {
   type CanvasVideoGenerationInput,
   type CanvasVideoGenerationResponse,
 } from '../lib/apiClient';
+import { nodeTypes } from '../features/canvas/nodes';
 
 const workflowSteps = [
   {
@@ -143,7 +144,7 @@ type BreakdownScene = {
 };
 
 type Clip = WorkflowClip;
-type WorkflowAssets = NonNullable<WorkflowState['assets']>;
+export type WorkflowAssets = NonNullable<WorkflowState['assets']>;
 type ClipPanelCountChoice = 'ai' | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 type ClipStoryboardPlan = { panelCount?: number; notes?: string };
 type ClipPromptBatchKind = 'storyboard' | 'video-prompt';
@@ -175,11 +176,11 @@ type PersistedClipPromptBatch = {
   updatedAt: string;
 };
 
-type WorkflowAssetKind = 'characters' | 'scenes' | 'props';
+export type WorkflowAssetKind = 'characters' | 'scenes' | 'props';
 type AssetLibraryCategory = WorkflowAssetKind | 'directorBoards';
 type AssetLibraryEpisodeFilter = 'all' | string;
 type AssetHistoryLoadKind = WorkflowAssetKind | 'all';
-const MAX_VIDEO_REFERENCE_IMAGES = 9;
+export const MAX_VIDEO_REFERENCE_IMAGES = 9;
 const CANVAS_SECTION_PADDING_X = 12;
 const CANVAS_SECTION_HEADER_HEIGHT = 42;
 const CANVAS_SECTION_PADDING_BOTTOM = 12;
@@ -191,8 +192,8 @@ const CANVAS_REFERENCE_ROWS_PER_COLUMN = 4;
 const CANVAS_TARGET_SECTION_GAP = 18;
 const CANVAS_GENERATION_NODE_HEIGHT = 560;
 const CANVAS_VIDEO_NODE_HEIGHT = 620;
-const CANVAS_VIDEO_POLL_INTERVAL_MS = 15 * 1000;
-const CANVAS_VIDEO_POLL_TIMEOUT_MS = 30 * 60 * 1000;
+export const CANVAS_VIDEO_POLL_INTERVAL_MS = 15 * 1000;
+export const CANVAS_VIDEO_POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const CANVAS_SINGLE_ASSET_NODE_HEIGHT = 560;
 const EPISODE_CANVAS_SYNC_START_X = 120;
 const EPISODE_CANVAS_SYNC_START_Y = 120;
@@ -209,7 +210,7 @@ const EPISODE_CANVAS_SYNC_ROW_STRIDE =
   EPISODE_CANVAS_SYNC_ROW_GAP;
 const CLIP_PROMPT_BATCH_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
-type WorkflowAssetItem = {
+export type WorkflowAssetItem = {
   id?: string;
   name?: string;
   title?: string;
@@ -241,7 +242,7 @@ type AssetHistoryTarget = {
   asset: WorkflowAssetItem;
 };
 
-type AssetImagePreview = {
+export type AssetImagePreview = {
   url: string;
   title: string;
   subtitle?: string;
@@ -294,7 +295,7 @@ type ProjectGlobalSettingsDraft = {
 };
 
 const PROJECT_GLOBAL_STYLE_OPTIONS = ['动漫风', '3D美漫黑色幽默', '美漫风格', '3D 渲染', '写实电影', '自定义'] as const;
-const CANVAS_IMAGE_RATIO_OPTIONS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '2:1', '1:2', '21:9', '9:21', '3:1', '1:3'] as const;
+export const CANVAS_IMAGE_RATIO_OPTIONS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '5:4', '4:5', '2:1', '1:2', '21:9', '9:21', '3:1', '1:3'] as const;
 const PROJECT_GLOBAL_RATIO_OPTIONS = CANVAS_IMAGE_RATIO_OPTIONS;
 const PROJECT_GLOBAL_GENERATION_STRATEGIES = [
   { id: 'standard', title: '普通' },
@@ -397,42 +398,42 @@ function buildProjectGlobalPromptFromDraft(draft: ProjectGlobalSettingsDraft): s
   ].filter(Boolean).join('\n');
 }
 
-const CANVAS_IMAGE_PREVIEW_EVENT = 'loohii:canvas-image-preview';
-const WORKFLOW_ASSET_SYNC_EVENT = 'loohii:workflow-asset-sync';
-const CANVAS_GENERATION_RECORDS_REFRESH_EVENT = 'loohii:generation-records-refresh';
-const CANVAS_GENERATION_STALE_MS = 15 * 60 * 1000;
+export const CANVAS_IMAGE_PREVIEW_EVENT = 'loohii:canvas-image-preview';
+export const WORKFLOW_ASSET_SYNC_EVENT = 'loohii:workflow-asset-sync';
+export const CANVAS_GENERATION_RECORDS_REFRESH_EVENT = 'loohii:generation-records-refresh';
+export const CANVAS_GENERATION_STALE_MS = 15 * 60 * 1000;
 const CANVAS_GENERATION_SUBMIT_CONFIRM_MS = 30 * 1000;
-const CANVAS_TRANSLATION_STALE_MS = 2 * 60 * 1000;
-const CANVAS_PROMPT_API_MAX_CHARS = 20000;
-const DREAMINA_WEB_VIDEO_PROMPT_MAX_CHARS = 4000;
+export const CANVAS_TRANSLATION_STALE_MS = 2 * 60 * 1000;
+export const CANVAS_PROMPT_API_MAX_CHARS = 20000;
+export const DREAMINA_WEB_VIDEO_PROMPT_MAX_CHARS = 4000;
 const MIN_CLIP_STORYBOARD_PANEL_COUNT = 5;
 const MAX_CLIP_STORYBOARD_PANEL_COUNT = 12;
 const CLIP_STORYBOARD_PANEL_CHOICES = [5, 6, 7, 8, 9, 10, 11, 12] as const;
 
-function canvasGenerationStartedAt(): string {
+export function canvasGenerationStartedAt(): string {
   return new Date().toISOString();
 }
 
-function createCanvasGenerationRequestToken(nodeId: string, requestId: number): string {
+export function createCanvasGenerationRequestToken(nodeId: string, requestId: number): string {
   const randomPart = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return `${nodeId}:${requestId}:${randomPart}`;
 }
 
-function canvasGenerationAgeMs(value: unknown): number | null {
+export function canvasGenerationAgeMs(value: unknown): number | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   const time = Date.parse(value);
   if (!Number.isFinite(time)) return null;
   return Date.now() - time;
 }
 
-function isCanvasGenerationStale(value: unknown): boolean {
+export function isCanvasGenerationStale(value: unknown): boolean {
   const age = canvasGenerationAgeMs(value);
   return age === null || age > CANVAS_GENERATION_STALE_MS;
 }
 
-function canvasGenerationWaitLabel(value: unknown): string {
+export function canvasGenerationWaitLabel(value: unknown): string {
   const age = canvasGenerationAgeMs(value);
   if (age === null || age < 0) return '已提交上游，等待返回...';
   const totalSeconds = Math.floor(age / 1000);
@@ -442,14 +443,14 @@ function canvasGenerationWaitLabel(value: unknown): string {
   return `已提交上游，等待 ${minutes} 分 ${seconds.toString().padStart(2, '0')} 秒`;
 }
 
-function shouldKeepCanvasGenerationPendingAfterError(message: string): boolean {
+export function shouldKeepCanvasGenerationPendingAfterError(message: string): boolean {
   if (/图片上游服务临时失败|502\/failover|Bad Gateway|<!DOCTYPE html|<html|图片生成等待超时|图片上游连接失败|后端服务暂时不可用（502）/i.test(message)) {
     return false;
   }
   return /同一图片生成请求已在进行中|AI 请求超过网关等待时间（504）|超过网关等待时间|网络请求没有连到后端|Failed to fetch|长请求被浏览器或网关中断/i.test(message);
 }
 
-function canvasImageGenerationRetryHint(referenceCount: number, resolution: string): string {
+export function canvasImageGenerationRetryHint(referenceCount: number, resolution: string): string {
   const normalizedResolution = resolution.trim().toLowerCase();
   if (referenceCount > 4 && normalizedResolution === '2k') {
     return `当前是 ${referenceCount} 张参考图 + 2K，图片上游更容易 502；可减少参考图、换更稳定的模型，或手动改小尺寸后重试。`;
@@ -463,25 +464,25 @@ function canvasImageGenerationRetryHint(referenceCount: number, resolution: stri
   return '';
 }
 
-function appendCanvasImageGenerationRetryHint(message: string, referenceCount: number, resolution: string): string {
+export function appendCanvasImageGenerationRetryHint(message: string, referenceCount: number, resolution: string): string {
   if (!/图片上游服务临时失败|502\/failover|Bad Gateway|<!DOCTYPE html|<html|图片生成等待超时|后端服务暂时不可用（502）/i.test(message)) return message;
   const hint = canvasImageGenerationRetryHint(referenceCount, resolution);
   if (!hint || message.includes(hint) || message.includes('建议先降到 1K')) return message;
   return `${message} ${hint}`;
 }
 
-function openCanvasImagePreview(preview: AssetImagePreview) {
+export function openCanvasImagePreview(preview: AssetImagePreview) {
   if (!preview.url || typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<AssetImagePreview>(CANVAS_IMAGE_PREVIEW_EVENT, { detail: preview }));
 }
 
-function previewCanvasImage(event: React.MouseEvent, preview: AssetImagePreview) {
+export function previewCanvasImage(event: React.MouseEvent, preview: AssetImagePreview) {
   event.preventDefault();
   event.stopPropagation();
   openCanvasImagePreview(preview);
 }
 
-function downloadFileNameFromPreview(preview: AssetImagePreview): string {
+export function downloadFileNameFromPreview(preview: AssetImagePreview): string {
   const title = preview.title
     .trim()
     .replace(/[^a-zA-Z0-9._\-\u4e00-\u9fa5]+/g, '-')
@@ -496,7 +497,7 @@ function downloadFileNameFromPreview(preview: AssetImagePreview): string {
   return `${title}.png`;
 }
 
-async function downloadCanvasImagePreview(preview: AssetImagePreview) {
+export async function downloadCanvasImagePreview(preview: AssetImagePreview) {
   const filename = downloadFileNameFromPreview(preview);
   const absoluteUrl = toBrowserAbsoluteUrl(preview.url);
   const fetchBrowserImageBlob = async (url: string) => {
@@ -581,23 +582,23 @@ async function downloadCanvasImagePreview(preview: AssetImagePreview) {
   }
 }
 
-function syncWorkflowAssetsFromCanvas(workflow?: WorkflowState) {
+export function syncWorkflowAssetsFromCanvas(workflow?: WorkflowState) {
   if (!workflow || typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent<{ workflow: WorkflowState }>(WORKFLOW_ASSET_SYNC_EVENT, { detail: { workflow } }));
 }
 
-function readObjectString(value: unknown, key: string): string {
+export function readObjectString(value: unknown, key: string): string {
   if (!value || typeof value !== 'object') return '';
   const raw = (value as Record<string, unknown>)[key];
   return typeof raw === 'string' ? raw : '';
 }
 
-function canvasVideoProviderFailed(status: unknown): boolean {
+export function canvasVideoProviderFailed(status: unknown): boolean {
   const value = typeof status === 'string' ? status.toLowerCase() : '';
   return Boolean(value && /fail|error|cancel|reject/.test(value));
 }
 
-function mediaFileNameFromUrl(value: unknown): string {
+export function mediaFileNameFromUrl(value: unknown): string {
   const url = String(value || '').trim();
   if (!url) return '';
   try {
@@ -609,7 +610,7 @@ function mediaFileNameFromUrl(value: unknown): string {
   }
 }
 
-function readObjectPath(value: unknown, path: string[]): unknown {
+export function readObjectPath(value: unknown, path: string[]): unknown {
   let current: unknown = value;
   for (const key of path) {
     if (!current || typeof current !== 'object') return undefined;
@@ -618,12 +619,12 @@ function readObjectPath(value: unknown, path: string[]): unknown {
   return current;
 }
 
-function readNumber(value: unknown): number | undefined {
+export function readNumber(value: unknown): number | undefined {
   const number = Number(value);
   return Number.isFinite(number) ? number : undefined;
 }
 
-function canvasVideoReferencePreviewMessage(result: CanvasVideoGenerationResponse): string {
+export function canvasVideoReferencePreviewMessage(result: CanvasVideoGenerationResponse): string {
   const refs = result.references ?? {};
   const imageUrls = Array.isArray(refs.referenceImageUrls) ? refs.referenceImageUrls : [];
   const audioUrls = Array.isArray(refs.referenceAudioUrls) ? refs.referenceAudioUrls : [];
@@ -643,11 +644,11 @@ function canvasVideoReferencePreviewMessage(result: CanvasVideoGenerationRespons
   ].filter(Boolean).join(' ');
 }
 
-function canvasVideoPollErrorMessage(error: unknown): string {
+export function canvasVideoPollErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : typeof error === 'string' ? error : '';
 }
 
-function canvasVideoResultErrorMessage(result: CanvasVideoGenerationResponse): string {
+export function canvasVideoResultErrorMessage(result: CanvasVideoGenerationResponse): string {
   return (
     readObjectString(result.generation, 'errorMessage') ||
     readObjectString(result.raw, 'errorMessage') ||
@@ -655,30 +656,30 @@ function canvasVideoResultErrorMessage(result: CanvasVideoGenerationResponse): s
   );
 }
 
-function shouldRetryCanvasVideoPollError(error: unknown): boolean {
+export function shouldRetryCanvasVideoPollError(error: unknown): boolean {
   const message = canvasVideoPollErrorMessage(error);
   if (!message) return false;
   if (/login|登录|session|token|余额|credit|quota|额度|unauthori[sz]ed|forbidden|401|403/i.test(message)) return false;
   return /timeout|timed out|超时|502|503|504|fetch failed|network|ECONN|EHOST|ENOTFOUND|后台处理中|仍在处理|暂时|temporary/i.test(message);
 }
 
-function normalizeWorkflowAssetKind(value: unknown): WorkflowAssetKind | null {
+export function normalizeWorkflowAssetKind(value: unknown): WorkflowAssetKind | null {
   return value === 'characters' || value === 'scenes' || value === 'props' ? value : null;
 }
 
-function workflowAssetKindLabel(kind: WorkflowAssetKind): string {
+export function workflowAssetKindLabel(kind: WorkflowAssetKind): string {
   if (kind === 'characters') return '角色';
   if (kind === 'scenes') return '场景';
   return '道具';
 }
 
-function workflowAssetKindSelectLabel(kind: WorkflowAssetKind): string {
+export function workflowAssetKindSelectLabel(kind: WorkflowAssetKind): string {
   if (kind === 'characters') return '角色资产';
   if (kind === 'scenes') return '场景资产';
   return '道具资产';
 }
 
-function ratioToNumber(value: unknown): number {
+export function ratioToNumber(value: unknown): number {
   const normalized = normalizeCanvasImageSize(value);
   const [width, height] = normalized.split(':').map((part) => Number(part));
   return width > 0 && height > 0 ? width / height : 1;
@@ -693,7 +694,7 @@ type GenerateAssetImageOptions = {
   preservePromptExact?: boolean;
 };
 
-function defaultWorkflowAssets(): WorkflowAssets {
+export function defaultWorkflowAssets(): WorkflowAssets {
   return { characters: [], scenes: [], props: [] };
 }
 
@@ -806,11 +807,11 @@ function workflowEpisodeCanvasSceneId(episodeId: string) {
   return episodeId || 'default';
 }
 
-function isWorkflowEpisodeId(value: string): boolean {
+export function isWorkflowEpisodeId(value: string): boolean {
   return /^episode(?:-|$)/i.test(value.trim());
 }
 
-function canvasNodeEpisodeId(data: any): string {
+export function canvasNodeEpisodeId(data: any): string {
   const sourceEpisodeId = typeof data?.sourceEpisodeId === 'string' ? data.sourceEpisodeId.trim() : '';
   if (sourceEpisodeId) return sourceEpisodeId;
   const sourceEpisode = typeof data?.sourceEpisode === 'string' ? data.sourceEpisode.trim() : '';
@@ -851,12 +852,12 @@ function applyWorkflowSnapshot(
   setters.setStageStatuses(workflow.stageStatuses ?? {});
 }
 
-function assetArray(assets: WorkflowAssets, kind: WorkflowAssetKind): WorkflowAssetItem[] {
+export function assetArray(assets: WorkflowAssets, kind: WorkflowAssetKind): WorkflowAssetItem[] {
   const value = assets[kind];
   return Array.isArray(value) ? value.filter((item): item is WorkflowAssetItem => !!item && typeof item === 'object') : [];
 }
 
-function workflowAssetName(item: WorkflowAssetItem): string {
+export function workflowAssetName(item: WorkflowAssetItem): string {
   return String(item.name || item.title || '').trim();
 }
 
@@ -934,7 +935,7 @@ function projectSceneToWorkflowAsset(scene: ProjectSceneRecord): WorkflowAssetIt
   };
 }
 
-function mergeWorkflowAssetsWithProjectRecords(
+export function mergeWorkflowAssetsWithProjectRecords(
   workflowAssets: WorkflowAssets,
   characters: ProjectCharacterRecord[] = [],
   scenes: ProjectSceneRecord[] = [],
@@ -947,11 +948,11 @@ function mergeWorkflowAssetsWithProjectRecords(
   };
 }
 
-function normalizeCompareText(value: string): string {
+export function normalizeCompareText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-function normalizeClipId(value: string): string {
+export function normalizeClipId(value: string): string {
   const text = String(value || '').trim().toLowerCase();
   if (!text) return '';
   const explicit = text.match(/\bclip[-_\s]*(\d{1,3})\b/i);
@@ -978,13 +979,13 @@ function assetImageSourceLabel(source?: string): string {
   return source ? source : '资产图';
 }
 
-function formatDurationMs(value?: number): string {
+export function formatDurationMs(value?: number): string {
   if (!Number.isFinite(value)) return '';
   const ms = Number(value);
   return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
 }
 
-function isWorkflowTextModel(model: ModelConfig): boolean {
+export function isWorkflowTextModel(model: ModelConfig): boolean {
   if (!model.isActive) return false;
   const modality = model.modality.trim().toLowerCase();
   const capabilities = model.capabilities.map((item) => item.toLowerCase());
@@ -995,7 +996,7 @@ function isWorkflowTextModel(model: ModelConfig): boolean {
   return /(gpt|claude|gemini|deepseek|qwen|doubao|kimi|llama|mistral|chat)/.test(searchable);
 }
 
-function isWorkflowImageModel(model: ModelConfig): boolean {
+export function isWorkflowImageModel(model: ModelConfig): boolean {
   if (!model.isActive) return false;
   const modality = model.modality.trim().toLowerCase();
   const capabilities = model.capabilities.map((item) => item.toLowerCase());
@@ -1006,13 +1007,13 @@ function isWorkflowImageModel(model: ModelConfig): boolean {
   return /(gpt-image|dall-e|flux|sdxl|stable-diffusion|midjourney|image)/.test(searchable);
 }
 
-function isDreaminaWebImageModel(model?: ModelConfig): boolean {
+export function isDreaminaWebImageModel(model?: ModelConfig): boolean {
   if (!model) return false;
   const provider = `${model.provider} ${model.providerConfig?.providerType || ''} ${model.providerConfig?.displayName || ''} ${model.displayName} ${model.model}`.toLowerCase();
   return provider.includes('dreamina-web') || provider.includes('dreamina web');
 }
 
-function isWorkflowVideoModel(model: ModelConfig): boolean {
+export function isWorkflowVideoModel(model: ModelConfig): boolean {
   if (!model.isActive) return false;
   const modality = model.modality.trim().toLowerCase();
   const capabilities = model.capabilities.map((item) => item.toLowerCase());
@@ -1022,13 +1023,13 @@ function isWorkflowVideoModel(model: ModelConfig): boolean {
   return /(seedance|kling|runway|luma|video)/.test(searchable);
 }
 
-function modelOptionLabel(model: ModelConfig): string {
+export function modelOptionLabel(model: ModelConfig): string {
   const providerName = model.providerConfig?.displayName ?? model.provider;
   const provider = providerName ? ` / ${providerName}` : '';
   return `${model.displayName || model.model}${provider}`;
 }
 
-function safeUploadKey(projectId: string, fileName: string, kind: WorkflowAssetKind = 'characters'): string {
+export function safeUploadKey(projectId: string, fileName: string, kind: WorkflowAssetKind = 'characters'): string {
   const safeName = fileName
     .trim()
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
@@ -1046,7 +1047,7 @@ function safeAudioUploadKey(projectId: string, fileName: string): string {
   return `asset-audio/${projectId}/characters/${Date.now()}-${safeName}`;
 }
 
-function safeCanvasUploadKey(projectId: string, fileName: string): string {
+export function safeCanvasUploadKey(projectId: string, fileName: string): string {
   const safeName = fileName
     .trim()
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
@@ -1055,7 +1056,7 @@ function safeCanvasUploadKey(projectId: string, fileName: string): string {
   return `canvas-references/${projectId}/${Date.now()}-${safeName}`;
 }
 
-function toBrowserAbsoluteUrl(value: string): string {
+export function toBrowserAbsoluteUrl(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || typeof window === 'undefined') return trimmed;
   try {
@@ -1065,7 +1066,7 @@ function toBrowserAbsoluteUrl(value: string): string {
   }
 }
 
-function normalizeReusableImageSource(value: unknown): string {
+export function normalizeReusableImageSource(value: unknown): string {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -1076,13 +1077,13 @@ function normalizeReusableImageSource(value: unknown): string {
   return '';
 }
 
-function publicImageUrl(value: unknown): string {
+export function publicImageUrl(value: unknown): string {
   const normalized = normalizeReusableImageSource(value);
   if (/^https?:\/\//i.test(normalized)) return normalized;
   return '';
 }
 
-function normalizeReusableAudioSource(value: unknown): string {
+export function normalizeReusableAudioSource(value: unknown): string {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -1093,13 +1094,13 @@ function normalizeReusableAudioSource(value: unknown): string {
   return '';
 }
 
-function publicAudioUrl(value: unknown): string {
+export function publicAudioUrl(value: unknown): string {
   const normalized = normalizeReusableAudioSource(value);
   if (/^https?:\/\//i.test(normalized)) return normalized;
   return '';
 }
 
-function localPublicUploadPath(value: string): string {
+export function localPublicUploadPath(value: string): string {
   if (/^\/api\/uploads\/public\//i.test(value)) return value;
   try {
     const url = new URL(value);
@@ -1143,7 +1144,7 @@ function isPublicImageUrl(value: unknown): value is string {
   return Boolean(publicImageUrl(value));
 }
 
-function normalizeCanvasImageSize(value: unknown): string {
+export function normalizeCanvasImageSize(value: unknown): string {
   const raw = typeof value === 'string' ? value : '';
   if (CANVAS_IMAGE_RATIO_OPTIONS.includes(raw as (typeof CANVAS_IMAGE_RATIO_OPTIONS)[number])) return raw;
   const pixelMatch = raw.match(/^(\d{2,5})x(\d{2,5})$/i);
@@ -1164,34 +1165,34 @@ function normalizeCanvasImageSize(value: unknown): string {
   return '1:1';
 }
 
-function normalizeImageResolution(value: unknown): string {
+export function normalizeImageResolution(value: unknown): string {
   const raw = typeof value === 'string' ? value.toLowerCase() : '';
   return ['1k', '2k', '4k'].includes(raw) ? raw : '1k';
 }
 
-function normalizeVideoResolution(value: unknown): string {
+export function normalizeVideoResolution(value: unknown): string {
   const raw = typeof value === 'string' ? value.toLowerCase() : '';
   return ['480p', '720p', '1080p', '2k', '4k', 'sd1080p'].includes(raw) ? raw : '720p';
 }
 
-function normalizeVideoRatio(value: unknown): string {
+export function normalizeVideoRatio(value: unknown): string {
   const raw = typeof value === 'string' ? value.toLowerCase() : '';
   return ['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16', '21:9'].includes(raw) ? raw : 'adaptive';
 }
 
-function normalizeVideoDuration(value: unknown): number {
+export function normalizeVideoDuration(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed)) return 5;
   return Math.max(4, Math.min(15, Math.round(parsed)));
 }
 
-function normalizeGenerationCount(value: unknown): number {
+export function normalizeGenerationCount(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed)) return 1;
   return Math.max(1, Math.min(4, Math.round(parsed)));
 }
 
-function positiveNumber(value: unknown): number | null {
+export function positiveNumber(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
@@ -1230,7 +1231,7 @@ function nodeStyleWidth(style: unknown): number {
   return 0;
 }
 
-function canvasSectionToneClasses(tone: unknown) {
+export function canvasSectionToneClasses(tone: unknown) {
   if (tone === 'sky') {
     return {
       border: 'border-sky-500/35',
@@ -2179,7 +2180,7 @@ function clipCanvasSectionTitle(clip: Clip, suffix: string) {
   return `${clip.title || 'Clip'} · ${suffix}`;
 }
 
-type CanvasNodeProps = {
+export type CanvasNodeProps = {
   id: string;
   data: any;
   selected?: boolean;
@@ -2238,7 +2239,7 @@ function clampConnectionMenuPoint(point: { x: number; y: number }): { x: number;
   };
 }
 
-function CanvasNodeResizer({
+export function CanvasNodeResizer({
   selected,
   minWidth,
   minHeight,
@@ -2265,7 +2266,7 @@ function CanvasNodeResizer({
   );
 }
 
-function CanvasHandle({
+export function CanvasHandle({
   type,
   position,
   tone = 'default',
@@ -2273,11 +2274,11 @@ function CanvasHandle({
 }: {
   type: 'target' | 'source';
   position: Position;
-  tone?: 'default' | 'sky' | 'purple';
+  tone?: 'default' | 'sky' | 'purple' | 'emerald';
   style?: React.CSSProperties;
 }) {
   const borderClass =
-    tone === 'sky' ? 'border-sky-500 hover:!bg-sky-500' : tone === 'purple' ? 'border-purple-500 hover:!bg-purple-500' : 'border-zinc-500 hover:!bg-zinc-500';
+    tone === 'sky' ? 'border-sky-500 hover:!bg-sky-500' : tone === 'purple' ? 'border-purple-500 hover:!bg-purple-500' : tone === 'emerald' ? 'border-emerald-500 hover:!bg-emerald-500' : 'border-zinc-500 hover:!bg-zinc-500';
   return (
     <Handle
       type={type}
@@ -2292,7 +2293,7 @@ function CanvasHandle({
   );
 }
 
-async function uploadCanvasReferenceFile(projectId: string, file: File): Promise<string> {
+export async function uploadCanvasReferenceFile(projectId: string, file: File): Promise<string> {
   const key = safeCanvasUploadKey(projectId, file.name);
   const local = await apiClient.uploadLocalFile({
     key,
@@ -2326,9 +2327,9 @@ const CANVAS_IMAGE_DRAG_TYPE = 'application/x-loohii-image-url';
 const CANVAS_IMAGE_DRAG_TOKEN_TYPE = 'application/x-loohii-image-token';
 const CANVAS_IMAGE_DRAG_PAYLOAD_TYPE = 'application/x-loohii-image-payload';
 
-const videoResolutionOptions = ['720p'];
-const videoDurationOptions = Array.from({ length: 12 }, (_, index) => index + 4);
-const videoRatioOptions: Array<{ value: string; label: string }> = [
+export const videoResolutionOptions = ['720p'];
+export const videoDurationOptions = Array.from({ length: 12 }, (_, index) => index + 4);
+export const videoRatioOptions: Array<{ value: string; label: string }> = [
   { value: 'adaptive', label: '自适应' },
   { value: '16:9', label: '16:9' },
   { value: '4:3', label: '4:3' },
@@ -2454,7 +2455,7 @@ function setImageDragData(dataTransfer: DataTransfer, imageUrl: string, payload:
   }
 }
 
-type CanvasProjectPromptContext = {
+export type CanvasProjectPromptContext = {
   title?: string;
   description?: string;
   globalPrompt?: string;
@@ -2463,7 +2464,7 @@ type CanvasProjectPromptContext = {
   setupSettings?: Record<string, unknown>;
 };
 
-function compactProjectPromptContext(project: any): CanvasProjectPromptContext {
+export function compactProjectPromptContext(project: any): CanvasProjectPromptContext {
   const setupSettings = project?.setupSettings && typeof project.setupSettings === 'object' ? project.setupSettings as Record<string, unknown> : undefined;
   return {
     title: typeof project?.title === 'string' ? project.title : '',
@@ -2478,12 +2479,12 @@ function compactProjectPromptContext(project: any): CanvasProjectPromptContext {
   };
 }
 
-function firstPromptLine(value: string, label: string): string {
+export function firstPromptLine(value: string, label: string): string {
   const line = value.split('\n').find((item) => item.trim().startsWith(label));
   return line?.slice(label.length).trim() || '';
 }
 
-function projectRequiresFruitCharacters(context: CanvasProjectPromptContext, data?: any): boolean {
+export function projectRequiresFruitCharacters(context: CanvasProjectPromptContext, data?: any): boolean {
   const fruitIdentity = String(data?.fruitIdentity || '').trim();
   if (fruitIdentity) return true;
   const text = [
@@ -2496,7 +2497,7 @@ function projectRequiresFruitCharacters(context: CanvasProjectPromptContext, dat
   return mentionsFruit && universal;
 }
 
-function concreteFruitIdentityFromText(value: string): string {
+export function concreteFruitIdentityFromText(value: string): string {
   const text = value.toLowerCase();
   const rules: Array<[RegExp, string]> = [
     [/(chloe|peach|水蜜桃|桃)/i, 'peach'],
@@ -2519,21 +2520,21 @@ function concreteFruitIdentityFromText(value: string): string {
   return rules.find(([pattern]) => pattern.test(text))?.[1] || '';
 }
 
-function isGroupAssetText(value: string): boolean {
+export function isGroupAssetText(value: string): boolean {
   return /(zombies?|undead|corpse|crowd|group|mob|victims?|background|extras?|群像|背景|群众|人群|一群|丧尸|僵尸|亡灵|受害者)/i.test(value);
 }
 
-function isMixedRandomFruitIdentity(value: string): boolean {
+export function isMixedRandomFruitIdentity(value: string): boolean {
   return /mixed random fruit crowd/i.test(value);
 }
 
-function fallbackFruitIdentity(name: string): string {
+export function fallbackFruitIdentity(name: string): string {
   const choices = ['apple', 'orange', 'lemon', 'pear', 'peach', 'grape cluster', 'pineapple', 'mango', 'kiwi', 'strawberry', 'watermelon'];
   const seed = Array.from(name || 'character').reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return choices[seed % choices.length];
 }
 
-function effectiveFruitIdentityForAsset(data: any, mustUseFruitIdentity: boolean): string {
+export function effectiveFruitIdentityForAsset(data: any, mustUseFruitIdentity: boolean): string {
   const explicit = String(data?.fruitIdentity || '').trim();
   if (explicit) return explicit;
   if (!mustUseFruitIdentity) return '';
@@ -2550,13 +2551,13 @@ function effectiveFruitIdentityForAsset(data: any, mustUseFruitIdentity: boolean
   return concreteFruitIdentityFromText(text) || fallbackFruitIdentity(String(data?.name || data?.assetName || 'character'));
 }
 
-function promptHasConcreteFruit(value: string, expectedFruitIdentity = ''): boolean {
+export function promptHasConcreteFruit(value: string, expectedFruitIdentity = ''): boolean {
   const text = value.toLowerCase();
   if (expectedFruitIdentity && text.includes(expectedFruitIdentity.toLowerCase())) return true;
   return /(banana|apple|orange|lemon|grape|strawberry|pineapple|peach|pear|mango|kiwi|watermelon|dragon fruit|橙子|橙|柠檬|葡萄|草莓|菠萝|水蜜桃|桃|梨|芒果|猕猴桃|西瓜|火龙果|香蕉|苹果)/i.test(text);
 }
 
-function hasProjectPromptContext(context: CanvasProjectPromptContext): boolean {
+export function hasProjectPromptContext(context: CanvasProjectPromptContext): boolean {
   return Boolean(
     context.title ||
     context.description ||
@@ -2567,14 +2568,14 @@ function hasProjectPromptContext(context: CanvasProjectPromptContext): boolean {
   );
 }
 
-function finalPromptSatisfiesProjectIdentity(value: string, context: CanvasProjectPromptContext, data?: any): boolean {
+export function finalPromptSatisfiesProjectIdentity(value: string, context: CanvasProjectPromptContext, data?: any): boolean {
   if (!projectRequiresFruitCharacters(context, data)) return true;
   const text = value.toLowerCase();
   const fruitIdentity = effectiveFruitIdentityForAsset(data, true);
   return text.includes('project authority:') && promptHasConcreteFruit(value, fruitIdentity);
 }
 
-function buildCanvasCharacterFinalPrompt(data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
+export function buildCanvasCharacterFinalPrompt(data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
   const name = String(data?.name || 'character').trim();
   const shortPrompt = firstCleanAssetPromptSeed(data?.visualPrompt, data?.traits, data?.description);
   const customGenerationPrompt = cleanAssetPromptSeed(data?.customGenerationPrompt);
@@ -2671,7 +2672,7 @@ function buildCanvasCharacterFinalPrompt(data: any, referenceImageCount: number,
   ].filter(Boolean).join('\n');
 }
 
-function buildCanvasAssetProjectAuthority(projectContext: CanvasProjectPromptContext): string[] {
+export function buildCanvasAssetProjectAuthority(projectContext: CanvasProjectPromptContext): string[] {
   const styleNotes = [
     projectContext.setupSettings?.customStyleName,
     projectContext.setupSettings?.customStylePrompt,
@@ -2690,7 +2691,7 @@ function buildCanvasAssetProjectAuthority(projectContext: CanvasProjectPromptCon
     : [];
 }
 
-function buildCanvasSceneFinalPrompt(data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
+export function buildCanvasSceneFinalPrompt(data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
   const name = String(data?.assetName || data?.name || data?.title || 'scene').trim();
   const description = String(data?.description || '').trim();
   const shortPrompt = firstCleanAssetPromptSeed(data?.visualPrompt, data?.prompt);
@@ -2716,7 +2717,7 @@ function buildCanvasSceneFinalPrompt(data: any, referenceImageCount: number, pro
   ].filter(Boolean).join('\n');
 }
 
-function buildCanvasPropFinalPrompt(data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
+export function buildCanvasPropFinalPrompt(data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
   const name = String(data?.assetName || data?.name || data?.title || 'prop').trim();
   const description = String(data?.description || '').trim();
   const shortPrompt = firstCleanAssetPromptSeed(data?.visualPrompt, data?.prompt);
@@ -2740,13 +2741,13 @@ function buildCanvasPropFinalPrompt(data: any, referenceImageCount: number, proj
   ].filter(Boolean).join('\n');
 }
 
-function buildCanvasAssetFinalPrompt(kind: WorkflowAssetKind, data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
+export function buildCanvasAssetFinalPrompt(kind: WorkflowAssetKind, data: any, referenceImageCount: number, projectContext: CanvasProjectPromptContext = {}): string {
   if (kind === 'characters') return buildCanvasCharacterFinalPrompt(data, referenceImageCount, projectContext);
   if (kind === 'scenes') return buildCanvasSceneFinalPrompt(data, referenceImageCount, projectContext);
   return buildCanvasPropFinalPrompt(data, referenceImageCount, projectContext);
 }
 
-function looksLikeCanvasAssetFinalPrompt(value: unknown): boolean {
+export function looksLikeCanvasAssetFinalPrompt(value: unknown): boolean {
   const text = typeof value === 'string' ? value : '';
   return (
     text.includes('Project authority:') ||
@@ -2760,13 +2761,13 @@ function looksLikeCanvasAssetFinalPrompt(value: unknown): boolean {
   );
 }
 
-function cleanAssetPromptSeed(value: unknown): string {
+export function cleanAssetPromptSeed(value: unknown): string {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text || looksLikeCanvasAssetFinalPrompt(text)) return '';
   return text;
 }
 
-function firstCleanAssetPromptSeed(...values: unknown[]): string {
+export function firstCleanAssetPromptSeed(...values: unknown[]): string {
   for (const value of values) {
     const text = cleanAssetPromptSeed(value);
     if (text) return text;
@@ -2774,7 +2775,7 @@ function firstCleanAssetPromptSeed(...values: unknown[]): string {
   return '';
 }
 
-function isRawAssetPrompt(data: any, value: unknown): boolean {
+export function isRawAssetPrompt(data: any, value: unknown): boolean {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text || looksLikeCanvasAssetFinalPrompt(text)) return false;
   return [
@@ -2788,11 +2789,11 @@ function isRawAssetPrompt(data: any, value: unknown): boolean {
     .some((candidate) => normalizeCompareText(candidate) === normalizeCompareText(text));
 }
 
-function hasManualCanvasGenerationPrompt(data: any): boolean {
+export function hasManualCanvasGenerationPrompt(data: any): boolean {
   return data?.manualFinalPrompt === true || Object.prototype.hasOwnProperty.call(data ?? {}, 'finalPrompt');
 }
 
-function looksLikeCanvasCharacterFinalPrompt(value: unknown): boolean {
+export function looksLikeCanvasCharacterFinalPrompt(value: unknown): boolean {
   const text = typeof value === 'string' ? value : '';
   return (
     text.includes('Asset kind: characters') ||
@@ -2801,7 +2802,7 @@ function looksLikeCanvasCharacterFinalPrompt(value: unknown): boolean {
   );
 }
 
-function isRawCharacterAssetPrompt(data: any, value: unknown): boolean {
+export function isRawCharacterAssetPrompt(data: any, value: unknown): boolean {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text || looksLikeCanvasCharacterFinalPrompt(text)) return false;
   return [
@@ -2982,7 +2983,7 @@ function compactList(items: string[] | undefined, fallback = '未指定', max = 
   return items.length > max ? `${visible} +${items.length - max}` : visible;
 }
 
-function uniqueClipNames(values: string[]): string[] {
+export function uniqueClipNames(values: string[]): string[] {
   const seen = new Set<string>();
   const output: string[] = [];
   for (const value of values) {
@@ -3128,7 +3129,7 @@ type WorkflowBreakdownRecoveryOptions = {
   assetsFallback: WorkflowAssets;
 };
 
-type CanvasReferenceImage = {
+export type CanvasReferenceImage = {
   url: string;
   label: string;
   kind: 'storyboard' | 'character' | 'scene' | 'prop' | 'image';
@@ -3244,7 +3245,7 @@ function workflowAssetStableId(item: WorkflowAssetItem) {
   return String(item.id || workflowAssetImageAssetId(item) || workflowAssetName(item) || '').trim();
 }
 
-function findWorkflowAssetByName(items: WorkflowAssetItem[], name: string) {
+export function findWorkflowAssetByName(items: WorkflowAssetItem[], name: string) {
   const target = normalizeCompareText(name);
   if (!target) return undefined;
   return items.find((item) => normalizeCompareText(workflowAssetName(item)) === target)
@@ -3305,7 +3306,7 @@ function propAliasCandidates(name: string, description = ''): string[] {
   return Array.from(aliases).filter(Boolean);
 }
 
-function escapeRegExp(value: string): string {
+export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
@@ -3315,7 +3316,7 @@ function propTextHasExplicitOwner(propText: string, characterName: string): bool
   return new RegExp(`\\b${escapedName}\\s*'s\\b|\\bused\\s+by\\s+${escapedName}\\b|\\bcarried\\s+by\\s+${escapedName}\\b|\\bheld\\s+by\\s+${escapedName}\\b|\\bowned\\s+by\\s+${escapedName}\\b`).test(propText);
 }
 
-function extractSignaturePropNames(value: string): string[] {
+export function extractSignaturePropNames(value: string): string[] {
   return value
     .split(/[,;/|]+/)
     .map((item) => item.trim())
@@ -3327,7 +3328,7 @@ function extractSignaturePropNames(value: string): string[] {
     .slice(0, 4);
 }
 
-function mergeBoundPropNames(values: string[]): string[] {
+export function mergeBoundPropNames(values: string[]): string[] {
   const output: string[] = [];
   for (const value of values) {
     const normalized = normalizeCompareText(value);
@@ -3615,7 +3616,7 @@ function findClipStoryboardNode(nodes: Array<{ id: string; type?: string; data?:
   return candidates.find((node) => node.type === 'generation') ?? candidates[0];
 }
 
-function normalizedClipNodeTitle(value: unknown): string {
+export function normalizedClipNodeTitle(value: unknown): string {
   return normalizeCompareText(String(value || ''))
     .replace(/\s*(视频任务|故事板|storyboard|video task|clip-level director board|director board)\s*$/i, '')
     .trim();
@@ -3772,7 +3773,7 @@ function looksLikeStoryboardPrompt(text: string): boolean {
   return /(storyboard|director board|production board|clip-level director|故事板|导演板|分镜)/i.test(text);
 }
 
-function generationRecordImageUrl(record: GenerationRecord): { url: string; assetId?: string; title?: string } | null {
+export function generationRecordImageUrl(record: GenerationRecord): { url: string; assetId?: string; title?: string } | null {
   const asset = record.assets.find((item) => item.url && String(item.type || '').toUpperCase() === 'IMAGE') ?? record.assets.find((item) => item.url);
   const url = publicImageUrl(asset?.url);
   if (!url) return null;
@@ -3796,7 +3797,7 @@ function generationRecordVideoUrl(record: GenerationRecord): { url: string; asse
   return { url, assetId: asset?.id, title: asset?.title };
 }
 
-function canvasOutputImageVariantsFromResult(result: WorkflowAssetImageGenerationResponse): Array<{ url: string; assetId?: string; title?: string; revisedPrompt?: string }> {
+export function canvasOutputImageVariantsFromResult(result: WorkflowAssetImageGenerationResponse): Array<{ url: string; assetId?: string; title?: string; revisedPrompt?: string }> {
   const assets = Array.isArray(result.assets) ? result.assets : [];
   const images = Array.isArray(result.images) && result.images.length > 0
     ? result.images
@@ -3833,13 +3834,13 @@ function canvasOutputImageVariantsEqual(
   });
 }
 
-function generationRecordTime(record: GenerationRecord): number {
+export function generationRecordTime(record: GenerationRecord): number {
   const value = record.completedAt || record.updatedAt || record.createdAt || record.startedAt || record.queuedAt || '';
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function generationRecordStartedAt(record: GenerationRecord): string {
+export function generationRecordStartedAt(record: GenerationRecord): string {
   return record.startedAt || record.createdAt || record.queuedAt || '';
 }
 
@@ -3848,7 +3849,7 @@ function isRecentGenerationRecord(record: GenerationRecord): boolean {
   return time > 0 && Date.now() - time <= CANVAS_GENERATION_STALE_MS;
 }
 
-function generationRecordPromptKey(value: unknown): string {
+export function generationRecordPromptKey(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
@@ -3950,12 +3951,12 @@ function generationRecordObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-function generationRecordInputKind(record: GenerationRecord): string {
+export function generationRecordInputKind(record: GenerationRecord): string {
   const input = generationRecordObject(record.input);
   return typeof input.kind === 'string' ? input.kind : '';
 }
 
-function generationRecordMetadataObjects(record: GenerationRecord): Record<string, unknown>[] {
+export function generationRecordMetadataObjects(record: GenerationRecord): Record<string, unknown>[] {
   const input = generationRecordObject(record.input);
   const inputMetadata = generationRecordObject(input.metadata);
   const assetMetadata = record.assets
@@ -3967,7 +3968,7 @@ function generationRecordMetadataObjects(record: GenerationRecord): Record<strin
   ];
 }
 
-function generationRecordRequestId(record: GenerationRecord): string {
+export function generationRecordRequestId(record: GenerationRecord): string {
   const input = generationRecordObject(record.input);
   const inputMetadata = generationRecordObject(input.metadata);
   const inputRequestId = readObjectString(inputMetadata, 'requestId');
@@ -4044,7 +4045,7 @@ function canvasActiveGenerationRecoveryKeys(nodes: Array<{ id?: string; type?: s
   return { generationIds, requestIds, nodeIds, promptKeys };
 }
 
-function generationRecordNodeId(record: GenerationRecord): string {
+export function generationRecordNodeId(record: GenerationRecord): string {
   for (const metadata of generationRecordMetadataObjects(record)) {
     const nodeId = readObjectString(metadata, 'nodeId');
     if (nodeId) return nodeId;
@@ -4243,7 +4244,7 @@ function generationRecordResolution(record: GenerationRecord): string {
   return typeof inputParameters.resolution === 'string' ? inputParameters.resolution : '';
 }
 
-function findLatestCanvasImageGenerationRecord(
+export function findLatestCanvasImageGenerationRecord(
   records: GenerationRecord[],
   prompt: string,
   options: { notBefore?: string | number; requestId?: string; generationId?: string } = {},
@@ -4325,7 +4326,7 @@ function findLatestCanvasVideoGenerationRecordForNode(
     }) ?? null;
 }
 
-function recoverCanvasImageFromGenerationRecords(
+export function recoverCanvasImageFromGenerationRecords(
   records: GenerationRecord[],
   prompt: string,
   options: { notBefore?: string | number; requestId?: string; generationId?: string } = {},
@@ -4418,7 +4419,7 @@ function isStoryboardAssetReferenceForVideo(ref: ClipStoryboardImageReference, v
   return Boolean(ref.prompt && videoTitle && scoreClipStoryboardMatch(ref.prompt, { id: String(videoData.clipId || ''), title: String(videoData.title || '') } as Clip) >= 55);
 }
 
-function isStoryboardReferenceNodeForVideo(source: { type?: string; data?: any }, video: { data?: any }): boolean {
+export function isStoryboardReferenceNodeForVideo(source: { type?: string; data?: any }, video: { data?: any }): boolean {
   const sourceData = source.data ?? {};
   const videoData = video.data ?? {};
   if (source.type !== 'generation' && source.type !== 'imageInput') return false;
@@ -4432,7 +4433,7 @@ function isStoryboardReferenceNodeForVideo(source: { type?: string; data?: any }
   return Boolean(sourceTitle && videoTitle && sourceTitle.length > 6 && videoTitle.length > 6 && (sourceTitle.includes(videoTitle) || videoTitle.includes(sourceTitle)));
 }
 
-function isStoryboardSlotNodeForVideo(source: { type?: string; data?: any; parentId?: string }, video: { data?: any; parentId?: string }): boolean {
+export function isStoryboardSlotNodeForVideo(source: { type?: string; data?: any; parentId?: string }, video: { data?: any; parentId?: string }): boolean {
   const sourceData = source.data ?? {};
   const videoData = video.data ?? {};
   if (source.type !== 'imageInput') return false;
@@ -4458,14 +4459,14 @@ function isBlockedStoryboardSource(source: { type?: string; data?: any }, blocke
   return Boolean(url && blockedStoryboardUrls.has(url));
 }
 
-function canvasNodeReferenceUrl(node: { type?: string; data?: any }): string {
+export function canvasNodeReferenceUrl(node: { type?: string; data?: any }): string {
   if (node.type === 'imageInput') return publicImageUrl(node.data?.imageUrl);
   if (node.type === 'character') return publicImageUrl(node.data?.avatar);
   if (node.type === 'generation') return publicImageUrl(node.data?.outputImage);
   return '';
 }
 
-function canvasNodePromptText(node: { type?: string; data?: any } | undefined): string {
+export function canvasNodePromptText(node: { type?: string; data?: any } | undefined): string {
   const data = node?.data ?? {};
   if (node?.type === 'video') return String(data.seedancePrompt || data.videoPrompt || data.prompt || '').trim();
   if (node?.type === 'generation') return String(data.finalPrompt || data.prompt || data.submittedPrompt || data.visualPrompt || '').trim();
@@ -4478,7 +4479,7 @@ function canvasNodePromptText(node: { type?: string; data?: any } | undefined): 
   return String(data.finalPrompt || data.seedancePrompt || data.videoPrompt || data.prompt || data.sourcePrompt || data.description || '').trim();
 }
 
-function canvasNodePromptLabel(node: { type?: string; data?: any } | undefined): string {
+export function canvasNodePromptLabel(node: { type?: string; data?: any } | undefined): string {
   const data = node?.data ?? {};
   if (node?.type === 'video') return String(data.title || '视频节点');
   if (node?.type === 'generation') return String(data.title || data.assetName || '图片生成节点');
@@ -4491,7 +4492,7 @@ function canvasNodePromptLabel(node: { type?: string; data?: any } | undefined):
   return String(data.title || data.label || '上游节点');
 }
 
-function translatedPromptPatchForNode(node: { type?: string; data?: any } | undefined, prompt: string): Record<string, unknown> {
+export function translatedPromptPatchForNode(node: { type?: string; data?: any } | undefined, prompt: string): Record<string, unknown> {
   if (!node) return {};
   if (node.type === 'video') return { prompt, seedancePrompt: prompt, videoPrompt: prompt };
   if (node.type === 'generation') return { prompt, finalPrompt: prompt, manualFinalPrompt: true };
@@ -4503,7 +4504,7 @@ function translatedPromptPatchForNode(node: { type?: string; data?: any } | unde
   return { prompt };
 }
 
-function videoReferenceSourcePriority(source: { type?: string; data?: any }, video: { data?: any }): number {
+export function videoReferenceSourcePriority(source: { type?: string; data?: any }, video: { data?: any }): number {
   if (isStoryboardSlotNodeForVideo(source, video)) return 0;
   if (isStoryboardReferenceNodeForVideo(source, video)) return 5;
   const kind = normalizeWorkflowAssetKind(source.data?.assetKind);
@@ -4514,7 +4515,7 @@ function videoReferenceSourcePriority(source: { type?: string; data?: any }, vid
   return 4;
 }
 
-function videoReferenceLabel(source: { type?: string; data?: any }, video: { data?: any }): string {
+export function videoReferenceLabel(source: { type?: string; data?: any }, video: { data?: any }): string {
   if (isStoryboardReferenceNodeForVideo(source, video)) return String(source.data?.title || source.data?.label || '已生成故事板');
   if (source.type === 'imageInput') return String(source.data?.label || '参考图');
   if (source.type === 'character') return String(source.data?.name || '角色');
@@ -4560,7 +4561,7 @@ function computeVideoNodeReferencePatch(
   };
 }
 
-function generationReferenceSourcePriority(source: { type?: string; data?: any } | undefined): number {
+export function generationReferenceSourcePriority(source: { type?: string; data?: any } | undefined): number {
   if (!source) return 9;
   if (source.type === 'imageInput' && source.data?.clipNodeKind === 'storyboard-reference') return 0;
   if (source.type === 'generation' && (source.data?.clipNodeKind === 'storyboard' || source.data?.storyboardForClip === true)) return 1;
@@ -4571,7 +4572,7 @@ function generationReferenceSourcePriority(source: { type?: string; data?: any }
   return 4;
 }
 
-function canvasReferenceImageKind(source: { type?: string; data?: any } | undefined): CanvasReferenceImage['kind'] {
+export function canvasReferenceImageKind(source: { type?: string; data?: any } | undefined): CanvasReferenceImage['kind'] {
   if (source?.type === 'imageInput' && source.data?.clipNodeKind === 'storyboard-reference') return 'storyboard';
   if (source?.type === 'generation' && (source.data?.clipNodeKind === 'storyboard' || source.data?.storyboardForClip === true)) return 'storyboard';
   const assetKind = normalizeWorkflowAssetKind(source?.data?.assetKind);
@@ -4581,7 +4582,7 @@ function canvasReferenceImageKind(source: { type?: string; data?: any } | undefi
   return 'image';
 }
 
-function shouldSkipCanvasGenerationReference(source: { id?: string; type?: string; data?: any } | undefined, target: { id?: string; data?: any } | undefined): boolean {
+export function shouldSkipCanvasGenerationReference(source: { id?: string; type?: string; data?: any } | undefined, target: { id?: string; data?: any } | undefined): boolean {
   if (!source || !target) return false;
   const targetClipId = normalizeClipId(String(target.data?.clipId || target.data?.sourceClipId || target.data?.targetClipId || target.id || ''));
   if (!targetClipId) return false;
@@ -4592,11 +4593,11 @@ function shouldSkipCanvasGenerationReference(source: { id?: string; type?: strin
   return Boolean(sourceClipId && sourceClipId === targetClipId);
 }
 
-function canvasReferenceDedupKey(ref: Pick<CanvasReferenceImage, 'url' | 'kind'>) {
+export function canvasReferenceDedupKey(ref: Pick<CanvasReferenceImage, 'url' | 'kind'>) {
   return `${ref.kind}:${publicImageUrl(ref.url) || ref.url}`;
 }
 
-function canvasReferenceImageBadgeLabel(ref: CanvasReferenceImage, index: number): string {
+export function canvasReferenceImageBadgeLabel(ref: CanvasReferenceImage, index: number): string {
   if (ref.kind === 'storyboard') return '上';
   return String(index + 1);
 }
@@ -4608,7 +4609,7 @@ function cleanReferenceLabelName(value: unknown) {
     .trim();
 }
 
-function canvasReferenceDisplayName(ref: Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>) {
+export function canvasReferenceDisplayName(ref: Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>) {
   return cleanReferenceLabelName(ref.name) || cleanReferenceLabelName(ref.label) || (
     ref.kind === 'character'
       ? 'unnamed character'
@@ -4618,7 +4619,7 @@ function canvasReferenceDisplayName(ref: Pick<CanvasReferenceImage, 'name' | 'la
   );
 }
 
-function formatReferenceMapLine(index: number, ref: Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>) {
+export function formatReferenceMapLine(index: number, ref: Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>) {
   const referenceNumber = index + 1;
   const displayName = canvasReferenceDisplayName(ref);
   if (ref.kind === 'storyboard') {
@@ -4636,7 +4637,7 @@ function formatReferenceMapLine(index: number, ref: Pick<CanvasReferenceImage, '
   return `#${referenceNumber}: ${displayName}.`;
 }
 
-function buildReferenceImageMapPrompt(referenceImages: Array<Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>>) {
+export function buildReferenceImageMapPrompt(referenceImages: Array<Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>>) {
   if (!referenceImages.length) return '';
   const characterBindings = referenceImages
     .map((ref, index) => ref.kind === 'character' ? `${canvasReferenceDisplayName(ref)}=Reference image #${index + 1}` : '')
@@ -4648,14 +4649,14 @@ function buildReferenceImageMapPrompt(referenceImages: Array<Pick<CanvasReferenc
   ].filter(Boolean).join('\n');
 }
 
-function stripReferenceImageMapPrompt(prompt: unknown) {
+export function stripReferenceImageMapPrompt(prompt: unknown) {
   return String(prompt || '')
     .replace(/(?:^|\n|^)Reference image map:\s+[\s\S]*?(?=(?:\n\n|\n)?(?:Storyboard layout|Comic panels in reading order|Create|Required|Use the linked previous storyboard image|Clip title|This storyboard|Each panel|First infer|Setting|Characters present|Plot goal|Start state|End state|Shots to cover|Panel\s+\d+)\b|$)/i, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
-function appendReferenceImageMapPrompt(prompt: unknown, referenceImages: Array<Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>>) {
+export function appendReferenceImageMapPrompt(prompt: unknown, referenceImages: Array<Pick<CanvasReferenceImage, 'name' | 'label' | 'kind'>>) {
   const mapPrompt = buildReferenceImageMapPrompt(referenceImages);
   const cleanedPrompt = stripReferenceImageMapPrompt(prompt);
   return [mapPrompt, cleanedPrompt].filter(Boolean).join('\n\n');
@@ -5371,7 +5372,7 @@ function collectClipVideoReferences(
   return refs;
 }
 
-type CharacterAudioReference = {
+export type CharacterAudioReference = {
   name: string;
   url?: string;
   assetId?: string;
@@ -5379,7 +5380,7 @@ type CharacterAudioReference = {
   source: 'workflow-asset' | 'canvas-node';
 };
 
-function workflowAssetAudioUrl(item: WorkflowAssetItem): string {
+export function workflowAssetAudioUrl(item: WorkflowAssetItem): string {
   return publicAudioUrl(item.referenceAudioUrl);
 }
 
@@ -5491,7 +5492,7 @@ function collectCharacterAudioReferencesFromWorkflow(
   return refs;
 }
 
-function canvasNodeAudioReferenceUrl(node: { type?: string; data?: any } | undefined): string {
+export function canvasNodeAudioReferenceUrl(node: { type?: string; data?: any } | undefined): string {
   if (!node) return '';
   const data = node.data ?? {};
   if (node.type === 'audio' || data.workflowKind === 'audio' || data.kind === 'audio' || data.assetKind === 'audio') {
@@ -5547,7 +5548,7 @@ function characterAudioReferenceMetadata(refs: CharacterAudioReference[]) {
   };
 }
 
-function characterAudioReferencesFromNodeData(data: any): CharacterAudioReference[] {
+export function characterAudioReferencesFromNodeData(data: any): CharacterAudioReference[] {
   const rawRefs = Array.isArray(data?.characterAudioReferences) ? data.characterAudioReferences : [];
   const refs = rawRefs
     .filter((item: any) => item && typeof item === 'object')
@@ -5572,7 +5573,7 @@ function characterAudioReferencesFromNodeData(data: any): CharacterAudioReferenc
   return refs;
 }
 
-function mergeVideoAudioReferencesWithIncoming(
+export function mergeVideoAudioReferencesWithIncoming(
   baseRefs: CharacterAudioReference[],
   videoNodeId: string,
   nodes: Array<{ id: string; type?: string; data?: any }>,
@@ -5619,7 +5620,7 @@ function normalizePromptTextForParsing(value: unknown) {
     .join('\n');
 }
 
-function prepareCanvasPromptForImageModel(value: unknown) {
+export function prepareCanvasPromptForImageModel(value: unknown) {
   const prompt = String(value ?? '').trim();
   if (!prompt) return prompt;
   if (!/(storyboard|director board|production board|分镜|故事板|导演板|technical label strip|Technical labels under each panel)/i.test(prompt)) {
@@ -5632,20 +5633,20 @@ function isClipStoryboardImagePrompt(prompt: string) {
   return /clip-level director storyboard image|director storyboard image with \d+ clear panels|Panel\s*1\s*:/i.test(prompt);
 }
 
-function canvasPromptTooLongError(kind: 'image' | 'video', length: number) {
+export function canvasPromptTooLongError(kind: 'image' | 'video', length: number) {
   const label = kind === 'video' ? '视频提示词' : '生图提示词';
   return `${label}超过接口上限 ${CANVAS_PROMPT_API_MAX_CHARS} 字符（当前 ${length}）。已拒绝提交，未压缩提示词。请手动拆分或删减后再生成。`;
 }
 
-function isCanvasPromptWithinApiLimit(value: string) {
+export function isCanvasPromptWithinApiLimit(value: string) {
   return value.length <= CANVAS_PROMPT_API_MAX_CHARS;
 }
 
-function dreaminaWebVideoPromptTooLongError(length: number) {
+export function dreaminaWebVideoPromptTooLongError(length: number) {
   return `Dreamina Web 视频提示词超过 4000 字符（当前 ${length}）。Dreamina 页面会禁用生成按钮，已拒绝提交，未压缩提示词。请手动删减或重新推理更短的视频提示词后再生成。`;
 }
 
-function isDreaminaWebVideoPromptWithinLimit(value: string) {
+export function isDreaminaWebVideoPromptWithinLimit(value: string) {
   return value.length <= DREAMINA_WEB_VIDEO_PROMPT_MAX_CHARS;
 }
 
@@ -6032,3927 +6033,6 @@ function enforceClipStoryboardContinuityPrompt(
   return [header, prompt].filter(Boolean).join('\n\n');
 }
 
-// Custom Scene Node
-const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-
-  const referenceImages = useMemo(() => {
-    const incomingEdges = edges.filter((e) => e.target === id);
-    const refs: { url: string; label: string }[] = [];
-    for (const edge of incomingEdges) {
-      const source = nodes.find((n) => n.id === edge.source);
-      const imageInputUrl = source?.type === 'imageInput' ? publicImageUrl(source.data?.imageUrl) : '';
-      const characterUrl = source?.type === 'character' ? publicImageUrl(source.data?.avatar) : '';
-      if (imageInputUrl) {
-        refs.push({ url: imageInputUrl, label: String(source?.data.label || '参考图') });
-      } else if (characterUrl) {
-        refs.push({ url: characterUrl, label: String(source?.data.name || '角色') });
-      }
-    }
-    return refs;
-  }, [edges, nodes, id]);
-
-  const handleGenerate = () => {
-    updateNodeData(id, { status: 'generating' });
-    setTimeout(() => {
-      updateNodeData(id, {
-        status: 'completed',
-        image: 'https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?w=600&q=80',
-      });
-    }, 2000);
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={240} minHeight={210} />
-      <div className="h-full w-full min-w-[240px] overflow-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
-      <div className="bg-zinc-800/50 px-3 py-2 text-xs font-medium text-zinc-300 flex justify-between items-center cursor-grab active:cursor-grabbing">
-        <div className="flex items-center gap-1.5">
-          <ImagePlay className="h-3.5 w-3.5 text-indigo-400" />
-          {data.title || "分镜"}
-        </div>
-        {referenceImages.length > 0 && (
-          <span className="text-[10px] text-sky-400">{referenceImages.length} 参考</span>
-        )}
-      </div>
-
-      {referenceImages.length > 0 && (
-        <div className="flex gap-1 px-3 pt-2 overflow-x-auto">
-          {referenceImages.map((ref, i) => (
-            <div key={i} className="relative shrink-0">
-              <img
-                src={ref.url}
-                alt={ref.label}
-                className="h-10 w-10 cursor-zoom-in rounded border border-zinc-700 object-cover"
-                onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
-                onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
-              />
-              <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[9px] font-bold text-white">
-                {i + 1}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="p-3 pb-0">
-        <div className="aspect-video bg-zinc-900 rounded border border-zinc-800 flex items-center justify-center overflow-hidden mb-3 relative group">
-          {data.status === 'completed' && data.image ? (
-            <img
-              src={data.image}
-              alt="Scene"
-              className="h-full w-full cursor-zoom-in object-cover"
-              onClick={(event) => previewCanvasImage(event, { url: data.image, title: data.title || '分镜图', subtitle: data.description || undefined })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.image, title: data.title || '分镜图', subtitle: data.description || undefined })}
-            />
-          ) : data.status === 'generating' ? (
-            <div className="flex flex-col items-center justify-center gap-2">
-              <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 w-[45%] animate-pulse" />
-              </div>
-              <span className="text-xs text-zinc-500 font-mono">生成中...</span>
-            </div>
-          ) : (
-            <ImageIcon className="h-6 w-6 text-zinc-700" />
-          )}
-        </div>
-
-        <p className="text-xs text-zinc-400 line-clamp-2 min-h-[32px] mb-3">
-          {data.description || "点击输入分镜描述..."}
-        </p>
-      </div>
-
-      <div className="px-3 py-2 border-t border-zinc-800 flex items-center justify-between bg-zinc-900/50">
-        <div className="flex items-center gap-1.5">
-          {data.status === 'completed' ? (
-            <span className="flex h-2 w-2 rounded-full bg-green-500" />
-          ) : data.status === 'generating' ? (
-            <span className="flex h-2 w-2 rounded-full bg-yellow-500" />
-          ) : (
-            <span className="flex h-2 w-2 rounded-full bg-zinc-600" />
-          )}
-          <span className="text-[10px] text-zinc-500">
-            {data.status === 'completed' ? '已完成' : data.status === 'generating' ? '生成中' : '等待生成'}
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 text-[10px] px-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
-          onClick={handleGenerate}
-        >
-          {data.status === 'completed' ? '重新生成' : '生成'}
-        </Button>
-      </div>
-
-        <CanvasHandle type="target" position={Position.Left} />
-        <CanvasHandle type="source" position={Position.Right} />
-      </div>
-    </>
-  );
-};
-
-// Character Node
-const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const { id: projectId } = useParams();
-  const currentProject = useProjectStore((s) => s.projects.find((project) => project.id === projectId));
-  const sourceEpisode = typeof data.sourceEpisode === 'string' ? data.sourceEpisode : '';
-  const sourceEpisodeId = canvasNodeEpisodeId(data);
-  const projectPromptContext = useMemo(
-    () => currentProject ? compactProjectPromptContext(currentProject) : (data.projectPromptContext || {}),
-    [currentProject, data.projectPromptContext],
-  );
-  const [imageModels, setImageModels] = useState<ModelConfig[]>([]);
-
-  const referenceImages = useMemo(() => {
-    const incomingEdges = edges.filter((e) => e.target === id);
-    const refs: { url: string; label: string }[] = [];
-    for (const edge of incomingEdges) {
-      const source = nodes.find((n) => n.id === edge.source);
-      const imageInputUrl = source?.type === 'imageInput' ? publicImageUrl(source.data?.imageUrl) : '';
-      if (imageInputUrl) {
-        refs.push({ url: imageInputUrl, label: (source?.data.label as string) || '参考图' });
-      }
-    }
-    return refs;
-  }, [edges, nodes, id]);
-
-  const autoFinalPrompt = useMemo(() => buildCanvasCharacterFinalPrompt(data, referenceImages.length, projectPromptContext), [data, referenceImages.length, projectPromptContext]);
-  const rawFinalPrompt = typeof data.finalPrompt === 'string' ? data.finalPrompt : '';
-  const finalPrompt =
-    rawFinalPrompt &&
-    !isRawCharacterAssetPrompt(data, rawFinalPrompt) &&
-    finalPromptSatisfiesProjectIdentity(rawFinalPrompt, projectPromptContext, data)
-      ? rawFinalPrompt
-      : autoFinalPrompt;
-  const assetName = String(data.assetName || data.name || 'character');
-  const selectedRatio = normalizeCanvasImageSize(data.ratio);
-  const selectedResolution = normalizeImageResolution(data.resolution);
-  const selectedQuality = String(data.quality || 'high');
-  const generatedImageAspectRatio = positiveNumber(data.generatedImageAspectRatio) ?? ratioToNumber(selectedRatio);
-  const generationStalled = data.genStatus === 'generating' && isCanvasGenerationStale(data.generationStartedAt);
-  const generationInFlightRef = useRef(false);
-  const generationAbortRef = useRef<AbortController | null>(null);
-  const generationRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setImageModels(result.models.filter(isWorkflowImageModel));
-      })
-      .catch(() => {
-        if (!cancelled) setImageModels([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => () => {
-    generationAbortRef.current?.abort();
-  }, []);
-
-  const handleGenerate = async () => {
-    if (data.genStatus === 'generating' && !generationStalled) {
-      updateNodeData(id, {
-        genError: `${canvasGenerationWaitLabel(data.generationStartedAt)}。Airelayzone 多参考图/2K 可能需要 3-4 分钟。`,
-      });
-      return;
-    }
-    if (generationInFlightRef.current) {
-      updateNodeData(id, {
-        genStatus: 'generating',
-        genError: '上一条生成请求仍在提交中，请等待返回；如需放弃请点停止。',
-        generationStartedAt: data.generationStartedAt || canvasGenerationStartedAt(),
-      });
-      return;
-    }
-    const requestId = generationRequestIdRef.current + 1;
-    generationRequestIdRef.current = requestId;
-    const abortController = new AbortController();
-    generationAbortRef.current = abortController;
-    generationInFlightRef.current = true;
-    updateNodeData(id, {
-      genStatus: 'generating',
-      genError: '已提交上游，等待返回...',
-      generationStartedAt: canvasGenerationStartedAt(),
-      finalPrompt,
-      ratio: selectedRatio,
-      resolution: selectedResolution,
-      quality: selectedQuality,
-      format: 'png',
-    });
-    try {
-      if (!isCanvasPromptWithinApiLimit(finalPrompt)) {
-        throw new Error(canvasPromptTooLongError('image', finalPrompt.length));
-      }
-      const result = await apiClient.generateWorkflowAssetImage(projectId || 'local', {
-        episodeId: sourceEpisodeId || undefined,
-        assetKind: 'characters',
-        assetName,
-        prompt: finalPrompt,
-        usePromptAsFinal: true,
-        referenceImageUrls: referenceImages.map((r) => r.url),
-        aiModelId: data.modelId || undefined,
-        size: selectedRatio,
-        parameters: { n: Number(data.count) || 1, resolution: selectedResolution, quality: selectedQuality, format: 'png' },
-      }, { signal: abortController.signal });
-      if (generationRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      const generatedImageAssetId = readObjectString(result.asset, 'id');
-      if (result.image?.url) {
-        updateNodeData(id, {
-          genStatus: 'completed',
-          generatedImage: result.image.url,
-          generatedImageAssetId: generatedImageAssetId || data.generatedImageAssetId || '',
-          finalPrompt: result.prompt || finalPrompt,
-          assetKind: 'characters',
-          assetName,
-          quality: selectedQuality,
-          format: 'png',
-          generationStartedAt: '',
-        });
-        syncWorkflowAssetsFromCanvas(result.workflow);
-      } else {
-        throw new Error('no image');
-      }
-    } catch (err: any) {
-      if (generationRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        genStatus: 'failed',
-        genError: err?.message || '生成失败，请检查模型配置',
-        generationStartedAt: '',
-      });
-    } finally {
-      if (generationRequestIdRef.current === requestId) {
-        generationInFlightRef.current = false;
-        generationAbortRef.current = null;
-      }
-    }
-  };
-
-  const handleStopGeneration = () => {
-    generationRequestIdRef.current += 1;
-    generationAbortRef.current?.abort();
-    generationAbortRef.current = null;
-    generationInFlightRef.current = false;
-    updateNodeData(id, {
-      genStatus: 'failed',
-      genError: '已停止本地等待，可重新生成。若上游已开始处理，原请求可能仍会消耗一次额度。',
-      generationStartedAt: '',
-    });
-  };
-
-  useEffect(() => {
-    if (data.genStatus !== 'generating') return;
-    const age = canvasGenerationAgeMs(data.generationStartedAt);
-    if (age === null || age > CANVAS_GENERATION_STALE_MS) {
-      updateNodeData(id, {
-        genStatus: 'failed',
-        genError: '上次生成请求已中断，可重新生成。',
-        generationStartedAt: '',
-      });
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      updateNodeData(id, {
-        genStatus: 'failed',
-        genError: '生成等待超过 15 分钟，已停止。可重新生成。',
-        generationStartedAt: '',
-      });
-    }, CANVAS_GENERATION_STALE_MS - age);
-    return () => window.clearTimeout(timer);
-  }, [data.genStatus, data.generationStartedAt, id, updateNodeData]);
-
-  const handleSetAsAvatar = async () => {
-    const imageUrl = String(data.generatedImage || '');
-    if (!imageUrl) return;
-    const assetId = String(data.generatedImageAssetId || '');
-    updateNodeData(id, { avatar: imageUrl, avatarStatus: assetId ? 'saving' : 'local', avatarError: '' });
-    if (!projectId || projectId === 'local' || !assetId) {
-      updateNodeData(id, { avatarStatus: 'local' });
-      return;
-    }
-    try {
-      const result = await apiClient.selectWorkflowAssetImage(projectId, {
-        episodeId: sourceEpisodeId || undefined,
-        assetKind: 'characters',
-        assetName,
-        assetId,
-      });
-      syncWorkflowAssetsFromCanvas(result.workflow);
-      updateNodeData(id, { avatar: imageUrl, avatarStatus: 'saved', avatarError: '' });
-    } catch (err: any) {
-      updateNodeData(id, { avatarStatus: 'failed', avatarError: err?.message || '设为当前图失败' });
-    }
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={320} minHeight={320} />
-      <div className="scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
-      <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
-        <div className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden shrink-0">
-          {data.avatar ? (
-            <img
-              src={data.avatar}
-              alt="Character"
-              className="h-full w-full cursor-zoom-in object-cover"
-              onClick={(event) => previewCanvasImage(event, { url: data.avatar, title: data.name || '角色图', subtitle: '头像预览' })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.avatar, title: data.name || '角色图', subtitle: '头像预览' })}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-zinc-600">&#128100;</div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-zinc-100">{data.name}</div>
-          <div className="text-[11px] text-zinc-500 line-clamp-2">{data.traits}</div>
-        </div>
-      </div>
-
-      {referenceImages.length > 0 && (
-        <div className="border-t border-zinc-800 px-3 py-2 flex items-center gap-1.5">
-          <span className="text-[10px] text-sky-400 shrink-0">{referenceImages.length} 参考</span>
-          <div className="flex gap-1 overflow-x-auto">
-            {referenceImages.map((ref, i) => (
-              <div key={i} className="relative shrink-0">
-                <img
-                  src={ref.url}
-                  alt={ref.label}
-                  className="h-8 w-8 cursor-zoom-in rounded border border-zinc-700 object-cover"
-                  onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
-                  onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
-                />
-                <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sky-500 text-[8px] font-bold text-white">
-                  {i + 1}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="border-t border-zinc-800 px-3 py-2">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="text-[10px] font-medium text-zinc-400">最终生图提示词</span>
-          <button
-            type="button"
-            className="text-[10px] text-zinc-500 hover:text-zinc-300"
-            onClick={(e) => {
-              e.stopPropagation();
-              updateNodeData(id, { finalPrompt: '' });
-            }}
-          >
-            重置
-          </button>
-        </div>
-        <textarea
-          className="w-full resize-y rounded border border-zinc-700 bg-[#09090b] px-2.5 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none min-h-[80px]"
-          rows={8}
-          placeholder="输入最终发送给图片模型的提示词..."
-          value={finalPrompt}
-          onChange={(e) => updateNodeData(id, { finalPrompt: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        />
-      </div>
-
-      <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[10px]">
-        <select
-          className="h-7 min-w-0 flex-1 truncate rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-          value={data.modelId || ''}
-          onChange={(e) => updateNodeData(id, { modelId: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <option value="">默认模型</option>
-          {data.modelId && !imageModels.some((model) => model.id === data.modelId) ? (
-            <option value={data.modelId}>当前模型不可用</option>
-          ) : null}
-          {imageModels.map((model) => (
-            <option key={model.id} value={model.id}>
-              {modelOptionLabel(model)}
-            </option>
-          ))}
-        </select>
-        <select
-          className="h-7 w-[66px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-          value={selectedRatio}
-          onChange={(e) => updateNodeData(id, { ratio: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {CANVAS_IMAGE_RATIO_OPTIONS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
-        </select>
-        <select
-          className="h-7 w-[52px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-          value={selectedResolution}
-          onChange={(e) => updateNodeData(id, { resolution: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <option value="1k">1K</option>
-          <option value="2k">2K</option>
-          <option value="4k">4K</option>
-        </select>
-        <select
-          className="h-7 w-[60px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-          value={selectedQuality}
-          onChange={(e) => updateNodeData(id, { quality: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <select
-          className="h-7 w-[52px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-          value={data.count || '1'}
-          onChange={(e) => updateNodeData(id, { count: e.target.value })}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <option value="1">1 张</option>
-          <option value="2">2 张</option>
-          <option value="4">4 张</option>
-        </select>
-      </div>
-
-      <div className="border-t border-zinc-800 px-3 py-2">
-        <Button
-          size="sm"
-          className="w-full h-8 text-[12px] bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5"
-          onClick={handleGenerate}
-          disabled={data.genStatus === 'generating' && !generationStalled}
-        >
-          <Wand2 className="h-3.5 w-3.5" />
-          {data.genStatus === 'generating' && !generationStalled ? '生成中...' : data.genStatus === 'completed' || generationStalled ? '重新生成' : '生成'}
-        </Button>
-      </div>
-
-      {data.genStatus === 'generating' && !generationStalled && (
-        <div className="px-3 pb-3">
-          <div className="aspect-square rounded border border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
-            <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 animate-pulse w-[60%]" />
-            </div>
-            <span className="px-3 text-center text-[11px] text-zinc-500">
-              {canvasGenerationWaitLabel(data.generationStartedAt)}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6 text-[10px] text-zinc-400 hover:text-zinc-100"
-              onClick={handleStopGeneration}
-            >
-              停止
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {data.genStatus === 'completed' && data.generatedImage && (
-        <div className="px-3 pb-3">
-          <div className="relative group overflow-hidden rounded border border-zinc-700 bg-zinc-950">
-            <img
-              src={data.generatedImage}
-              alt="Generated"
-              className="w-full cursor-zoom-in object-contain"
-              style={{ aspectRatio: String(generatedImageAspectRatio) }}
-              onClick={(event) => previewCanvasImage(event, { url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' })}
-              onLoad={(event) => {
-                const img = event.currentTarget;
-                const ratio = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null;
-                if (ratio && Math.abs(ratio - generatedImageAspectRatio) > 0.01) {
-                  updateNodeData(id, { generatedImageAspectRatio: ratio });
-                }
-              }}
-            />
-            <div
-              className="absolute inset-0 hidden cursor-zoom-in items-center justify-center gap-2 bg-black/60 group-hover:flex"
-              onClick={(event) => previewCanvasImage(event, { url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' })}
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-[10px] bg-zinc-800/80 hover:bg-zinc-700"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void downloadCanvasImagePreview({ url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' });
-                }}
-              >
-                <Download className="h-3 w-3 mr-1" /> 保存
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-[10px] bg-zinc-800/80 hover:bg-zinc-700"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleSetAsAvatar();
-                }}
-              >
-                {data.avatarStatus === 'saving' ? '写入中...' : '设为当前图'}
-              </Button>
-            </div>
-          </div>
-          {data.avatarError ? <div className="mt-1 text-[10px] text-red-400">{data.avatarError}</div> : null}
-        </div>
-      )}
-
-      {data.genStatus === 'failed' && (
-        <div className="px-3 pb-2 text-[10px] text-red-400">{data.genError || '生成失败，请重试'}</div>
-      )}
-
-      {generationStalled && (
-        <div className="px-3 pb-2 text-[10px] text-amber-400">上次生成状态已中断，可点击重新生成。</div>
-      )}
-
-        <CanvasHandle type="target" position={Position.Left} />
-        <CanvasHandle type="source" position={Position.Right} />
-      </div>
-    </>
-  );
-};
-
-const WorkflowNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const isStoryboardGeneration = data.clipNodeKind === 'storyboard' || data.storyboardForClip === true;
-  if (!isStoryboardGeneration && (data.workflowKind === 'video' || data.seedancePrompt || data.videoPrompt)) {
-    return <VideoNode id={id} data={data} selected={selected} />;
-  }
-
-  const iconMap: Record<string, React.ReactNode> = {
-    episode: <Layers3 className="h-4 w-4 text-sky-300" />,
-    asset: <Boxes className="h-4 w-4 text-emerald-300" />,
-    workflow: <ListChecks className="h-4 w-4 text-indigo-300" />,
-    directorBoard: <Clapperboard className="h-4 w-4 text-amber-300" />,
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={240} minHeight={120} />
-      <div className="h-full w-full min-w-[240px] rounded-lg border border-zinc-700 bg-[#141416] p-3 shadow-xl transition-colors hover:border-zinc-500">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            {iconMap[String(data.kind ?? 'workflow')] ?? iconMap.workflow}
-            <div className="truncate text-[13px] font-semibold text-zinc-100">{data.title ?? '流程节点'}</div>
-          </div>
-          <Badge className="border border-zinc-700 bg-zinc-900 text-[10px] text-zinc-400 hover:bg-zinc-900">
-            {data.statusLabel ?? '待处理'}
-          </Badge>
-        </div>
-        <p className="min-h-[40px] text-[12px] leading-5 text-zinc-400">{data.description ?? '等待接入生产任务'}</p>
-        <div className="mt-3 flex items-center gap-2 border-t border-zinc-800 pt-2 text-[11px] text-zinc-500">
-          <Sparkles className="h-3.5 w-3.5" />
-          <span className="truncate">{data.scope ?? '当前项目'}</span>
-        </div>
-        <CanvasHandle type="target" position={Position.Left} />
-        <CanvasHandle type="source" position={Position.Right} />
-      </div>
-    </>
-  );
-};
-
-const SectionNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const tone = canvasSectionToneClasses(data.tone);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const itemCount = nodes.filter((node) => node.parentId === id).length || positiveNumber(data.itemCount);
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={320} minHeight={180} />
-      <div className={cn(
-        "h-full w-full overflow-hidden rounded-lg border border-dashed shadow-[0_0_0_1px_rgba(0,0,0,0.24)] transition-colors",
-        tone.border,
-        tone.background,
-        selected && "border-solid",
-      )}>
-        <div className={cn("flex h-[42px] items-center gap-2 border-b px-3", tone.header)}>
-          <Layers3 className={cn("h-3.5 w-3.5 shrink-0", tone.icon)} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[12px] font-semibold text-zinc-100">{data.title || '画布分区'}</div>
-            {data.description ? (
-              <div className="truncate text-[10px] text-zinc-500">{data.description}</div>
-            ) : null}
-          </div>
-          {itemCount ? (
-            <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px]", tone.badge)}>
-              {itemCount} 节点
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </>
-  );
-};
-
-const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const { id: projectId } = useParams();
-  const [textModels, setTextModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
-  const translationAbortRef = useRef<AbortController | null>(null);
-  const translationRequestIdRef = useRef(0);
-  const incomingSource = useMemo(() => {
-    const edge = edges.find((item) => item.target === id);
-    return edge ? nodes.find((node) => node.id === edge.source) : undefined;
-  }, [edges, id, nodes]);
-  const outgoingTargets = useMemo(() => (
-    edges
-      .filter((item) => item.source === id)
-      .map((edge) => nodes.find((node) => node.id === edge.target))
-      .filter((node): node is NonNullable<typeof node> => Boolean(node))
-  ), [edges, id, nodes]);
-  const incomingPrompt = useMemo(() => canvasNodePromptText(incomingSource), [incomingSource]);
-  const translatedPrompt = String(data.translatedPrompt || '').trim();
-  const targetLanguage = data.targetLanguage === 'Chinese' ? 'Chinese' : 'English';
-  const sourceLanguage = data.sourceLanguage === 'Chinese' || data.sourceLanguage === 'English' ? data.sourceLanguage : 'auto';
-  const status = String(data.status || 'waiting');
-  const isTranslating = status === 'translating';
-  const translationAge = canvasGenerationAgeMs(data.translationStartedAt);
-  const translationStalled = isTranslating && (translationAge === null || translationAge > CANVAS_TRANSLATION_STALE_MS);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setTextModels(result.models.filter(isWorkflowTextModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTextModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!incomingPrompt || data.sourcePrompt) return;
-    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
-  }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
-
-  useEffect(() => () => {
-    translationAbortRef.current?.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!isTranslating) return;
-    const age = canvasGenerationAgeMs(data.translationStartedAt);
-    if (age === null || age > CANVAS_TRANSLATION_STALE_MS) {
-      translationAbortRef.current?.abort();
-      translationAbortRef.current = null;
-      updateNodeData(id, {
-        status: 'failed',
-        error: '翻译等待超过 2 分钟，已停止。可换用更快文本模型后重试。',
-        translationStartedAt: '',
-      });
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      translationAbortRef.current?.abort();
-      translationAbortRef.current = null;
-      updateNodeData(id, {
-        status: 'failed',
-        error: '翻译等待超过 2 分钟，已停止。可换用更快文本模型后重试。',
-        translationStartedAt: '',
-      });
-    }, CANVAS_TRANSLATION_STALE_MS - age);
-    return () => window.clearTimeout(timer);
-  }, [data.translationStartedAt, id, isTranslating, updateNodeData]);
-
-  const refreshFromIncoming = () => {
-    updateNodeData(id, {
-      sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource?.id || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
-      status: incomingPrompt ? 'waiting' : 'failed',
-      error: incomingPrompt ? '' : '左侧没有可读取的提示词。',
-    });
-  };
-
-  const handleTranslate = async () => {
-    const prompt = String(data.sourcePrompt || incomingPrompt || '').trim();
-    if (!prompt) {
-      updateNodeData(id, { status: 'failed', error: '请先输入提示词，或从左侧连入带 prompt 的节点。' });
-      return;
-    }
-    if (translationAbortRef.current) {
-      translationAbortRef.current.abort();
-    }
-    const requestId = translationRequestIdRef.current + 1;
-    translationRequestIdRef.current = requestId;
-    const abortController = new AbortController();
-    translationAbortRef.current = abortController;
-    updateNodeData(id, {
-      status: 'translating',
-      error: '',
-      sourcePrompt: prompt,
-      translatedPrompt: '',
-      translationStartedAt: canvasGenerationStartedAt(),
-      sourceNodeId: incomingSource?.id || data.sourceNodeId || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource) || data.sourceNodeLabel || '',
-    });
-    try {
-      const result = await apiClient.translateCanvasPrompt(projectId || 'local', {
-        prompt,
-        aiModelId: data.modelId || undefined,
-        sourceLanguage,
-        targetLanguage,
-        preserveStructure: data.preserveStructure !== false,
-        context: String(data.context || ''),
-      }, { signal: abortController.signal });
-      if (translationRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        status: 'completed',
-        error: '',
-        translatedPrompt: result.translatedPrompt,
-        lastModel: result.model,
-        lastDurationMs: result.durationMs,
-        translationStartedAt: '',
-      });
-    } catch (error: any) {
-      if (translationRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        status: 'failed',
-        error: error?.message || '翻译失败，请检查文本模型配置。',
-        translationStartedAt: '',
-      });
-    } finally {
-      if (translationRequestIdRef.current === requestId) {
-        translationAbortRef.current = null;
-      }
-    }
-  };
-
-  const handleStopTranslation = () => {
-    translationRequestIdRef.current += 1;
-    translationAbortRef.current?.abort();
-    translationAbortRef.current = null;
-    updateNodeData(id, {
-      status: 'failed',
-      error: '已停止本地等待，可重新翻译。',
-      translationStartedAt: '',
-    });
-  };
-
-  const applyToOutgoingTargets = () => {
-    if (!translatedPrompt) {
-      updateNodeData(id, { status: 'failed', error: '没有可写入的译文。' });
-      return;
-    }
-    if (outgoingTargets.length === 0) {
-      updateNodeData(id, { error: '右侧没有连接目标节点。' });
-      return;
-    }
-    for (const target of outgoingTargets) {
-      updateNodeData(target.id, translatedPromptPatchForNode(target, translatedPrompt));
-    }
-    updateNodeData(id, { error: `已写入 ${outgoingTargets.length} 个右侧节点。` });
-  };
-
-  const applyToIncomingSource = () => {
-    if (!incomingSource || !translatedPrompt) return;
-    updateNodeData(incomingSource.id, translatedPromptPatchForNode(incomingSource, translatedPrompt));
-    updateNodeData(id, { error: `已写回 ${canvasNodePromptLabel(incomingSource)}。` });
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={420} minHeight={300} />
-      <div className="scrollbar-none h-full w-full min-w-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-cyan-500/70">
-        <div className="flex items-center gap-3 border-b border-zinc-800 p-3 cursor-grab active:cursor-grabbing">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-300">
-            <Languages className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '提示词翻译'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-              {incomingSource ? `读取：${canvasNodePromptLabel(incomingSource)}` : '可从左侧连接提示词节点'}
-            </div>
-          </div>
-          <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
-            status === 'completed'
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : status === 'failed' || translationStalled
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : isTranslating
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
-          )}>
-            {translationStalled ? '已中断' : isTranslating ? '翻译中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待翻译'}
-          </Badge>
-        </div>
-
-        <div className="space-y-3 p-3">
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              className="nodrag nopan h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
-              value={sourceLanguage}
-              onChange={(event) => updateNodeData(id, { sourceLanguage: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <option value="auto">自动识别</option>
-              <option value="Chinese">中文</option>
-              <option value="English">英文</option>
-            </select>
-            <select
-              className="nodrag nopan h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
-              value={targetLanguage}
-              onChange={(event) => updateNodeData(id, { targetLanguage: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <option value="English">翻译成英文</option>
-              <option value="Chinese">翻译成中文</option>
-            </select>
-          </div>
-
-          <select
-            className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
-            value={String(data.modelId || '')}
-            onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <option value="">{textModels.length ? '默认文本模型' : '未配置文本模型'}</option>
-            {data.modelId && !textModels.some((model) => model.id === data.modelId) ? (
-              <option value={String(data.modelId)}>当前模型不可用</option>
-            ) : null}
-            {textModels.map((model) => (
-              <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
-            ))}
-          </select>
-
-          <label className="nodrag nopan flex items-center gap-2 text-[11px] text-zinc-400" onPointerDown={(event) => event.stopPropagation()}>
-            <input
-              type="checkbox"
-              checked={data.preserveStructure !== false}
-              onChange={(event) => updateNodeData(id, { preserveStructure: event.target.checked })}
-            />
-            保留换行、编号、参数和角色名结构
-          </label>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">原提示词</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  refreshFromIncoming();
-                }}
-              >
-                读取左侧
-              </Button>
-            </div>
-            <textarea
-              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
-              value={String(data.sourcePrompt || incomingPrompt || '')}
-              placeholder="输入要翻译的提示词，或从左侧连入图片/视频/分镜节点。"
-              onChange={(event) => updateNodeData(id, { sourcePrompt: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">翻译结果</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-                disabled={!translatedPrompt}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void navigator.clipboard?.writeText(translatedPrompt).catch(() => undefined);
-                }}
-              >
-                复制
-              </Button>
-            </div>
-            <textarea
-              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
-              value={translatedPrompt}
-              placeholder="翻译完成后显示在这里。"
-              onChange={(event) => updateNodeData(id, { translatedPrompt: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          {data.error ? (
-            <div className={cn(
-              "rounded border px-2 py-1 text-[11px] leading-4",
-              status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
-            )}>
-              {data.error}
-            </div>
-          ) : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
-        </div>
-
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
-          <Button
-            type="button"
-            size="sm"
-            className="nodrag nopan h-8 flex-1 bg-cyan-600 text-[12px] text-white hover:bg-cyan-500"
-            disabled={isTranslating && !translationStalled}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleTranslate();
-            }}
-          >
-            {isTranslating ? <RotateCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Languages className="mr-1 h-3.5 w-3.5" />}
-            {isTranslating && !translationStalled ? '翻译中...' : translatedPrompt || translationStalled ? '重新翻译' : '翻译提示词'}
-          </Button>
-          {isTranslating && !translationStalled ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleStopTranslation();
-              }}
-            >
-              停止
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="nodrag nopan h-8 bg-zinc-800 text-[11px] text-zinc-200 hover:bg-zinc-700"
-            disabled={!translatedPrompt || outgoingTargets.length === 0}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              applyToOutgoingTargets();
-            }}
-          >
-            <ClipboardCheck className="mr-1 h-3.5 w-3.5" />
-            写入右侧
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
-            disabled={!translatedPrompt || !incomingSource}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              applyToIncomingSource();
-            }}
-          >
-            写回左侧
-          </Button>
-        </div>
-
-        <CanvasHandle type="target" position={Position.Left} tone="sky" style={{ top: 32 }} />
-        <CanvasHandle type="source" position={Position.Right} tone="sky" style={{ top: 32 }} />
-      </div>
-    </>
-  );
-};
-
-const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const { id: projectId } = useParams();
-  const [textModels, setTextModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
-  const optimizeAbortRef = useRef<AbortController | null>(null);
-  const optimizeRequestIdRef = useRef(0);
-  const incomingSource = useMemo(() => {
-    const edge = edges.find((item) => item.target === id);
-    return edge ? nodes.find((node) => node.id === edge.source) : undefined;
-  }, [edges, id, nodes]);
-  const outgoingTargets = useMemo(() => (
-    edges
-      .filter((item) => item.source === id)
-      .map((edge) => nodes.find((node) => node.id === edge.target))
-      .filter((node): node is NonNullable<typeof node> => Boolean(node))
-  ), [edges, id, nodes]);
-  const incomingPrompt = useMemo(() => canvasNodePromptText(incomingSource), [incomingSource]);
-  const optimizedPrompt = String(data.optimizedPrompt || '').trim();
-  const status = String(data.status || 'waiting');
-  const isOptimizing = status === 'optimizing';
-  const optimizeAge = canvasGenerationAgeMs(data.optimizeStartedAt);
-  const optimizeStalled = isOptimizing && (optimizeAge === null || optimizeAge > CANVAS_TRANSLATION_STALE_MS);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setTextModels(result.models.filter(isWorkflowTextModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTextModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!incomingPrompt || data.sourcePrompt) return;
-    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
-  }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
-
-  useEffect(() => () => {
-    optimizeAbortRef.current?.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!isOptimizing) return;
-    const age = canvasGenerationAgeMs(data.optimizeStartedAt);
-    if (age === null || age > CANVAS_TRANSLATION_STALE_MS) {
-      optimizeAbortRef.current?.abort();
-      optimizeAbortRef.current = null;
-      updateNodeData(id, {
-        status: 'failed',
-        error: '优化等待超过 2 分钟，已停止。可换用更快文本模型后重试。',
-        optimizeStartedAt: '',
-      });
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      optimizeAbortRef.current?.abort();
-      optimizeAbortRef.current = null;
-      updateNodeData(id, {
-        status: 'failed',
-        error: '优化等待超过 2 分钟，已停止。可换用更快文本模型后重试。',
-        optimizeStartedAt: '',
-      });
-    }, CANVAS_TRANSLATION_STALE_MS - age);
-    return () => window.clearTimeout(timer);
-  }, [data.optimizeStartedAt, id, isOptimizing, updateNodeData]);
-
-  const refreshFromIncoming = () => {
-    updateNodeData(id, {
-      sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource?.id || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
-      status: incomingPrompt ? 'waiting' : 'failed',
-      error: incomingPrompt ? '' : '左侧没有可读取的提示词。',
-    });
-  };
-
-  const handleOptimize = async () => {
-    const prompt = String(data.sourcePrompt || incomingPrompt || '').trim();
-    if (!prompt) {
-      updateNodeData(id, { status: 'failed', error: '请先输入提示词，或从左侧连入带 prompt 的节点。' });
-      return;
-    }
-    if (!isCanvasPromptWithinApiLimit(prompt)) {
-      updateNodeData(id, { status: 'failed', error: canvasPromptTooLongError('video', prompt.length) });
-      return;
-    }
-    optimizeAbortRef.current?.abort();
-    const requestId = optimizeRequestIdRef.current + 1;
-    optimizeRequestIdRef.current = requestId;
-    const abortController = new AbortController();
-    optimizeAbortRef.current = abortController;
-    updateNodeData(id, {
-      status: 'optimizing',
-      error: '',
-      sourcePrompt: prompt,
-      optimizedPrompt: '',
-      optimizeStartedAt: canvasGenerationStartedAt(),
-      sourceNodeId: incomingSource?.id || data.sourceNodeId || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource) || data.sourceNodeLabel || '',
-    });
-    try {
-      const result = await apiClient.optimizeCanvasPrompt(projectId || 'local', {
-        prompt,
-        aiModelId: data.modelId || undefined,
-        targetProvider: String(data.targetProvider || 'Dreamina Web Seedance 2.0'),
-        failureReason: String(data.failureReason || ''),
-        context: String(data.context || ''),
-      }, { signal: abortController.signal });
-      if (optimizeRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        status: 'completed',
-        error: '已优化提示词。请人工确认后再写回或写入右侧节点。',
-        optimizedPrompt: result.optimizedPrompt,
-        lastModel: result.model,
-        lastDurationMs: result.durationMs,
-        optimizeStartedAt: '',
-      });
-    } catch (error: any) {
-      if (optimizeRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        status: 'failed',
-        error: error?.message || '优化失败，请检查文本模型配置。',
-        optimizeStartedAt: '',
-      });
-    } finally {
-      if (optimizeRequestIdRef.current === requestId) {
-        optimizeAbortRef.current = null;
-      }
-    }
-  };
-
-  const handleStopOptimize = () => {
-    optimizeRequestIdRef.current += 1;
-    optimizeAbortRef.current?.abort();
-    optimizeAbortRef.current = null;
-    updateNodeData(id, {
-      status: 'failed',
-      error: '已停止本地等待，可重新优化。',
-      optimizeStartedAt: '',
-    });
-  };
-
-  const applyToOutgoingTargets = () => {
-    if (!optimizedPrompt) {
-      updateNodeData(id, { status: 'failed', error: '没有可写入的优化结果。' });
-      return;
-    }
-    if (outgoingTargets.length === 0) {
-      updateNodeData(id, { error: '右侧没有连接目标节点。' });
-      return;
-    }
-    for (const target of outgoingTargets) {
-      updateNodeData(target.id, translatedPromptPatchForNode(target, optimizedPrompt));
-    }
-    updateNodeData(id, { error: `已写入 ${outgoingTargets.length} 个右侧节点。` });
-  };
-
-  const applyToIncomingSource = () => {
-    if (!incomingSource || !optimizedPrompt) return;
-    updateNodeData(incomingSource.id, translatedPromptPatchForNode(incomingSource, optimizedPrompt));
-    updateNodeData(id, { error: `已写回 ${canvasNodePromptLabel(incomingSource)}。` });
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={460} minHeight={360} />
-      <div className="scrollbar-none h-full w-full min-w-[460px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-violet-500/70">
-        <div className="flex cursor-grab items-center gap-3 border-b border-zinc-800 p-3 active:cursor-grabbing">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-300">
-            <Wand2 className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '提示词优化'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-              {incomingSource ? `读取：${canvasNodePromptLabel(incomingSource)}` : '用于手动优化不过审提示词'}
-            </div>
-          </div>
-          <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
-            status === 'completed'
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : status === 'failed' || optimizeStalled
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : isOptimizing
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
-          )}>
-            {optimizeStalled ? '已中断' : isOptimizing ? '优化中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待优化'}
-          </Badge>
-        </div>
-
-        <div className="space-y-3 p-3">
-          <select
-            className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-violet-500"
-            value={String(data.modelId || '')}
-            onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <option value="">{textModels.length ? '默认文本模型' : '未配置文本模型'}</option>
-            {data.modelId && !textModels.some((model) => model.id === data.modelId) ? (
-              <option value={String(data.modelId)}>当前模型不可用</option>
-            ) : null}
-            {textModels.map((model) => (
-              <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
-            ))}
-          </select>
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className="nodrag nopan h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500"
-              value={String(data.targetProvider || 'Dreamina Web Seedance 2.0')}
-              placeholder="目标平台"
-              onChange={(event) => updateNodeData(id, { targetProvider: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            />
-            <input
-              className="nodrag nopan h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500"
-              value={String(data.failureReason || '')}
-              placeholder="失败原因，例如 prompt may violate"
-              onChange={(event) => updateNodeData(id, { failureReason: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">原提示词</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  refreshFromIncoming();
-                }}
-              >
-                读取左侧
-              </Button>
-            </div>
-            <textarea
-              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500"
-              value={String(data.sourcePrompt || incomingPrompt || '')}
-              placeholder="输入不过审的提示词，或从左侧连入视频/图片/分镜节点。"
-              onChange={(event) => updateNodeData(id, { sourcePrompt: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">优化结果</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-                disabled={!optimizedPrompt}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void navigator.clipboard?.writeText(optimizedPrompt).catch(() => undefined);
-                }}
-              >
-                复制
-              </Button>
-            </div>
-            <textarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-violet-500"
-              value={optimizedPrompt}
-              placeholder="优化完成后显示在这里。台词和大概原意会被保留。"
-              onChange={(event) => updateNodeData(id, { optimizedPrompt: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          {data.error ? (
-            <div className={cn(
-              "rounded border px-2 py-1 text-[11px] leading-4",
-              status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-violet-500/20 bg-violet-500/10 text-violet-200",
-            )}>
-              {data.error}
-            </div>
-          ) : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
-          {data.lastDurationMs ? (
-            <div className="text-[10px] text-zinc-500">上次优化耗时 {formatDurationMs(Number(data.lastDurationMs))}</div>
-          ) : null}
-        </div>
-
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
-          <Button
-            type="button"
-            size="sm"
-            className="nodrag nopan h-8 flex-1 bg-violet-600 text-[12px] text-white hover:bg-violet-500"
-            disabled={isOptimizing && !optimizeStalled}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleOptimize();
-            }}
-          >
-            {isOptimizing ? <RotateCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1 h-3.5 w-3.5" />}
-            {isOptimizing && !optimizeStalled ? '优化中...' : optimizedPrompt || optimizeStalled ? '重新优化' : '优化提示词'}
-          </Button>
-          {isOptimizing && !optimizeStalled ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleStopOptimize();
-              }}
-            >
-              停止
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="nodrag nopan h-8 bg-zinc-800 text-[11px] text-zinc-200 hover:bg-zinc-700"
-            disabled={!optimizedPrompt || outgoingTargets.length === 0}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              applyToOutgoingTargets();
-            }}
-          >
-            写入右侧
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
-            disabled={!optimizedPrompt || !incomingSource}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              applyToIncomingSource();
-            }}
-          >
-            写回左侧
-          </Button>
-        </div>
-
-        <CanvasHandle type="target" position={Position.Left} tone="sky" style={{ top: 32 }} />
-        <CanvasHandle type="source" position={Position.Right} tone="sky" style={{ top: 32 }} />
-      </div>
-    </>
-  );
-};
-
-const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const { id: projectId } = useParams();
-  const [textModels, setTextModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
-  const inspectAbortRef = useRef<AbortController | null>(null);
-  const inspectRequestIdRef = useRef(0);
-  const incomingSource = useMemo(() => {
-    const edge = edges.find((item) => item.target === id);
-    return edge ? nodes.find((node) => node.id === edge.source) : undefined;
-  }, [edges, id, nodes]);
-  const incomingPrompt = useMemo(() => canvasNodePromptText(incomingSource), [incomingSource]);
-  const answer = String(data.answer || '').trim();
-  const status = String(data.status || 'waiting');
-  const isInspecting = status === 'inspecting';
-  const inspectAge = canvasGenerationAgeMs(data.inspectStartedAt);
-  const inspectStalled = isInspecting && (inspectAge === null || inspectAge > CANVAS_TRANSLATION_STALE_MS);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setTextModels(result.models.filter(isWorkflowTextModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTextModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!incomingPrompt || data.sourcePrompt) return;
-    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
-  }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
-
-  useEffect(() => () => {
-    inspectAbortRef.current?.abort();
-  }, []);
-
-  useEffect(() => {
-    if (!isInspecting) return;
-    const age = canvasGenerationAgeMs(data.inspectStartedAt);
-    if (age === null || age > CANVAS_TRANSLATION_STALE_MS) {
-      inspectAbortRef.current?.abort();
-      inspectAbortRef.current = null;
-      updateNodeData(id, {
-        status: 'failed',
-        error: '检查等待超过 2 分钟，已停止。可换用更快文本模型后重试。',
-        inspectStartedAt: '',
-      });
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      inspectAbortRef.current?.abort();
-      inspectAbortRef.current = null;
-      updateNodeData(id, {
-        status: 'failed',
-        error: '检查等待超过 2 分钟，已停止。可换用更快文本模型后重试。',
-        inspectStartedAt: '',
-      });
-    }, CANVAS_TRANSLATION_STALE_MS - age);
-    return () => window.clearTimeout(timer);
-  }, [data.inspectStartedAt, id, isInspecting, updateNodeData]);
-
-  const refreshFromIncoming = () => {
-    updateNodeData(id, {
-      sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource?.id || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
-      status: incomingPrompt ? 'waiting' : 'failed',
-      error: incomingPrompt ? '' : '左侧没有可读取的提示词。',
-    });
-  };
-
-  const handleInspect = async () => {
-    const prompt = String(data.sourcePrompt || incomingPrompt || '').trim();
-    const nextQuestion = String(data.question || '').trim();
-    if (!prompt) {
-      updateNodeData(id, { status: 'failed', error: '请先输入提示词，或从左侧连入带 prompt 的节点。' });
-      return;
-    }
-    if (!nextQuestion) {
-      updateNodeData(id, { status: 'failed', error: '请先输入要检查的问题。' });
-      return;
-    }
-    inspectAbortRef.current?.abort();
-    const requestId = inspectRequestIdRef.current + 1;
-    inspectRequestIdRef.current = requestId;
-    const abortController = new AbortController();
-    inspectAbortRef.current = abortController;
-    updateNodeData(id, {
-      status: 'inspecting',
-      error: '',
-      sourcePrompt: prompt,
-      answer: '',
-      inspectStartedAt: canvasGenerationStartedAt(),
-      sourceNodeId: incomingSource?.id || data.sourceNodeId || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource) || data.sourceNodeLabel || '',
-    });
-    try {
-      const result = await apiClient.inspectCanvasPrompt(projectId || 'local', {
-        prompt,
-        question: nextQuestion,
-        aiModelId: data.modelId || undefined,
-        context: String(data.context || ''),
-      }, { signal: abortController.signal });
-      if (inspectRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        status: 'completed',
-        error: '',
-        answer: result.answer,
-        lastModel: result.model,
-        lastDurationMs: result.durationMs,
-        inspectStartedAt: '',
-      });
-    } catch (error: any) {
-      if (inspectRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        status: 'failed',
-        error: error?.message || '检查失败，请检查文本模型配置。',
-        inspectStartedAt: '',
-      });
-    } finally {
-      if (inspectRequestIdRef.current === requestId) {
-        inspectAbortRef.current = null;
-      }
-    }
-  };
-
-  const handleStopInspect = () => {
-    inspectRequestIdRef.current += 1;
-    inspectAbortRef.current?.abort();
-    inspectAbortRef.current = null;
-    updateNodeData(id, {
-      status: 'failed',
-      error: '已停止本地等待，可重新检查。',
-      inspectStartedAt: '',
-    });
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={440} minHeight={340} />
-      <div className="scrollbar-none h-full w-full min-w-[440px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-amber-500/70">
-        <div className="flex cursor-grab items-center gap-3 border-b border-zinc-800 p-3 active:cursor-grabbing">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-300">
-            <ClipboardCheck className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '提示词检查'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-              {incomingSource ? `读取：${canvasNodePromptLabel(incomingSource)}` : '可从左侧连接提示词节点'}
-            </div>
-          </div>
-          <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
-            status === 'completed'
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : status === 'failed' || inspectStalled
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : isInspecting
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
-          )}>
-            {inspectStalled ? '已中断' : isInspecting ? '检查中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待检查'}
-          </Badge>
-        </div>
-
-        <div className="space-y-3 p-3">
-          <select
-            className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-amber-500"
-            value={String(data.modelId || '')}
-            onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <option value="">{textModels.length ? '默认文本模型' : '未配置文本模型'}</option>
-            {data.modelId && !textModels.some((model) => model.id === data.modelId) ? (
-              <option value={String(data.modelId)}>当前模型不可用</option>
-            ) : null}
-            {textModels.map((model) => (
-              <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
-            ))}
-          </select>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">原提示词</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  refreshFromIncoming();
-                }}
-              >
-                读取左侧
-              </Button>
-            </div>
-            <textarea
-              className="nodrag nopan min-h-[105px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
-              value={String(data.sourcePrompt || incomingPrompt || '')}
-              placeholder="输入要检查的提示词，或从左侧连入图片/视频/分镜节点。"
-              onChange={(event) => updateNodeData(id, { sourcePrompt: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          <div>
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">问题</span>
-            <textarea
-              className="nodrag nopan min-h-[68px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
-              value={String(data.question || '')}
-              placeholder="例如：这个故事板提示词里有哪些角色有台词？每句台词在哪个格子？"
-              onChange={(event) => updateNodeData(id, { question: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">检查结果</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
-                disabled={!answer}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void navigator.clipboard?.writeText(answer).catch(() => undefined);
-                }}
-              >
-                复制
-              </Button>
-            </div>
-            <textarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
-              value={answer}
-              placeholder="检查完成后显示在这里。"
-              onChange={(event) => updateNodeData(id, { answer: event.target.value })}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          {data.error ? (
-            <div className={cn(
-              "rounded border px-2 py-1 text-[11px] leading-4",
-              status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-amber-500/20 bg-amber-500/10 text-amber-200",
-            )}>
-              {data.error}
-            </div>
-          ) : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
-          {data.lastDurationMs ? (
-            <div className="text-[10px] text-zinc-500">上次检查耗时 {formatDurationMs(Number(data.lastDurationMs))}</div>
-          ) : null}
-        </div>
-
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
-          <Button
-            type="button"
-            size="sm"
-            className="nodrag nopan h-8 flex-1 bg-amber-600 text-[12px] text-white hover:bg-amber-500"
-            disabled={isInspecting && !inspectStalled}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleInspect();
-            }}
-          >
-            {isInspecting ? <RotateCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="mr-1 h-3.5 w-3.5" />}
-            {isInspecting && !inspectStalled ? '检查中...' : answer || inspectStalled ? '重新检查' : '检查提示词'}
-          </Button>
-          {isInspecting && !inspectStalled ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleStopInspect();
-              }}
-            >
-              停止
-            </Button>
-          ) : null}
-        </div>
-
-        <CanvasHandle type="target" position={Position.Left} tone="sky" style={{ top: 32 }} />
-        <CanvasHandle type="source" position={Position.Right} tone="sky" style={{ top: 32 }} />
-      </div>
-    </>
-  );
-};
-
-const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const { id: projectId } = useParams();
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const [videoModels, setVideoModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
-  const referenceImages = useMemo(() => {
-    const videoNode = nodes.find((node) => node.id === id);
-    const incomingEdges = edges.filter((edge) => edge.target === id);
-    const incomingSources = incomingEdges
-      .map((edge) => nodes.find((node) => node.id === edge.source))
-      .filter((node): node is typeof nodes[number] => Boolean(node));
-    const hasUsableStoryboardSlot = incomingSources.some((source) => isStoryboardSlotNodeForVideo(source, videoNode ?? { data }) && Boolean(canvasNodeReferenceUrl(source)));
-    const refs: { url: string; label: string }[] = [];
-    const seen = new Set<string>();
-    const addRef = (url: unknown, label: string) => {
-      const normalized = publicImageUrl(url);
-      if (!normalized || seen.has(normalized) || refs.length >= MAX_VIDEO_REFERENCE_IMAGES) return;
-      seen.add(normalized);
-      refs.push({ url: normalized, label });
-    };
-    const orderedEdges = [...incomingEdges].sort((a, b) => {
-      const sourceA = nodes.find((node) => node.id === a.source);
-      const sourceB = nodes.find((node) => node.id === b.source);
-      return videoReferenceSourcePriority(sourceA ?? {}, videoNode ?? { data }) - videoReferenceSourcePriority(sourceB ?? {}, videoNode ?? { data });
-    });
-    for (const edge of orderedEdges) {
-      const source = nodes.find((node) => node.id === edge.source);
-      if (!source) continue;
-      if (
-        hasUsableStoryboardSlot &&
-        isStoryboardReferenceNodeForVideo(source, videoNode ?? { data }) &&
-        !isStoryboardSlotNodeForVideo(source, videoNode ?? { data })
-      ) {
-        continue;
-      }
-      addRef(canvasNodeReferenceUrl(source), videoReferenceLabel(source, videoNode ?? { data }));
-    }
-    const persistedReferenceUrls = Array.isArray(data.referenceImageUrls) ? data.referenceImageUrls : [];
-    for (const url of persistedReferenceUrls) {
-      addRef(url, refs.length === 0 ? '对应故事板' : '保存的参考图');
-    }
-    const storyboardFallback = publicImageUrl(data.storyboardImageUrl || data.storyboardUrl);
-    if (refs.length === 0 && storyboardFallback) {
-      addRef(storyboardFallback, '对应故事板');
-    }
-    return refs.slice(0, MAX_VIDEO_REFERENCE_IMAGES);
-  }, [edges, nodes, id, data]);
-
-  const referenceImageUrls = useMemo(
-    () => referenceImages.slice(0, MAX_VIDEO_REFERENCE_IMAGES).map((ref) => ref.url),
-    [referenceImages],
-  );
-  const sourceEpisode = typeof data.sourceEpisode === 'string' ? data.sourceEpisode : '';
-  const sourceEpisodeId = canvasNodeEpisodeId(data);
-  const clipId = typeof data.clipId === 'string' ? data.clipId : '';
-  const clipTitle = typeof data.title === 'string' ? data.title : '';
-  const prompt = String(data.seedancePrompt || data.videoPrompt || data.prompt || '').trim();
-  const selectedResolution = normalizeVideoResolution(data.resolution);
-  const selectedDuration = normalizeVideoDuration(data.durationSeconds ?? data.duration);
-  const includeAudio = data.includeAudio !== false;
-  const characterAudioRefs = useMemo(
-    () => mergeVideoAudioReferencesWithIncoming(characterAudioReferencesFromNodeData(data), id, nodes, edges),
-    [data, id, nodes, edges],
-  );
-  const referenceAudioUrls = useMemo(
-    () => characterAudioRefs.map((ref) => publicAudioUrl(ref.url)).filter((url, index, urls) => Boolean(url) && urls.indexOf(url) === index),
-    [characterAudioRefs],
-  );
-  const dialogueCharacterNames = useMemo(
-    () => uniqueClipNames([
-      ...(Array.isArray(data.dialogueCharacterNames) ? data.dialogueCharacterNames.map(String) : []),
-      ...characterAudioRefs.map((ref) => ref.name),
-    ]),
-    [data.dialogueCharacterNames, characterAudioRefs],
-  );
-  const missingAudioNames = characterAudioRefs.filter((ref) => !publicAudioUrl(ref.url)).map((ref) => ref.name);
-  const selectedRatio = normalizeVideoRatio(data.ratio ?? data.size);
-  const selectedCount = normalizeGenerationCount(data.count);
-  const videoStatus = String(data.videoStatus || data.status || 'waiting');
-  const videoCost = Number.isFinite(Number(data.estimatedCost)) ? Number(data.estimatedCost) : 6;
-  const outputVideo = typeof data.outputVideo === 'string' ? data.outputVideo : '';
-  const videoSubmitId = typeof data.videoSubmitId === 'string' ? data.videoSubmitId.trim() : '';
-  const ratioLabel = videoRatioOptions.find((item) => item.value === selectedRatio)?.label || selectedRatio;
-  const rawModelId = String(data.modelId || '').trim();
-  const selectedModel = rawModelId ? videoModels.find((model) => model.id === rawModelId) : undefined;
-  const effectiveVideoModelId = selectedModel ? rawModelId : '';
-  const staleModelSelected = Boolean(rawModelId && !selectedModel);
-  const modelSummary = selectedModel
-    ? selectedModel.displayName || selectedModel.model || String(data.modelId)
-    : staleModelSelected
-      ? '默认视频模型'
-      : '默认模型';
-  const parametersCollapsed = data.videoParametersCollapsed !== false;
-  const videoGenerating = videoStatus === 'submitted' || videoStatus === 'generating';
-  const audioSummary = includeAudio ? `${referenceAudioUrls.length} 音频` : '无音频';
-  const referenceSummary = `${referenceImages.length} 参考图 · ${audioSummary}`;
-  const parameterSummary = `${staleModelSelected ? '旧模型已停用 -> ' : ''}${modelSummary} / ${selectedResolution} / ${selectedDuration}s / ${audioSummary} / ${ratioLabel} / ${selectedCount}x`;
-  const statusLabel =
-    videoStatus === 'submitted'
-      ? '自动查询中'
-      : videoStatus === 'generating'
-        ? '生成中'
-        : videoStatus === 'completed'
-          ? '已完成'
-          : videoStatus === 'failed'
-            ? '失败'
-            : '待生成';
-  const videoPollTimerRef = useRef<number | null>(null);
-  const videoPollAbortRef = useRef<AbortController | null>(null);
-  const videoPollRunIdRef = useRef(0);
-  const videoPollActiveRef = useRef(false);
-  const videoPollSubmitIdRef = useRef('');
-  const latestVideoRequestRef = useRef<CanvasVideoGenerationInput | null>(null);
-  const previewInFlightRef = useRef(false);
-  const [previewInFlight, setPreviewInFlight] = useState(false);
-  const promptOptimizeAbortRef = useRef<AbortController | null>(null);
-  const promptOptimizeRequestIdRef = useRef(0);
-  const [promptOptimizing, setPromptOptimizing] = useState(false);
-
-  const videoRequestInput = useMemo<CanvasVideoGenerationInput>(() => ({
-    prompt,
-    aiModelId: effectiveVideoModelId || undefined,
-    resolution: selectedResolution,
-    durationSeconds: selectedDuration,
-    ratio: selectedRatio,
-    count: selectedCount,
-    referenceImageUrls,
-    referenceAudioUrls: includeAudio && referenceAudioUrls.length ? referenceAudioUrls : undefined,
-    parameters: {
-      requestedModelId: effectiveVideoModelId,
-      staleRequestedModelId: staleModelSelected ? rawModelId : '',
-      requestedModelLabel: modelSummary,
-      referenceAudioUrls: includeAudio ? referenceAudioUrls : [],
-    },
-    metadata: {
-      clipId,
-      clipTitle,
-      sourceEpisode,
-      sourceEpisodeId,
-      nodeId: id,
-      dialogueCharacterNames,
-      characterAudioReferences: characterAudioRefs,
-    },
-  }), [
-    prompt,
-    effectiveVideoModelId,
-    selectedResolution,
-    selectedDuration,
-    selectedRatio,
-    selectedCount,
-    referenceImageUrls,
-    includeAudio,
-    referenceAudioUrls,
-    staleModelSelected,
-    rawModelId,
-    modelSummary,
-    clipId,
-    clipTitle,
-    sourceEpisode,
-    sourceEpisodeId,
-    id,
-    dialogueCharacterNames,
-    characterAudioRefs,
-  ]);
-
-  useEffect(() => {
-    latestVideoRequestRef.current = videoRequestInput;
-  }, [videoRequestInput]);
-
-  const stopCanvasVideoPolling = useCallback(() => {
-    videoPollRunIdRef.current += 1;
-    videoPollActiveRef.current = false;
-    videoPollSubmitIdRef.current = '';
-    if (videoPollTimerRef.current !== null) {
-      window.clearTimeout(videoPollTimerRef.current);
-      videoPollTimerRef.current = null;
-    }
-    videoPollAbortRef.current?.abort();
-    videoPollAbortRef.current = null;
-  }, []);
-
-  const applyCanvasVideoResult = useCallback((result: CanvasVideoGenerationResponse, fallbackSubmitId = ''): 'completed' | 'failed' | 'pending' => {
-    const videoUrl = result.video?.url || '';
-    const nextSubmitId = (result.submitId || fallbackSubmitId || '').trim();
-    if (videoUrl) {
-      updateNodeData(id, {
-        videoStatus: 'completed',
-        status: 'completed',
-        statusLabel: '视频已完成',
-        videoError: '',
-        outputVideo: videoUrl,
-        outputVideoAssetId: readObjectString(result.asset, 'id'),
-        videoSubmitId: nextSubmitId,
-        videoProviderStatus: result.genStatus || 'succeeded',
-        generationStartedAt: '',
-        generationId: readObjectString(result.generation, 'id') || readObjectString(data, 'generationId'),
-      });
-      return 'completed';
-    }
-    if (canvasVideoProviderFailed(result.genStatus)) {
-      const resultError = canvasVideoResultErrorMessage(result);
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        statusLabel: '视频生成失败',
-        videoError: resultError || `即梦视频生成失败${result.genStatus ? `：${result.genStatus}` : '。'}`,
-        videoSubmitId: nextSubmitId,
-        videoProviderStatus: result.genStatus || 'failed',
-        generationStartedAt: '',
-        generationId: readObjectString(result.generation, 'id') || readObjectString(data, 'generationId'),
-      });
-      return 'failed';
-    }
-    if (!nextSubmitId) {
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        statusLabel: '视频生成失败',
-        videoError: '即梦任务没有返回 submitId，无法自动查询结果。',
-        videoProviderStatus: result.genStatus || 'missing-submit-id',
-        generationStartedAt: '',
-        generationId: readObjectString(result.generation, 'id') || readObjectString(data, 'generationId'),
-      });
-      return 'failed';
-    }
-    updateNodeData(id, {
-      videoStatus: 'submitted',
-      status: 'generating',
-      statusLabel: '即梦生成中',
-      videoError: `即梦任务已提交：${nextSubmitId}。正在自动查询结果，完成后会自动写入预览节点。`,
-      videoSubmitId: nextSubmitId,
-      videoProviderStatus: result.genStatus || 'querying',
-      generationId: readObjectString(result.generation, 'id') || readObjectString(data, 'generationId'),
-    });
-    return 'pending';
-  }, [id, updateNodeData]);
-
-  const startCanvasVideoPolling = useCallback((submitId: string, options: { immediate?: boolean } = {}) => {
-    const trimmedSubmitId = submitId.trim();
-    if (!trimmedSubmitId) return;
-    if (videoPollActiveRef.current && videoPollSubmitIdRef.current === trimmedSubmitId && !options.immediate) return;
-    if (videoPollTimerRef.current !== null) {
-      window.clearTimeout(videoPollTimerRef.current);
-      videoPollTimerRef.current = null;
-    }
-    videoPollAbortRef.current?.abort();
-    videoPollAbortRef.current = null;
-    videoPollRunIdRef.current += 1;
-    const runId = videoPollRunIdRef.current;
-    const startedAt = Date.now();
-    videoPollActiveRef.current = true;
-    videoPollSubmitIdRef.current = trimmedSubmitId;
-
-    const finishPolling = () => {
-      if (videoPollRunIdRef.current !== runId) return;
-      videoPollActiveRef.current = false;
-      videoPollSubmitIdRef.current = '';
-      if (videoPollTimerRef.current !== null) {
-        window.clearTimeout(videoPollTimerRef.current);
-        videoPollTimerRef.current = null;
-      }
-    };
-
-    const scheduleAttempt = (delayMs: number) => {
-      if (videoPollRunIdRef.current !== runId) return;
-      if (videoPollTimerRef.current !== null) window.clearTimeout(videoPollTimerRef.current);
-      videoPollTimerRef.current = window.setTimeout(async () => {
-        videoPollTimerRef.current = null;
-        if (videoPollRunIdRef.current !== runId) return;
-        if (Date.now() - startedAt > CANVAS_VIDEO_POLL_TIMEOUT_MS) {
-          updateNodeData(id, {
-            videoStatus: 'failed',
-            status: 'failed',
-            statusLabel: '视频生成超时',
-            videoError: '自动查询已超过 30 分钟，已停止。上游任务可能仍在处理，可从生成记录或任务后台核对。',
-            videoSubmitId: trimmedSubmitId,
-            videoProviderStatus: 'poll-timeout',
-          });
-          finishPolling();
-          return;
-        }
-
-        const requestInput = latestVideoRequestRef.current;
-        if (!requestInput?.prompt?.trim()) {
-          updateNodeData(id, {
-            videoStatus: 'failed',
-            status: 'failed',
-            statusLabel: '视频生成失败',
-            videoError: '视频提示词为空，无法自动查询结果。',
-            videoSubmitId: trimmedSubmitId,
-          });
-          finishPolling();
-          return;
-        }
-
-        const abortController = new AbortController();
-        videoPollAbortRef.current = abortController;
-        try {
-          updateNodeData(id, {
-            videoStatus: 'submitted',
-            status: 'generating',
-            statusLabel: '即梦生成中',
-            videoError: `即梦任务已提交：${trimmedSubmitId}。正在自动查询结果，完成后会自动写入预览节点。`,
-            videoSubmitId: trimmedSubmitId,
-          });
-          const result = await apiClient.generateCanvasVideo(projectId || 'local', {
-            ...requestInput,
-            submitId: trimmedSubmitId,
-          }, { signal: abortController.signal });
-          if (videoPollRunIdRef.current !== runId) return;
-          const nextState = applyCanvasVideoResult(result, trimmedSubmitId);
-          if (nextState === 'pending') {
-            scheduleAttempt(CANVAS_VIDEO_POLL_INTERVAL_MS);
-          } else {
-            finishPolling();
-          }
-        } catch (error: any) {
-          if (abortController.signal.aborted || videoPollRunIdRef.current !== runId) return;
-          if (shouldRetryCanvasVideoPollError(error)) {
-            updateNodeData(id, {
-              videoStatus: 'submitted',
-              status: 'generating',
-              statusLabel: '即梦生成中',
-              videoError: `即梦任务已提交：${trimmedSubmitId}。上次查询暂时失败，仍在自动查询结果。`,
-              videoSubmitId: trimmedSubmitId,
-              videoProviderStatus: 'poll-retrying',
-            });
-            scheduleAttempt(CANVAS_VIDEO_POLL_INTERVAL_MS);
-            return;
-          }
-          updateNodeData(id, {
-            videoStatus: 'failed',
-            status: 'failed',
-            statusLabel: '视频生成失败',
-            videoError: canvasVideoPollErrorMessage(error) || '即梦视频生成失败。',
-            videoSubmitId: trimmedSubmitId,
-            videoProviderStatus: 'poll-failed',
-          });
-          finishPolling();
-        } finally {
-          if (videoPollAbortRef.current === abortController) videoPollAbortRef.current = null;
-        }
-      }, delayMs);
-    };
-
-    scheduleAttempt(options.immediate ? 0 : CANVAS_VIDEO_POLL_INTERVAL_MS);
-  }, [applyCanvasVideoResult, id, projectId, updateNodeData]);
-
-  useEffect(() => {
-    if (videoSubmitId && !outputVideo && videoStatus === 'submitted') {
-      startCanvasVideoPolling(videoSubmitId);
-      return;
-    }
-    if (outputVideo || videoStatus === 'completed' || videoStatus === 'failed' || videoStatus === 'waiting') {
-      stopCanvasVideoPolling();
-    }
-  }, [outputVideo, startCanvasVideoPolling, stopCanvasVideoPolling, videoStatus, videoSubmitId]);
-
-  useEffect(() => () => {
-    stopCanvasVideoPolling();
-    promptOptimizeAbortRef.current?.abort();
-  }, [stopCanvasVideoPolling]);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setVideoModels(result.models.filter(isWorkflowVideoModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setVideoModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const updatePrompt = (nextPrompt: string) => {
-    updateNodeData(id, {
-      prompt: nextPrompt,
-      seedancePrompt: nextPrompt,
-      videoPrompt: nextPrompt,
-    });
-  };
-
-  const handleSubmit = async () => {
-    if (previewInFlightRef.current) {
-      updateNodeData(id, { videoStatus: 'waiting', status: 'waiting', videoError: '素材预检还在进行中，请等待预检结束后再提交生成。' });
-      return;
-    }
-    if (!prompt) {
-      updateNodeData(id, { videoStatus: 'failed', videoError: '请先输入视频提示词。' });
-      return;
-    }
-    if (!isCanvasPromptWithinApiLimit(prompt)) {
-      updateNodeData(id, { videoStatus: 'failed', videoError: canvasPromptTooLongError('video', prompt.length) });
-      return;
-    }
-    if (!isDreaminaWebVideoPromptWithinLimit(prompt)) {
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        statusLabel: '视频生成失败',
-        videoError: dreaminaWebVideoPromptTooLongError(prompt.length),
-      });
-      return;
-    }
-    if (referenceImages.length === 0) {
-      updateNodeData(id, { videoStatus: 'failed', videoError: '即梦图生视频需要至少连接 1 张故事板或图片作为首帧。' });
-      return;
-    }
-    stopCanvasVideoPolling();
-    const generationStartedAt = canvasGenerationStartedAt();
-    updateNodeData(id, {
-      videoStatus: 'generating',
-      status: 'generating',
-      statusLabel: '提交即梦任务',
-      videoError: '正在提交即梦 Seedance 2.0 图生视频任务...',
-      outputVideo: '',
-      outputVideoAssetId: '',
-      videoSubmitId: '',
-      videoProviderStatus: '',
-      resolution: selectedResolution,
-      durationSeconds: selectedDuration,
-      includeAudio,
-      ratio: selectedRatio,
-      count: selectedCount,
-      referenceImageUrls,
-      referenceAudioUrls,
-      characterAudioReferences: characterAudioRefs,
-      referenceAudioCount: referenceAudioUrls.length,
-      generationStartedAt,
-      generationId: '',
-    });
-    try {
-      const result = await apiClient.generateCanvasVideo(projectId || 'local', {
-        ...videoRequestInput,
-      });
-      const backendGenerationId = readObjectString(result.generation, 'id');
-      if (backendGenerationId) updateNodeData(id, { generationId: backendGenerationId });
-      const nextState = applyCanvasVideoResult(result);
-      if (nextState === 'pending' && result.submitId) {
-        startCanvasVideoPolling(result.submitId);
-      }
-    } catch (error: any) {
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        statusLabel: '视频生成失败',
-        videoError: error?.message || '即梦视频生成失败。',
-      });
-    }
-  };
-
-  const handlePreviewReferences = async () => {
-    if (!prompt) {
-      updateNodeData(id, { videoStatus: 'failed', videoError: '请先输入视频提示词。' });
-      return;
-    }
-    if (!isCanvasPromptWithinApiLimit(prompt)) {
-      updateNodeData(id, { videoStatus: 'failed', videoError: canvasPromptTooLongError('video', prompt.length) });
-      return;
-    }
-    if (!isDreaminaWebVideoPromptWithinLimit(prompt)) {
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        statusLabel: '视频素材预检失败',
-        videoError: dreaminaWebVideoPromptTooLongError(prompt.length),
-      });
-      return;
-    }
-    if (previewInFlightRef.current) return;
-    previewInFlightRef.current = true;
-    setPreviewInFlight(true);
-    updateNodeData(id, {
-      videoError: '正在预检视频素材，不会提交 Dreamina 任务...',
-      referenceImageUrls,
-      referenceAudioUrls,
-      characterAudioReferences: characterAudioRefs,
-      referenceAudioCount: referenceAudioUrls.length,
-    });
-    try {
-      const result = await apiClient.generateCanvasVideo(projectId || 'local', {
-        ...videoRequestInput,
-        dryRun: true,
-      });
-      updateNodeData(id, {
-        videoStatus: outputVideo ? 'completed' : 'waiting',
-        status: outputVideo ? 'completed' : 'waiting',
-        videoError: canvasVideoReferencePreviewMessage(result),
-        referenceImageUrls: result.references?.referenceImageUrls ?? referenceImageUrls,
-        referenceAudioUrls: result.references?.referenceAudioUrls ?? referenceAudioUrls,
-      });
-    } catch (error: any) {
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        statusLabel: '素材预检失败',
-        videoError: error?.message || '视频素材预检失败。',
-      });
-    } finally {
-      previewInFlightRef.current = false;
-      setPreviewInFlight(false);
-    }
-  };
-
-  const handleOptimizePrompt = async () => {
-    if (!prompt) {
-      updateNodeData(id, { videoStatus: 'failed', status: 'failed', videoError: '请先输入要优化的视频提示词。' });
-      return;
-    }
-    if (!isCanvasPromptWithinApiLimit(prompt)) {
-      updateNodeData(id, { videoStatus: 'failed', status: 'failed', videoError: canvasPromptTooLongError('video', prompt.length) });
-      return;
-    }
-    promptOptimizeAbortRef.current?.abort();
-    const requestId = promptOptimizeRequestIdRef.current + 1;
-    promptOptimizeRequestIdRef.current = requestId;
-    const abortController = new AbortController();
-    promptOptimizeAbortRef.current = abortController;
-    setPromptOptimizing(true);
-    updateNodeData(id, {
-      promptOptimizationStatus: 'optimizing',
-      promptOptimizationError: '',
-      originalRejectedPrompt: prompt,
-      videoError: '正在手动优化不过审提示词，台词和大概原意会尽量保持不变...',
-    });
-    try {
-      const result = await apiClient.optimizeCanvasPrompt(projectId || 'local', {
-        prompt,
-        targetProvider: 'Dreamina Web Seedance 2.0',
-        failureReason: String(data.videoError || data.promptOptimizationFailureReason || 'The prompt may contain content that violates Community Guidelines'),
-        context: [
-          clipId ? `Clip ID: ${clipId}` : '',
-          clipTitle ? `Clip title: ${clipTitle}` : '',
-          sourceEpisode ? `Episode: ${sourceEpisode}` : '',
-          selectedDuration ? `Duration: ${selectedDuration}s` : '',
-          selectedRatio ? `Ratio: ${selectedRatio}` : '',
-          referenceImages.length ? `Reference images: ${referenceImages.map((ref) => ref.label).join(', ')}` : '',
-          dialogueCharacterNames.length ? `Dialogue characters: ${dialogueCharacterNames.join(', ')}` : '',
-        ].filter(Boolean).join('\n'),
-      }, { signal: abortController.signal });
-      if (promptOptimizeRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updatePrompt(result.optimizedPrompt);
-      updateNodeData(id, {
-        videoStatus: outputVideo ? 'completed' : 'waiting',
-        status: outputVideo ? 'completed' : 'waiting',
-        promptOptimizationStatus: 'completed',
-        promptOptimizationError: '',
-        originalRejectedPrompt: prompt,
-        optimizedPrompt: result.optimizedPrompt,
-        promptOptimizationModel: result.model,
-        promptOptimizationDurationMs: result.durationMs,
-        videoError: '提示词已优化，请人工确认后再重新提交生成。',
-      });
-    } catch (error: any) {
-      if (promptOptimizeRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      updateNodeData(id, {
-        videoStatus: 'failed',
-        status: 'failed',
-        promptOptimizationStatus: 'failed',
-        promptOptimizationError: error?.message || '提示词优化失败。',
-        videoError: error?.message || '提示词优化失败，请检查文本模型配置。',
-      });
-    } finally {
-      if (promptOptimizeRequestIdRef.current === requestId) {
-        promptOptimizeAbortRef.current = null;
-        setPromptOptimizing(false);
-      }
-    }
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={520} minHeight={300} />
-      <div className="scrollbar-none h-full w-full overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-sky-500/70">
-        <div className="flex items-center gap-3 border-b border-zinc-800 p-3 cursor-grab active:cursor-grabbing">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-300">
-            <MonitorPlay className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '视频生成'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
-              {selectedResolution} / {selectedDuration}s / {referenceSummary} / {ratioLabel}
-            </div>
-          </div>
-          <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
-            videoStatus === 'completed'
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-              : videoStatus === 'failed'
-                ? "border-red-500/30 bg-red-500/10 text-red-300"
-                : videoStatus === 'submitted' || videoStatus === 'generating'
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
-          )}>
-            {statusLabel}
-          </Badge>
-        </div>
-
-        <div className="border-b border-zinc-800 px-3 py-2">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="flex rounded-md border border-zinc-700 bg-zinc-900 p-0.5 text-[11px]">
-              <button type="button" className="rounded bg-zinc-700 px-3 py-1 font-medium text-zinc-100">全能参考</button>
-              <button type="button" className="px-3 py-1 font-medium text-zinc-400">首帧视频</button>
-            </div>
-            <div className="flex shrink-0 items-center gap-2 text-[11px]">
-              <span className="text-sky-300">{referenceImages.length} 参考图</span>
-              <span className={cn(
-                "inline-flex items-center gap-1",
-                includeAudio && referenceAudioUrls.length ? "text-emerald-300" : "text-zinc-500"
-              )}>
-                <Mic className="h-3 w-3" />
-                {audioSummary}
-              </span>
-            </div>
-          </div>
-          {referenceImages.length > 0 ? (
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {referenceImages.map((ref, index) => (
-                <img
-                  key={`${ref.url}-${index}`}
-                  src={ref.url}
-                  alt={ref.label}
-                  title={ref.label}
-                  className="h-12 w-12 shrink-0 cursor-zoom-in rounded border border-zinc-700 object-cover"
-                  onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '视频参考图' })}
-                  onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '视频参考图' })}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-16 items-center justify-center rounded border border-dashed border-zinc-700 bg-zinc-900/40 text-[12px] text-zinc-500">
-              从左侧连入图片输入、角色图或资产图作为参考
-            </div>
-          )}
-          <div className="mt-2 rounded-md border border-zinc-800 bg-[#101014] px-2 py-2">
-            <div className="mb-1.5 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-zinc-300">
-                <Mic className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
-                <span className="truncate">台词音频参考</span>
-              </div>
-              <span className="shrink-0 text-[11px] text-emerald-300">{referenceAudioUrls.length} 音频</span>
-            </div>
-            {characterAudioRefs.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {characterAudioRefs.map((ref, index) => {
-                  const hasAudio = Boolean(publicAudioUrl(ref.url));
-                  return (
-                    <span
-                      key={`${ref.name}-${index}`}
-                      className={cn(
-                        "inline-flex max-w-full items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
-                        hasAudio
-                          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-                          : "border-zinc-700 bg-zinc-900 text-zinc-500"
-                      )}
-                      title={hasAudio ? ref.fileName || ref.url : '该台词角色还没有音频参考'}
-                    >
-                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", hasAudio ? "bg-emerald-400" : "bg-zinc-600")} />
-                      <span className="truncate">{ref.name}</span>
-                    </span>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-[11px] text-zinc-500">未识别到台词角色，或还没有给角色上传音频参考。</div>
-            )}
-            {missingAudioNames.length > 0 ? (
-              <div className="mt-1 text-[10px] leading-4 text-zinc-500">
-                缺少音频：{missingAudioNames.slice(0, 6).join('、')}{missingAudioNames.length > 6 ? '等' : ''}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="space-y-3 px-3 py-3">
-          <div>
-            <div className="mb-1.5 text-[11px] font-medium text-zinc-400">视频提示词</div>
-            <textarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-sky-500"
-              value={prompt}
-              placeholder="描述你想要生成的内容，并连接参考图。"
-              onChange={(event) => updatePrompt(event.target.value)}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onKeyUp={(event) => event.stopPropagation()}
-            />
-          </div>
-
-          <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#101014]">
-            <button
-              type="button"
-              className="nodrag nopan flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-zinc-900/70"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                updateNodeData(id, { videoParametersCollapsed: !parametersCollapsed });
-              }}
-            >
-              <SlidersHorizontal className="h-4 w-4 shrink-0 text-sky-300" />
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-medium text-zinc-300">生成参数</div>
-                <div className="mt-0.5 truncate text-[11px] text-zinc-500">{parameterSummary}</div>
-              </div>
-              <ChevronDown className={cn("h-4 w-4 shrink-0 text-zinc-500 transition-transform", !parametersCollapsed && "rotate-180")} />
-            </button>
-
-            {!parametersCollapsed ? (
-              <div className="space-y-3 border-t border-zinc-800 p-3">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <div className="mb-1 text-[11px] text-zinc-500">视频模型</div>
-                    <select
-                      className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
-                      value={String(data.modelId || '')}
-                      onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <option value="">{videoModels.length ? '默认视频模型' : '未配置视频模型'}</option>
-                      {data.modelId && !videoModels.some((model) => model.id === data.modelId) ? (
-                        <option value={String(data.modelId)}>旧模型已停用，提交时使用默认模型</option>
-                      ) : null}
-                      {videoModels.map((model) => (
-                        <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <div className="mb-1 text-[11px] text-zinc-500">生成数量</div>
-                    <select
-                      className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
-                      value={selectedCount}
-                      onChange={(event) => updateNodeData(id, { count: Number(event.target.value) })}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <option value={1}>1x</option>
-                      <option value={2}>2x</option>
-                      <option value={4}>4x</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 text-[11px] font-medium text-zinc-400">分辨率</div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {videoResolutionOptions.map((resolution) => (
-                      <button
-                        key={resolution}
-                        type="button"
-                        className={cn(
-                          "nodrag nopan h-8 rounded-md text-[11px] transition-colors",
-                          selectedResolution === resolution ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
-                        )}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          updateNodeData(id, { resolution });
-                        }}
-                      >
-                        {resolution}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 text-[11px] font-medium text-zinc-400">生成时长</div>
-                  <div className="grid grid-cols-6 gap-1">
-                    {videoDurationOptions.map((seconds) => (
-                      <button
-                        key={seconds}
-                        type="button"
-                        className={cn(
-                          "nodrag nopan h-8 rounded-md text-[11px] transition-colors",
-                          selectedDuration === seconds ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
-                        )}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          updateNodeData(id, { durationSeconds: seconds });
-                        }}
-                      >
-                        {seconds}s
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 text-[11px] font-medium text-zinc-400">生成视频音频</div>
-                  <div className="grid grid-cols-2 gap-1 rounded-md bg-zinc-900 p-0.5">
-                    {[true, false].map((value) => (
-                      <button
-                        key={String(value)}
-                        type="button"
-                        className={cn(
-                          "nodrag nopan h-8 rounded text-[12px]",
-                          includeAudio === value ? "bg-zinc-600 text-zinc-50" : "text-zinc-400 hover:bg-zinc-800"
-                        )}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          updateNodeData(id, { includeAudio: value });
-                        }}
-                      >
-                        {value ? '是' : '否'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 text-[11px] font-medium text-zinc-400">比例</div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {videoRatioOptions.map((item) => (
-                      <button
-                        key={item.value}
-                        type="button"
-                        className={cn(
-                          "nodrag nopan flex h-11 flex-col items-center justify-center gap-1 rounded-md border text-[10px] transition-colors",
-                          selectedRatio === item.value ? "border-sky-500 bg-sky-500/10 text-sky-200" : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700"
-                        )}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          updateNodeData(id, { ratio: item.value });
-                        }}
-                      >
-                        <span className={cn(
-                          "block rounded-sm border border-current",
-                          item.value === '16:9' ? 'h-2 w-5' : item.value === '4:3' ? 'h-3 w-5' : item.value === '1:1' ? 'h-4 w-4' : item.value === '3:4' ? 'h-5 w-4' : item.value === '9:16' ? 'h-6 w-3' : item.value === '21:9' ? 'h-2 w-7' : 'h-4 w-4'
-                        )} />
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {outputVideo ? (
-            <video src={outputVideo} controls className="aspect-video w-full rounded-md border border-zinc-700 bg-black" />
-          ) : null}
-
-          {data.videoError ? <div className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[11px] leading-4 text-amber-200">{data.videoError}</div> : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">视频模型列表加载失败。</div> : null}
-        </div>
-
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] text-zinc-400">
-            <MonitorPlay className="h-3.5 w-3.5 text-sky-300" />
-            <span className="truncate">{selectedResolution} / {selectedDuration}s / {includeAudio ? '是' : '否'} / {ratioLabel}</span>
-          </div>
-          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[13px] font-semibold text-emerald-300">¥ {videoCost}</span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            title="手动优化不过审提示词，不会提交 Dreamina 任务"
-            disabled={promptOptimizing || videoGenerating || previewInFlight}
-            className="nodrag nopan h-9 border-violet-500/40 bg-violet-500/10 px-3 text-[12px] text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleOptimizePrompt();
-            }}
-          >
-            {promptOptimizing ? <RotateCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1 h-3.5 w-3.5" />}
-            {promptOptimizing ? '优化中' : '优化提示词'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            title="只预检将上传给 Dreamina 的图片和音频，不提交任务"
-            disabled={videoStatus === 'generating' || previewInFlight || promptOptimizing}
-            className="nodrag nopan h-9 border-zinc-700 bg-zinc-900 px-3 text-[12px] text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handlePreviewReferences();
-            }}
-          >
-            预检素材
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            title="提交新的即梦视频任务"
-            disabled={videoStatus === 'generating' || previewInFlight || promptOptimizing}
-            className="nodrag nopan h-9 w-9 rounded-full bg-zinc-100 text-zinc-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              void handleSubmit();
-            }}
-          >
-            {videoGenerating || previewInFlight ? <RotateCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          </Button>
-        </div>
-
-        <CanvasHandle type="target" position={Position.Left} tone="sky" style={{ top: 32 }} />
-        <CanvasHandle type="source" position={Position.Right} tone="sky" style={{ top: 32 }} />
-      </div>
-    </>
-  );
-};
-
-// Image Input Node — reference images for generation
-const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const edges = useCanvasStore((s) => s.edges);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const { id: projectId } = useParams();
-  const [uploading, setUploading] = useState(false);
-  const imageUrl = typeof data.imageUrl === 'string' ? data.imageUrl : '';
-  const imageAspectRatio = positiveNumber(data.imageAspectRatio) ?? 1;
-  const clampedImageAspectRatio = Math.min(Math.max(imageAspectRatio, 0.45), 3.4);
-  const imageIsLandscape = clampedImageAspectRatio > 1.15;
-  const isPreviousStoryboardReference = data.clipNodeKind === 'storyboard-reference';
-  const isStoryboardSlot = data.storyboardSlotForClip === true || data.clipSyncRole === 'storyboard-slot';
-  const isStoryboardSpecialNode = isPreviousStoryboardReference || isStoryboardSlot;
-  const upstreamStoryboardOutput = useMemo(() => {
-    if (!isStoryboardSlot) return null;
-    for (const edge of edges.filter((item) => item.target === id)) {
-      const source = nodes.find((node) => node.id === edge.source);
-      const sourceUrl = source?.type === 'generation'
-        ? publicImageUrl(source.data?.outputImage)
-        : source?.type === 'imageInput'
-          ? publicImageUrl(source.data?.imageUrl)
-          : '';
-      if (!sourceUrl) continue;
-      return {
-        url: sourceUrl,
-        assetId: String(source?.data?.outputImageAssetId || source?.data?.assetId || ''),
-        title: String(source?.data?.title || source?.data?.label || data.label || '对应故事板'),
-      };
-    }
-    return null;
-  }, [data.label, edges, id, isStoryboardSlot, nodes]);
-  const displayImageUrl = imageUrl || upstreamStoryboardOutput?.url || '';
-  const imageUnavailable = Boolean(data.imageLoadError || (displayImageUrl && displayImageUrl.startsWith('blob:')));
-  const effectivePublicImageUrl = publicImageUrl(displayImageUrl);
-
-  useEffect(() => {
-    if (!isStoryboardSlot || !upstreamStoryboardOutput?.url) return;
-    if (publicImageUrl(imageUrl) === upstreamStoryboardOutput.url && String(data.assetId || '') === upstreamStoryboardOutput.assetId) return;
-    updateNodeData(id, {
-      imageUrl: upstreamStoryboardOutput.url,
-      assetId: upstreamStoryboardOutput.assetId,
-      clipSyncAssetId: upstreamStoryboardOutput.assetId,
-      clipSyncUrl: upstreamStoryboardOutput.url,
-      fileName: `${upstreamStoryboardOutput.title || 'storyboard'}.png`,
-      uploadStatus: 'linked',
-      imageLoadError: false,
-      uploadError: '',
-    });
-  }, [data.assetId, id, imageUrl, isStoryboardSlot, updateNodeData, upstreamStoryboardOutput]);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      updateNodeData(id, { uploadError: '请选择图片文件。' });
-      return;
-    }
-    if (!projectId || projectId === 'local') {
-      updateNodeData(id, { uploadError: '当前项目不存在，无法上传参考图。' });
-      return;
-    }
-    setUploading(true);
-    updateNodeData(id, { uploadError: '', uploadStatus: 'uploading', imageLoadError: false, fileName: file.name });
-    try {
-      const publicUrl = await uploadCanvasReferenceFile(projectId, file);
-      updateNodeData(id, {
-        imageUrl: publicUrl,
-        fileName: file.name,
-        uploadStatus: 'uploaded',
-        uploadError: '',
-        imageLoadError: false,
-      });
-    } catch (error) {
-      updateNodeData(id, {
-        uploadStatus: 'failed',
-        uploadError: error instanceof Error ? error.message : '参考图上传失败',
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleUrlPaste = () => {
-    const url = window.prompt('输入图片 URL：');
-    if (url) {
-      const cleanUrl = url.trim();
-      updateNodeData(id, {
-        imageUrl: cleanUrl,
-        fileName: '',
-        imageLoadError: false,
-        uploadError: publicImageUrl(cleanUrl) ? '' : '参考图需要公网 http(s) URL，图片模型才能读取。',
-      });
-    }
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={imageIsLandscape ? 340 : 260} minHeight={180} />
-      <div className={cn(
-        "h-full w-full overflow-hidden rounded-lg border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500",
-        isStoryboardSpecialNode ? "border-amber-500/70 ring-1 ring-amber-500/30" : "border-zinc-700",
-        imageIsLandscape ? "min-w-[340px]" : "min-w-[260px]",
-      )}>
-      <div className={cn(
-        "px-3 py-2 text-xs font-medium flex items-center gap-1.5 cursor-grab active:cursor-grabbing",
-        isStoryboardSpecialNode ? "bg-amber-500/15 text-amber-100" : "bg-zinc-800/50 text-zinc-300",
-      )}>
-        <ImageIcon className={cn("h-3.5 w-3.5", isStoryboardSpecialNode ? "text-amber-300" : "text-sky-400")} />
-        {isPreviousStoryboardReference ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">上一板</span> : null}
-        {isStoryboardSlot ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">故事板</span> : null}
-        {data.label || '图片输入'}
-      </div>
-      <div className="p-2">
-        {displayImageUrl && !imageUnavailable ? (
-          <div className="relative group">
-            <img
-              src={displayImageUrl}
-              alt="参考图"
-              className="w-full cursor-zoom-in rounded border border-zinc-800 object-cover"
-              style={{ aspectRatio: String(clampedImageAspectRatio) }}
-              onClick={(event) => previewCanvasImage(event, {
-                url: displayImageUrl,
-                title: data.label || '图片输入',
-                subtitle: data.fileName || '参考图',
-              })}
-              onDoubleClick={(event) => previewCanvasImage(event, {
-                url: displayImageUrl,
-                title: data.label || '图片输入',
-                subtitle: data.fileName || '参考图',
-              })}
-              onLoad={(event) => {
-                const img = event.currentTarget;
-                const ratio = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null;
-                if (ratio && Math.abs(ratio - imageAspectRatio) > 0.01) {
-                  updateNodeData(id, { imageAspectRatio: ratio, imageLoadError: false });
-                }
-              }}
-              onError={() => {
-                if (!data.imageLoadError) updateNodeData(id, { imageLoadError: true });
-              }}
-            />
-            <div
-              className="absolute inset-0 hidden cursor-zoom-in items-center justify-center gap-1 rounded bg-black/60 group-hover:flex"
-              onClick={(event) => previewCanvasImage(event, {
-                url: displayImageUrl,
-                title: data.label || '图片输入',
-                subtitle: data.fileName || '参考图',
-              })}
-              onDoubleClick={(event) => previewCanvasImage(event, {
-                url: displayImageUrl,
-                title: data.label || '图片输入',
-                subtitle: data.fileName || '参考图',
-              })}
-            >
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-[10px] text-zinc-200 hover:bg-zinc-700"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  fileRef.current?.click();
-                }}
-              >
-                替换
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-[10px] text-red-300 hover:bg-red-500/20"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  updateNodeData(id, { imageUrl: '', fileName: '', imageLoadError: false, uploadError: '' });
-                }}
-              >
-                移除
-              </Button>
-            </div>
-            {data.fileName && <div className="mt-1 truncate text-[10px] text-zinc-500">{data.fileName}</div>}
-          </div>
-        ) : (
-          <div
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-zinc-700 bg-zinc-900/50 hover:border-zinc-500 hover:bg-zinc-900"
-            style={{ aspectRatio: imageIsLandscape ? String(clampedImageAspectRatio) : "1" }}
-            onClick={() => fileRef.current?.click()}
-          >
-            <ImageIcon className="h-6 w-6 text-zinc-600" />
-            <span className="text-[11px] text-zinc-500">{uploading ? '上传中...' : imageUnavailable ? '图片已失效，重新上传' : isStoryboardSlot ? '等待故事板' : '点击上传'}</span>
-            <button
-              type="button"
-              className="text-[10px] text-sky-400 hover:text-sky-300"
-              onClick={(e) => { e.stopPropagation(); handleUrlPaste(); }}
-            >
-              或粘贴 URL
-            </button>
-          </div>
-        )}
-        {data.uploadError ? (
-          <div className="mt-1 text-[10px] leading-4 text-red-400">{data.uploadError}</div>
-        ) : displayImageUrl && !effectivePublicImageUrl ? (
-          <div className="mt-1 text-[10px] leading-4 text-amber-400">这不是公网 URL，不能作为图生图参考。</div>
-        ) : null}
-      </div>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} disabled={uploading} />
-        {isStoryboardSlot ? <CanvasHandle type="target" position={Position.Left} tone="sky" /> : null}
-        <CanvasHandle type="source" position={Position.Right} tone="sky" />
-      </div>
-    </>
-  );
-};
-
-const AudioInputNode = ({ data, selected }: CanvasNodeProps) => {
-  const audioUrl = publicAudioUrl(data.audioUrl || data.referenceAudioUrl || data.url);
-  const characterName = String(data.characterName || data.assetName || data.name || '').trim();
-  const title = String(data.title || data.label || (characterName ? `${characterName} 音频参考` : '音频参考'));
-  const fileName = String(data.fileName || data.voiceReferenceFileName || '').trim();
-  const missing = !audioUrl;
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={240} minHeight={96} />
-      <div className={cn(
-        "h-full w-full overflow-hidden rounded-lg border bg-[#141416] shadow-xl transition-colors",
-        missing ? "border-zinc-700 hover:border-zinc-500" : "border-emerald-500/60 ring-1 ring-emerald-500/20 hover:border-emerald-400",
-      )}>
-        <div className="flex cursor-grab items-center gap-2 border-b border-zinc-800 bg-zinc-800/40 px-3 py-2 text-xs font-medium text-zinc-200 active:cursor-grabbing">
-          <Mic className={cn("h-3.5 w-3.5 shrink-0", missing ? "text-zinc-500" : "text-emerald-300")} />
-          <span className="min-w-0 flex-1 truncate">{title}</span>
-          <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px]", missing ? "bg-zinc-800 text-zinc-500" : "bg-emerald-500/15 text-emerald-200")}>
-            {missing ? '缺音频' : '已绑定'}
-          </span>
-        </div>
-        <div className="space-y-1 px-3 py-2">
-          <div className="truncate text-[11px] text-zinc-300">{characterName || '未命名角色'}</div>
-          <div className="truncate text-[10px] text-zinc-500" title={fileName || audioUrl || String(data.uploadError || '')}>
-            {missing ? (data.uploadError || '该角色还没有绑定音频参考') : (fileName || audioUrl)}
-          </div>
-          {audioUrl ? (
-            <audio
-              controls
-              src={audioUrl}
-              className="nodrag nopan mt-1 h-7 w-full"
-              onPointerDown={(event) => event.stopPropagation()}
-            />
-          ) : null}
-        </div>
-        <CanvasHandle type="source" position={Position.Right} tone="emerald" />
-      </div>
-    </>
-  );
-};
-
-// Generation Node — the core image generation node
-const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
-  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const setNodesTransient = useCanvasStore((s) => s.setNodesTransient);
-  const addNode = useCanvasStore((s) => s.addNode);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const { id: projectId } = useParams();
-  const currentProject = useProjectStore((s) => s.projects.find((project) => project.id === projectId));
-  const sourceEpisode = typeof data.sourceEpisode === 'string' ? data.sourceEpisode : '';
-  const sourceEpisodeId = canvasNodeEpisodeId(data);
-  const projectPromptContext = useMemo(
-    () => currentProject ? compactProjectPromptContext(currentProject) : (data.projectPromptContext || {}),
-    [currentProject, data.projectPromptContext],
-  );
-  const [imageModels, setImageModels] = useState<ModelConfig[]>([]);
-  const [targetAssets, setTargetAssets] = useState<WorkflowAssets>(defaultWorkflowAssets());
-  const [targetAssetCatalog, setTargetAssetCatalog] = useState<{ characters: ProjectCharacterRecord[]; scenes: ProjectSceneRecord[] }>({ characters: [], scenes: [] });
-  const [targetAssetKind, setTargetAssetKind] = useState<WorkflowAssetKind>('characters');
-  const [targetAssetName, setTargetAssetName] = useState('');
-  const [targetAssetCustomMode, setTargetAssetCustomMode] = useState(false);
-  const [targetAssetsError, setTargetAssetsError] = useState('');
-
-  const referenceImages = useMemo(() => {
-    const targetNode = nodes.find((node) => node.id === id);
-    const incomingEdges = edges
-      .filter((e) => e.target === id)
-      .map((edge, index) => ({ edge, index, source: nodes.find((n) => n.id === edge.source) }))
-      .sort((a, b) => generationReferenceSourcePriority(a.source) - generationReferenceSourcePriority(b.source) || a.index - b.index);
-    const refs: CanvasReferenceImage[] = [];
-    const seen = new Set<string>();
-    for (const { source } of incomingEdges) {
-      if (shouldSkipCanvasGenerationReference(source, targetNode)) continue;
-      const imageInputUrl = source?.type === 'imageInput' ? publicImageUrl(source.data?.imageUrl) : '';
-      const characterUrl = source?.type === 'character' ? publicImageUrl(source.data?.avatar) : '';
-      const generationUrl = source?.type === 'generation' ? publicImageUrl(source.data?.outputImage) : '';
-      if (imageInputUrl) {
-        const ref = {
-          url: imageInputUrl,
-          label: (source?.data.label as string) || '参考图',
-          kind: canvasReferenceImageKind(source),
-          name: String(source?.data.assetName || source?.data.name || source?.data.label || ''),
-          sourceClipId: typeof source?.data?.sourceClipId === 'string' ? source.data.sourceClipId : undefined,
-          targetClipId: typeof source?.data?.targetClipId === 'string' ? source.data.targetClipId : undefined,
-        };
-        const key = canvasReferenceDedupKey(ref);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        refs.push(ref);
-      } else if (characterUrl) {
-        const ref = {
-          url: characterUrl,
-          label: (source?.data.name as string) || '角色',
-          kind: canvasReferenceImageKind(source),
-          name: String(source?.data.name || ''),
-        };
-        const key = canvasReferenceDedupKey(ref);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        refs.push(ref);
-      } else if (generationUrl) {
-        const ref = {
-          url: generationUrl,
-          label: String(source?.data.title || '上游生成图'),
-          kind: canvasReferenceImageKind(source),
-          name: String(source?.data.title || ''),
-        };
-        const key = canvasReferenceDedupKey(ref);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        refs.push(ref);
-      }
-    }
-    return refs;
-  }, [edges, nodes, id]);
-  const explicitAssetKind = normalizeWorkflowAssetKind(data.assetKind);
-  const hasBoundAssetName = Boolean(String(data.assetName || '').trim());
-  const isStandaloneGeneration = !explicitAssetKind || !hasBoundAssetName;
-  const nodeAssetKind = explicitAssetKind ?? 'scenes';
-  const nodeAssetLabel = isStandaloneGeneration ? '自由图片' : workflowAssetKindLabel(nodeAssetKind);
-  const previousStoryboardReference = referenceImages.find((ref) => ref.kind === 'storyboard');
-  const renderedDescription = previousStoryboardReference
-    ? `已接入 ${referenceImages.length} 张参考图，含上一个故事板`
-    : data.description || data.visualPrompt || `${nodeAssetLabel}生图节点`;
-  const hasManualPrompt = hasManualCanvasGenerationPrompt(data);
-  const rawPrompt = hasManualPrompt ? String(data.finalPrompt ?? '') : String(data.prompt ?? '');
-  const autoFinalPrompt = useMemo(
-    () => isStandaloneGeneration ? '' : buildCanvasAssetFinalPrompt(nodeAssetKind, data, referenceImages.length, projectPromptContext),
-    [data, isStandaloneGeneration, nodeAssetKind, projectPromptContext, referenceImages.length],
-  );
-  const generationPrompt = hasManualPrompt ? rawPrompt : rawPrompt && !isRawAssetPrompt(data, rawPrompt) ? rawPrompt : autoFinalPrompt;
-  const nodeAssetName = isStandaloneGeneration
-    ? String(data.title || '自由生图')
-    : String(data.assetName || data.title || generationPrompt.slice(0, 120) || 'canvas-generation');
-  const selectedSize = normalizeCanvasImageSize(data.size);
-  const selectedResolution = normalizeImageResolution(data.resolution);
-  const outputImageAspectRatio = positiveNumber(data.outputImageAspectRatio) ?? ratioToNumber(selectedSize);
-  const selectedQuality = String(data.quality || 'high');
-  const outputImageVariants = useMemo(
-    () => {
-      const variants = Array.isArray(data.outputImages)
-        ? data.outputImages
-            .map((item) => {
-              const record = item && typeof item === 'object' ? item as Record<string, unknown> : {};
-              const url = publicImageUrl(record.url);
-              return url ? {
-                url,
-                assetId: readObjectString(record, 'assetId'),
-                title: readObjectString(record, 'title'),
-                revisedPrompt: readObjectString(record, 'revisedPrompt'),
-              } : null;
-            })
-            .filter((item): item is { url: string; assetId?: string; title?: string; revisedPrompt?: string } => Boolean(item))
-        : [];
-      if (variants.length > 0) return variants;
-      const outputImage = publicImageUrl(data.outputImage);
-      return outputImage ? [{
-        url: outputImage,
-        assetId: String(data.outputImageAssetId || ''),
-        title: nodeAssetName || '生成图片',
-        revisedPrompt: String(data.revisedPrompt || ''),
-      }] : [];
-    },
-    [data.outputImage, data.outputImageAssetId, data.outputImages, data.revisedPrompt, nodeAssetName],
-  );
-  const selectedImageModel = data.modelId ? imageModels.find((model) => model.id === data.modelId) : undefined;
-  const generationOutputCount = isDreaminaWebImageModel(selectedImageModel) ? 4 : 1;
-  const generationStalled = data.status === 'generating' && isCanvasGenerationStale(data.generationStartedAt);
-  const isSubmittingGeneration = data.canvasSubmitStatus === 'submitting';
-  const standaloneGenerationMetadata = useMemo(() => {
-    if (!isStandaloneGeneration) return undefined;
-    const clipId = typeof data.clipId === 'string' ? data.clipId : '';
-    const clipNodeKind = typeof data.clipNodeKind === 'string' ? data.clipNodeKind : '';
-    const storyboardForClip = data.storyboardForClip === true;
-    if (!clipId && !clipNodeKind && !storyboardForClip) return undefined;
-    return {
-      title: String(data.title || ''),
-      clipId,
-      clipTitle: String(data.clipTitle || data.title || ''),
-      clipNodeKind,
-      storyboardForClip,
-      previousStoryboardAssetId: typeof data.previousStoryboardAssetId === 'string' ? data.previousStoryboardAssetId : '',
-    };
-  }, [data.clipId, data.clipNodeKind, data.clipTitle, data.previousStoryboardAssetId, data.storyboardForClip, data.title, isStandaloneGeneration]);
-  const [promptDraft, setPromptDraft] = useState(generationPrompt);
-  const [promptEditing, setPromptEditing] = useState(false);
-  const promptComposingRef = useRef(false);
-  const generationInFlightRef = useRef(false);
-  const generationAbortRef = useRef<AbortController | null>(null);
-  const generationRequestIdRef = useRef(0);
-  const targetAssetOptions = useMemo(
-    () => {
-      const seen = new Set<string>();
-      return assetArray(targetAssets, targetAssetKind)
-        .map(workflowAssetName)
-        .filter((name) => {
-          if (!name) return false;
-          const key = normalizeCompareText(name);
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-    },
-    [targetAssets, targetAssetKind],
-  );
-
-  useEffect(() => {
-    if (!promptEditing && promptDraft !== generationPrompt) {
-      setPromptDraft(generationPrompt);
-    }
-  }, [generationPrompt, promptDraft, promptEditing]);
-
-  const commitPromptDraft = useCallback((nextPrompt = promptDraft) => {
-    updateNodeData(id, { finalPrompt: nextPrompt, manualFinalPrompt: true });
-  }, [id, promptDraft, updateNodeData]);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setImageModels(result.models.filter(isWorkflowImageModel));
-      })
-      .catch(() => {
-        if (!cancelled) setImageModels([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isStandaloneGeneration || !projectId || projectId === 'local') return;
-    let cancelled = false;
-    Promise.all([
-      apiClient.getProjectWorkflow(projectId, { episodeId: sourceEpisodeId || undefined }),
-      apiClient.listProjectCharacters(projectId).catch(() => []),
-      apiClient.listProjectScenes(projectId).catch(() => []),
-    ])
-      .then(([workflow, characters, scenes]) => {
-        if (cancelled) return;
-        setTargetAssetCatalog({ characters, scenes });
-        setTargetAssets(mergeWorkflowAssetsWithProjectRecords(workflow?.assets ?? defaultWorkflowAssets(), characters, scenes));
-        setTargetAssetsError('');
-      })
-      .catch((error) => {
-        if (!cancelled) setTargetAssetsError(error instanceof Error ? error.message : '资产列表加载失败');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isStandaloneGeneration, projectId, sourceEpisodeId]);
-
-  useEffect(() => {
-    if (targetAssetCustomMode || targetAssetName || targetAssetOptions.length === 0) return;
-    setTargetAssetName(targetAssetOptions[0]);
-  }, [targetAssetCustomMode, targetAssetName, targetAssetOptions]);
-
-  useEffect(() => {
-    if (!isStandaloneGeneration) return;
-    const handleSync = (event: Event) => {
-      const workflow = (event as CustomEvent<{ workflow?: WorkflowState }>).detail?.workflow;
-      if (!workflow) return;
-      setTargetAssets(mergeWorkflowAssetsWithProjectRecords(
-        workflow.assets ?? defaultWorkflowAssets(),
-        targetAssetCatalog.characters,
-        targetAssetCatalog.scenes,
-      ));
-    };
-    window.addEventListener(WORKFLOW_ASSET_SYNC_EVENT, handleSync);
-    return () => window.removeEventListener(WORKFLOW_ASSET_SYNC_EVENT, handleSync);
-  }, [isStandaloneGeneration, targetAssetCatalog]);
-
-  useEffect(() => () => {
-    generationAbortRef.current?.abort();
-  }, []);
-
-  const updateTransientSubmitState = useCallback((submitData: Record<string, unknown>) => {
-    const currentNodes = useCanvasStore.getState().nodes;
-    setNodesTransient(currentNodes.map((node) => (
-      node.id === id
-        ? { ...node, data: { ...node.data, ...submitData } }
-        : node
-    )));
-  }, [id, setNodesTransient]);
-
-  const clearTransientSubmitState = useCallback(() => {
-    updateTransientSubmitState({
-      canvasSubmitStatus: '',
-      canvasSubmitError: '',
-      canvasSubmitStartedAt: '',
-    });
-  }, [updateTransientSubmitState]);
-
-  const handleGenerate = async () => {
-    if (data.status === 'generating' && !generationStalled) {
-      updateNodeData(id, {
-        error: `${canvasGenerationWaitLabel(data.generationStartedAt)}。Airelayzone 多参考图/2K 可能需要 3-4 分钟。`,
-      });
-      return;
-    }
-    if (generationInFlightRef.current) {
-      updateTransientSubmitState({
-        canvasSubmitStatus: 'submitting',
-        canvasSubmitError: '上一条请求还在提交后端，请等待返回；如需放弃请点停止。',
-        canvasSubmitStartedAt: data.canvasSubmitStartedAt || canvasGenerationStartedAt(),
-      });
-      return;
-    }
-    const promptForGeneration = prepareCanvasPromptForImageModel(
-      isStandaloneGeneration && data.clipNodeKind === 'storyboard'
-        ? appendReferenceImageMapPrompt(promptDraft, referenceImages)
-        : promptDraft,
-    );
-    if (!promptForGeneration.trim()) {
-      updateNodeData(id, {
-        status: 'failed',
-        error: '请先输入最终生图提示词。',
-        generationStartedAt: '',
-        generationRequestId: '',
-      });
-      return;
-    }
-    if (!isCanvasPromptWithinApiLimit(promptForGeneration)) {
-      updateNodeData(id, {
-        status: 'failed',
-        error: canvasPromptTooLongError('image', promptForGeneration.length),
-        generationStartedAt: '',
-        generationRequestId: '',
-      });
-      return;
-    }
-    const finalPromptForNode = isStandaloneGeneration && data.clipNodeKind === 'storyboard'
-      ? promptForGeneration
-      : promptDraft;
-    const requestId = generationRequestIdRef.current + 1;
-    const generationRequestToken = createCanvasGenerationRequestToken(id, requestId);
-    generationRequestIdRef.current = requestId;
-    const abortController = new AbortController();
-    generationAbortRef.current = abortController;
-    generationInFlightRef.current = true;
-    const generationStartedAt = canvasGenerationStartedAt();
-    setPromptEditing(false);
-    updateTransientSubmitState({
-      canvasSubmitStatus: 'submitting',
-      canvasSubmitError: '正在提交到后端...',
-      canvasSubmitStartedAt: generationStartedAt,
-    });
-    try {
-      const result = isStandaloneGeneration
-        ? await apiClient.generateCanvasImage(projectId || 'local', {
-            prompt: promptForGeneration,
-            referenceImageUrls: referenceImages.map((r) => r.url),
-            aiModelId: data.modelId || undefined,
-            size: selectedSize,
-            count: generationOutputCount,
-            parameters: { quality: selectedQuality, format: 'png', resolution: selectedResolution },
-            metadata: {
-              ...(standaloneGenerationMetadata ?? {}),
-              sourceEpisode,
-              sourceEpisodeId,
-              requestId: generationRequestToken,
-              nodeId: id,
-            },
-            submitOnly: true,
-          }, { signal: abortController.signal })
-        : await apiClient.generateWorkflowAssetImage(projectId || 'local', {
-            episodeId: sourceEpisodeId || undefined,
-            assetKind: nodeAssetKind,
-            assetName: nodeAssetName,
-            prompt: promptForGeneration,
-            usePromptAsFinal: true,
-            referenceImageUrls: referenceImages.map((r) => r.url),
-            aiModelId: data.modelId || undefined,
-            size: selectedSize,
-            parameters: { quality: selectedQuality, format: 'png', resolution: selectedResolution },
-          }, { signal: abortController.signal });
-      if (generationRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      const outputImageAssetId = readObjectString(result.asset, 'id');
-      const backendGenerationId = readObjectString(result.generation, 'id');
-      const outputImageVariants = canvasOutputImageVariantsFromResult(result);
-      if (result.image?.url) {
-        clearTransientSubmitState();
-        updateNodeData(id, {
-          status: 'completed',
-          outputImage: result.image.url,
-          outputImageAssetId: outputImageAssetId || data.outputImageAssetId || '',
-          outputImages: outputImageVariants,
-          revisedPrompt: result.image.revisedPrompt,
-          finalPrompt: finalPromptForNode,
-          submittedPrompt: result.prompt || promptForGeneration,
-          manualFinalPrompt: true,
-          ...(isStandaloneGeneration ? { mode: 'standalone' } : { assetKind: nodeAssetKind, assetName: nodeAssetName }),
-          quality: selectedQuality,
-          format: 'png',
-          generationStartedAt: '',
-          generationRequestId: '',
-          generationId: backendGenerationId || readObjectString(data, 'generationId'),
-        });
-        if (isStandaloneGeneration) {
-          window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
-        }
-        if (result.workflow) syncWorkflowAssetsFromCanvas(result.workflow);
-      } else if (isStandaloneGeneration && backendGenerationId) {
-        clearTransientSubmitState();
-        updateNodeData(id, {
-          status: 'generating',
-          progress: 0,
-          error: '后端已接收，等待上游返回...',
-          generationStartedAt,
-          generationStoppedAt: '',
-          stoppedSubmittedPrompt: '',
-          generationRequestId: generationRequestToken,
-          generationId: backendGenerationId,
-          finalPrompt: finalPromptForNode,
-          submittedPrompt: result.prompt || promptForGeneration,
-          manualFinalPrompt: true,
-          outputImage: '',
-          outputImageAssetId: '',
-          revisedPrompt: '',
-          mode: 'standalone',
-          size: selectedSize,
-          resolution: selectedResolution,
-          quality: selectedQuality,
-          format: 'png',
-        });
-        window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
-      } else {
-        clearTransientSubmitState();
-        updateNodeData(id, { status: 'failed', error: '后端未确认生成任务，请重新生成。', generationStartedAt: '', generationRequestId: '' });
-      }
-    } catch (err: any) {
-      if (generationRequestIdRef.current !== requestId || abortController.signal.aborted) return;
-      if (isStandaloneGeneration && projectId && projectId !== 'local') {
-        try {
-          const records = await apiClient.listGenerationRecords(projectId);
-          const recovered = recoverCanvasImageFromGenerationRecords(records, promptForGeneration, {
-            notBefore: generationStartedAt,
-            requestId: generationRequestToken,
-            generationId: readObjectString(data, 'generationId'),
-          });
-          if (recovered?.image?.url) {
-            const recoveredAssetId = readObjectString(recovered.asset, 'id');
-            const recoveredGenerationId = readObjectString(recovered.generation, 'id');
-            const recoveredOutputImageVariants = canvasOutputImageVariantsFromResult(recovered);
-            clearTransientSubmitState();
-            updateNodeData(id, {
-              status: 'completed',
-              outputImage: recovered.image.url,
-              outputImageAssetId: recoveredAssetId || data.outputImageAssetId || '',
-              outputImages: recoveredOutputImageVariants,
-              revisedPrompt: recovered.image.revisedPrompt,
-              finalPrompt: finalPromptForNode,
-              submittedPrompt: recovered.prompt || promptForGeneration,
-              manualFinalPrompt: true,
-              mode: 'standalone',
-              quality: selectedQuality,
-              format: 'png',
-              error: '刚才的长请求已在后台完成，已自动恢复生成结果。',
-              generationStartedAt: '',
-              generationRequestId: '',
-              generationId: recoveredGenerationId || readObjectString(data, 'generationId'),
-            });
-            window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
-            return;
-          }
-          const runningRecord = findLatestCanvasImageGenerationRecord(records, promptForGeneration, {
-            notBefore: generationStartedAt,
-            requestId: generationRequestToken,
-            generationId: readObjectString(data, 'generationId'),
-          });
-          if (runningRecord && (runningRecord.status === 'RUNNING' || runningRecord.status === 'QUEUED')) {
-            clearTransientSubmitState();
-            updateNodeData(id, {
-              status: 'generating',
-              progress: 0,
-              error: '后端已接收，等待上游返回...',
-              generationStartedAt: generationRecordStartedAt(runningRecord) || generationStartedAt,
-              generationStoppedAt: '',
-              stoppedSubmittedPrompt: '',
-              generationRequestId: generationRequestToken,
-              generationId: runningRecord.id,
-              finalPrompt: finalPromptForNode,
-              submittedPrompt: runningRecord.prompt || promptForGeneration,
-              manualFinalPrompt: true,
-              outputImage: '',
-              outputImageAssetId: '',
-              revisedPrompt: '',
-              mode: 'standalone',
-              size: selectedSize,
-              resolution: selectedResolution,
-              quality: selectedQuality,
-              format: 'png',
-            });
-            window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
-            return;
-          }
-        } catch {
-          // Keep the original generation error when record recovery is unavailable.
-        }
-      }
-      const errorMessage = appendCanvasImageGenerationRetryHint(
-        err?.message || '生成失败',
-        referenceImages.length,
-        selectedResolution,
-      );
-      clearTransientSubmitState();
-      updateNodeData(id, {
-        status: 'failed',
-        error: shouldKeepCanvasGenerationPendingAfterError(errorMessage)
-          ? `请求没有确认到后端生成任务：${errorMessage}`
-          : errorMessage,
-        generationStartedAt: '',
-        generationRequestId: '',
-      });
-    } finally {
-      if (generationRequestIdRef.current === requestId) {
-        generationInFlightRef.current = false;
-        generationAbortRef.current = null;
-      }
-    }
-  };
-
-  const handleStopGeneration = () => {
-    const stoppedSubmittedPrompt = String(data.submittedPrompt || data.finalPrompt || data.prompt || promptDraft || '');
-    generationRequestIdRef.current += 1;
-    generationAbortRef.current?.abort();
-    generationAbortRef.current = null;
-    generationInFlightRef.current = false;
-    clearTransientSubmitState();
-    if (isSubmittingGeneration && data.status !== 'generating') {
-      updateNodeData(id, {
-        status: 'failed',
-        error: '已停止提交，可重新生成。',
-        generationStartedAt: '',
-        generationRequestId: '',
-        generationStoppedAt: canvasGenerationStartedAt(),
-        stoppedSubmittedPrompt,
-      });
-      return;
-    }
-    updateNodeData(id, {
-      status: 'failed',
-      error: '已停止本地等待。上游任务可能仍在处理并消耗额度；完成后可在生成记录查看，可重新生成。',
-      generationStartedAt: '',
-      generationRequestId: '',
-      generationStoppedAt: canvasGenerationStartedAt(),
-      stoppedSubmittedPrompt,
-    });
-  };
-
-  useEffect(() => {
-    if (data.status !== 'generating') return;
-    const age = canvasGenerationAgeMs(data.generationStartedAt);
-    if (age === null || age > CANVAS_GENERATION_STALE_MS) {
-      updateNodeData(id, {
-        status: 'failed',
-        error: '上次生成请求已中断，可重新生成。',
-        generationStartedAt: '',
-        generationRequestId: '',
-      });
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      updateNodeData(id, {
-        status: 'failed',
-        error: '生成等待超过 15 分钟，已停止。可重新生成。',
-        generationStartedAt: '',
-        generationRequestId: '',
-      });
-    }, CANVAS_GENERATION_STALE_MS - age);
-    return () => window.clearTimeout(timer);
-  }, [data.status, data.generationStartedAt, id, updateNodeData]);
-
-  const handleSetAsCurrentImage = async () => {
-    const imageUrl = String(data.outputImage || '');
-    const assetId = String(data.outputImageAssetId || '');
-    if (!imageUrl) return;
-    updateNodeData(id, { currentImageStatus: assetId ? 'saving' : 'local', currentImageError: '' });
-    if (!projectId || projectId === 'local' || !assetId) {
-      updateNodeData(id, { currentImageStatus: 'local' });
-      return;
-    }
-    try {
-      const result = await apiClient.selectWorkflowAssetImage(projectId, {
-        episodeId: sourceEpisodeId || undefined,
-        assetKind: nodeAssetKind,
-        assetName: nodeAssetName,
-        assetId,
-      });
-      syncWorkflowAssetsFromCanvas(result.workflow);
-      updateNodeData(id, { currentImageStatus: 'saved', currentImageError: '' });
-    } catch (err: any) {
-      updateNodeData(id, { currentImageStatus: 'failed', currentImageError: err?.message || '设为当前图失败' });
-    }
-  };
-
-  const handleAssignStandaloneImageToAsset = async () => {
-    const imageUrl = String(data.outputImage || '');
-    const assetId = String(data.outputImageAssetId || '');
-    const assetName = targetAssetName.trim();
-    if (!imageUrl || !assetId) {
-      updateNodeData(id, { currentImageStatus: 'failed', currentImageError: '这张图缺少可写入资产库的图片 ID。' });
-      return;
-    }
-    if (!assetName) {
-      updateNodeData(id, { currentImageStatus: 'failed', currentImageError: '请先选择或输入要写入的资产名称。' });
-      return;
-    }
-    if (!projectId || projectId === 'local') {
-      updateNodeData(id, { currentImageStatus: 'local', currentImageError: '本地项目不能写入资产库。' });
-      return;
-    }
-    updateNodeData(id, { currentImageStatus: 'saving', currentImageError: '' });
-    try {
-      const result = await apiClient.selectWorkflowAssetImage(projectId, {
-        episodeId: sourceEpisodeId || undefined,
-        assetKind: targetAssetKind,
-        assetName,
-        assetId,
-      });
-      syncWorkflowAssetsFromCanvas(result.workflow);
-      setTargetAssets(mergeWorkflowAssetsWithProjectRecords(
-        result.workflow.assets ?? defaultWorkflowAssets(),
-        targetAssetCatalog.characters,
-        targetAssetCatalog.scenes,
-      ));
-      updateNodeData(id, {
-        currentImageStatus: 'saved',
-        currentImageError: '',
-        lastAssignedAssetKind: targetAssetKind,
-        lastAssignedAssetName: assetName,
-      });
-    } catch (err: any) {
-      updateNodeData(id, { currentImageStatus: 'failed', currentImageError: err?.message || '写入资产失败' });
-    }
-  };
-
-  const handleAddOutputAsImageInput = () => {
-    const imageUrl = String(data.outputImage || '').trim();
-    if (!imageUrl) return;
-    const currentNode = nodes.find((node) => node.id === id);
-    const width = positiveNumber(currentNode?.style?.width) ?? 360;
-    addNode('imageInput', {
-      x: (currentNode?.position.x ?? 0) + width + 80,
-      y: currentNode?.position.y ?? 0,
-    }, {
-      label: `${nodeAssetName || '生成图片'} 输入`,
-      imageUrl,
-      fileName: `${nodeAssetName || 'generated-image'}.png`,
-      imageAspectRatio: outputImageAspectRatio,
-      uploadStatus: 'linked',
-      sourcePrompt: String(data.finalPrompt || data.prompt || data.submittedPrompt || data.revisedPrompt || promptDraft || ''),
-      uploadError: '',
-      imageLoadError: false,
-    });
-  };
-
-  return (
-    <>
-      <CanvasNodeResizer selected={selected} minWidth={320} minHeight={300} />
-      <div className="scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
-      <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
-        <div className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden shrink-0">
-          {data.outputImage ? (
-            <img
-              src={data.outputImage}
-              alt={nodeAssetName}
-              className="h-full w-full cursor-zoom-in object-cover"
-              onClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: `${nodeAssetLabel}生成结果` })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: `${nodeAssetLabel}生成结果` })}
-            />
-          ) : (
-	            <div className="flex h-full w-full items-center justify-center text-zinc-600">
-	              {isStandaloneGeneration ? <Wand2 className="h-5 w-5" /> : nodeAssetKind === 'scenes' ? <ImageIcon className="h-5 w-5" /> : <Package className="h-5 w-5" />}
-	            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-zinc-100">{nodeAssetName}</div>
-	          <div className="line-clamp-2 text-[11px] text-zinc-500">{isStandaloneGeneration && !previousStoryboardReference ? '独立生图节点，不自动写入资产库' : renderedDescription}</div>
-        </div>
-        <span className={cn(
-          "shrink-0 text-[10px]",
-          isSubmittingGeneration ? 'animate-pulse text-sky-400' : generationStalled ? 'text-red-400' : data.status === 'generating' ? 'animate-pulse text-yellow-400' : data.status === 'completed' ? 'text-green-400' : data.status === 'failed' ? 'text-red-400' : 'text-zinc-500',
-        )}>
-          {isSubmittingGeneration ? '提交中' : data.status === 'generating' && !generationStalled ? '生成中' : data.status === 'completed' ? '已完成' : data.status === 'failed' || generationStalled ? '失败' : '等待生成'}
-        </span>
-      </div>
-
-      {referenceImages.length > 0 && (
-        <div className="border-t border-zinc-800 px-3 py-2">
-          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-sky-400 shrink-0">{referenceImages.length} 参考</span>
-            {previousStoryboardReference && (
-              <button
-                type="button"
-                className="nodrag nopan min-w-0 truncate rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-left text-[10px] font-medium text-amber-200 hover:bg-amber-500/15"
-                title={previousStoryboardReference.label}
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => previewCanvasImage(event, {
-                  url: previousStoryboardReference.url,
-                  title: previousStoryboardReference.label,
-                  subtitle: `${nodeAssetLabel}连续性参考图`,
-                })}
-              >
-                已接入 {previousStoryboardReference.label}
-              </button>
-            )}
-          </div>
-          <div className="flex gap-1 overflow-x-auto">
-            {referenceImages.map((ref, i) => (
-              <div key={i} className="relative shrink-0">
-                <img
-                  src={ref.url}
-                  alt={ref.label}
-                  className={cn(
-                    "h-8 w-8 cursor-zoom-in rounded border object-cover",
-                    ref.kind === 'storyboard' ? 'border-amber-400 ring-1 ring-amber-400/40' : 'border-zinc-700',
-                  )}
-                  onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: `${nodeAssetLabel}参考图` })}
-                  onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: `${nodeAssetLabel}参考图` })}
-                />
-                <span className={cn(
-                  "absolute -top-1 -left-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[8px] font-bold text-white",
-                  ref.kind === 'storyboard' ? 'bg-amber-500' : 'bg-sky-500',
-                )}>
-                  {canvasReferenceImageBadgeLabel(ref, i)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="border-t border-zinc-800 px-3 py-2">
-        <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="text-[10px] font-medium text-zinc-400">最终生图提示词</span>
-	          <button
-	            type="button"
-	            className="nodrag nopan text-[10px] text-zinc-500 hover:text-zinc-300"
-	            onPointerDown={(e) => e.stopPropagation()}
-	            onClick={(e) => {
-	              e.stopPropagation();
-	              setPromptDraft(autoFinalPrompt);
-	              setPromptEditing(false);
-	              updateNodeData(id, { finalPrompt: autoFinalPrompt, manualFinalPrompt: true });
-            }}
-          >
-            重置
-          </button>
-        </div>
-	        <textarea
-	          className="nodrag nopan w-full resize-y rounded border border-zinc-700 bg-[#09090b] px-2.5 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none min-h-[80px]"
-	          rows={8}
-	          placeholder="输入最终发送给图片模型的提示词..."
-	          value={promptDraft}
-	          onChange={(e) => setPromptDraft(e.target.value)}
-	          onFocus={() => setPromptEditing(true)}
-	          onBlur={() => {
-	            if (promptComposingRef.current) return;
-	            setPromptEditing(false);
-	            commitPromptDraft();
-	          }}
-	          onCompositionStart={() => {
-	            promptComposingRef.current = true;
-	          }}
-	          onCompositionEnd={(e) => {
-	            promptComposingRef.current = false;
-	            setPromptDraft(e.currentTarget.value);
-	          }}
-	          onPointerDown={(e) => e.stopPropagation()}
-	          onClick={(e) => e.stopPropagation()}
-	          onKeyDown={(e) => e.stopPropagation()}
-	          onKeyUp={(e) => e.stopPropagation()}
-	        />
-      </div>
-
-      <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[10px]">
-	        <select
-	          className="nodrag nopan h-7 min-w-0 flex-1 truncate rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-	          value={data.modelId || ''}
-	          onChange={(e) => updateNodeData(id, { modelId: e.target.value })}
-	          onPointerDown={(e) => e.stopPropagation()}
-	          onClick={(e) => e.stopPropagation()}
-	        >
-          <option value="">默认模型</option>
-          {data.modelId && !imageModels.some((model) => model.id === data.modelId) ? (
-            <option value={data.modelId}>当前模型不可用</option>
-          ) : null}
-          {imageModels.map((model) => (
-            <option key={model.id} value={model.id}>
-              {modelOptionLabel(model)}
-            </option>
-          ))}
-        </select>
-	        <select
-	          className="nodrag nopan h-7 w-[66px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-	          value={selectedSize}
-	          onChange={(e) => updateNodeData(id, { size: e.target.value })}
-	          onPointerDown={(e) => e.stopPropagation()}
-	          onClick={(e) => e.stopPropagation()}
-	        >
-          {CANVAS_IMAGE_RATIO_OPTIONS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
-        </select>
-	        <select
-	          className="nodrag nopan h-7 w-[52px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-	          value={selectedResolution}
-	          onChange={(e) => updateNodeData(id, { resolution: e.target.value })}
-	          onPointerDown={(e) => e.stopPropagation()}
-	          onClick={(e) => e.stopPropagation()}
-	        >
-          <option value="1k">1K</option>
-          <option value="2k">2K</option>
-          <option value="4k">4K</option>
-        </select>
-	        <select
-	          className="nodrag nopan h-7 w-[60px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
-	          value={selectedQuality}
-	          onChange={(e) => updateNodeData(id, { quality: e.target.value })}
-	          onPointerDown={(e) => e.stopPropagation()}
-	          onClick={(e) => e.stopPropagation()}
-	        >
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-      </div>
-
-      <div className="border-t border-zinc-800 px-3 py-2">
-	        <Button
-	          size="sm"
-	          className="nodrag nopan w-full h-8 text-[12px] bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5"
-	          onClick={handleGenerate}
-	          onPointerDown={(e) => e.stopPropagation()}
-	          disabled={isSubmittingGeneration || (data.status === 'generating' && !generationStalled)}
-	        >
-          <Wand2 className="h-3.5 w-3.5" />
-          {isSubmittingGeneration ? '提交中...' : data.status === 'generating' && !generationStalled ? '生成中...' : data.status === 'completed' || generationStalled ? '重新生成' : '生成'}
-        </Button>
-      </div>
-
-      {(isSubmittingGeneration || (data.status === 'generating' && !generationStalled)) && (
-        <div className="px-3 pb-3">
-          <div className="aspect-square rounded border border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
-            <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 animate-pulse w-[60%]" />
-            </div>
-            <span className="px-3 text-center text-[11px] text-zinc-500">
-              {isSubmittingGeneration ? String(data.canvasSubmitError || '正在提交到后端...') : canvasGenerationWaitLabel(data.generationStartedAt)}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="nodrag nopan h-6 text-[10px] text-zinc-400 hover:text-zinc-100"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStopGeneration();
-              }}
-            >
-              停止
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {data.status === 'completed' && data.outputImage && (
-        <div className="px-3 pb-2">
-          <div className="group relative overflow-hidden rounded border border-zinc-700 bg-zinc-950">
-            <img
-              src={data.outputImage}
-              alt="Generated"
-              className="w-full cursor-zoom-in object-contain"
-              style={{ aspectRatio: String(outputImageAspectRatio) }}
-              onClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined })}
-              onLoad={(event) => {
-                const img = event.currentTarget;
-                const ratio = img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : null;
-                if (ratio && Math.abs(ratio - outputImageAspectRatio) > 0.01) {
-                  updateNodeData(id, { outputImageAspectRatio: ratio });
-                }
-              }}
-            />
-            <div
-              className="absolute inset-0 hidden cursor-zoom-in items-center justify-center gap-2 bg-black/60 group-hover:flex"
-              onClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined })}
-              onDoubleClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined })}
-            >
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-[10px] bg-zinc-800/80 hover:bg-zinc-700"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void downloadCanvasImagePreview({ url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined });
-                }}
-              >
-                <Download className="h-3 w-3 mr-1" /> 保存
-              </Button>
-              {!isStandaloneGeneration && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-7 text-[10px] bg-zinc-800/80 hover:bg-zinc-700"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleSetAsCurrentImage();
-                  }}
-                >
-                  {data.currentImageStatus === 'saving' ? '写入中...' : '设为当前图'}
-                </Button>
-              )}
-            </div>
-          </div>
-          {outputImageVariants.length > 1 ? (
-            <div className="mt-2 grid grid-cols-4 gap-1">
-              {outputImageVariants.map((variant, index) => {
-                const active = publicImageUrl(data.outputImage) === variant.url;
-                return (
-                  <button
-                    key={`${variant.url}-${index}`}
-                    type="button"
-                    className={cn(
-                      "nodrag nopan relative aspect-square overflow-hidden rounded border bg-zinc-950",
-                      active ? "border-indigo-400 ring-1 ring-indigo-400/60" : "border-zinc-700 hover:border-zinc-500",
-                    )}
-                    title={variant.title || `结果 ${index + 1}`}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      updateNodeData(id, {
-                        outputImage: variant.url,
-                        outputImageAssetId: variant.assetId || '',
-                        revisedPrompt: variant.revisedPrompt || data.revisedPrompt || '',
-                      });
-                    }}
-                  >
-                    <img src={variant.url} alt={`结果 ${index + 1}`} className="h-full w-full object-cover" />
-                    <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[9px] font-medium text-zinc-100">
-                      {index + 1}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="nodrag nopan mt-2 h-7 w-full text-[11px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              handleAddOutputAsImageInput();
-            }}
-          >
-            <ImageIcon className="mr-1 h-3.5 w-3.5" />
-            作为图片输入放入画布
-          </Button>
-          {isStandaloneGeneration && (
-            <div className="mt-2 rounded border border-zinc-800 bg-[#101014] p-2">
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-medium text-zinc-400">写入资产库</span>
-                {data.lastAssignedAssetName ? (
-                  <span className="truncate text-[10px] text-emerald-400">
-                    已设为 {workflowAssetKindSelectLabel(data.lastAssignedAssetKind || targetAssetKind)} / {data.lastAssignedAssetName}
-                  </span>
-                ) : null}
-              </div>
-              <div className="flex gap-1.5">
-                <select
-                  className="nodrag nopan h-7 w-[82px] shrink-0 rounded border border-zinc-700 bg-zinc-900 px-1.5 text-[10px] text-zinc-300 focus:border-indigo-500 focus:outline-none"
-                  value={targetAssetKind}
-                  onChange={(e) => {
-                    const nextKind = e.target.value as WorkflowAssetKind;
-                    setTargetAssetKind(nextKind);
-                    const nextNames = assetArray(targetAssets, nextKind).map(workflowAssetName).filter(Boolean);
-                    setTargetAssetCustomMode(false);
-                    setTargetAssetName(nextNames[0] || '');
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <option value="characters">角色</option>
-                  <option value="scenes">场景</option>
-                  <option value="props">道具</option>
-                </select>
-                {targetAssetOptions.length > 0 ? (
-                  <select
-                    className="nodrag nopan h-7 min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 text-[10px] text-zinc-200 focus:border-indigo-500 focus:outline-none"
-                    value={targetAssetCustomMode ? '__custom__' : targetAssetName}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '__custom__') {
-                        setTargetAssetCustomMode(true);
-                        setTargetAssetName('');
-                        return;
-                      }
-                      setTargetAssetCustomMode(false);
-                      setTargetAssetName(value);
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {targetAssetOptions.map((name) => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                    <option value="__custom__">手动输入...</option>
-                  </select>
-                ) : null}
-              </div>
-              {(targetAssetCustomMode || targetAssetOptions.length === 0) ? (
-                <input
-                  className="nodrag nopan mt-1.5 h-7 w-full rounded border border-zinc-700 bg-zinc-900 px-2 text-[10px] text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none"
-                  value={targetAssetName}
-                  placeholder="输入资产名"
-                  onChange={(e) => setTargetAssetName(e.target.value)}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : null}
-              <div className="mt-1 text-[10px] text-zinc-500">
-                已加载 {targetAssetOptions.length} 个{workflowAssetKindSelectLabel(targetAssetKind)}
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                className="nodrag nopan mt-2 h-7 w-full bg-emerald-600 text-[11px] text-white hover:bg-emerald-500"
-                disabled={data.currentImageStatus === 'saving'}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void handleAssignStandaloneImageToAsset();
-                }}
-              >
-                {data.currentImageStatus === 'saving' ? '写入中...' : '设为所选资产当前图'}
-              </Button>
-              {targetAssetsError ? <div className="mt-1 text-[10px] text-amber-400">{targetAssetsError}</div> : null}
-            </div>
-          )}
-          {data.currentImageError ? <div className="mt-1 text-[10px] text-red-400">{data.currentImageError}</div> : null}
-        </div>
-      )}
-
-      {data.status === 'failed' && data.error && (
-        <div className="px-3 pb-2 text-[11px] text-red-400">{data.error}</div>
-      )}
-
-      {generationStalled && (
-        <div className="px-3 pb-2 text-[10px] text-amber-400">上次生成状态已中断，可点击重新生成。</div>
-      )}
-
-        <CanvasHandle type="target" position={Position.Left} />
-        <CanvasHandle type="source" position={Position.Right} />
-      </div>
-    </>
-  );
-};
-
-const nodeTypes = {
-  scene: SceneNode,
-  character: CharacterNode,
-  episode: WorkflowNode,
-  asset: WorkflowNode,
-  workflow: WorkflowNode,
-  directorBoard: WorkflowNode,
-  imageInput: ImageInputNode,
-  generation: GenerationNode,
-  video: VideoNode,
-  audio: AudioInputNode,
-  translation: TranslationNode,
-  promptOptimizer: PromptOptimizerNode,
-  promptInspector: PromptInspectorNode,
-  section: SectionNode,
-};
 
 type WorkflowCenterOverlayProps = {
   activeStage: WorkflowStageKey;
