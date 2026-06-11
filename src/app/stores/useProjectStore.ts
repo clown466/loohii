@@ -86,10 +86,14 @@ export const useProjectStore = create<ProjectStore>()(
       },
 
       deleteProject: (id) => {
+        const previousProjects = get().projects
         set((state) => ({
           projects: state.projects.filter((p) => p.id !== id),
         }))
-        void apiClient.deleteProject(id)
+        void apiClient.deleteProject(id).catch((error) => {
+          console.error(`[project-store] deleteProject failed for ${id}:`, error)
+          set({ projects: previousProjects })
+        })
       },
 
       getProject: (id) => {

@@ -209,8 +209,26 @@ router.post(
           workflow,
           recentMessages: recentConversationMessages,
           clientContext: input.context,
-        }).catch((error) => {
+        }).catch(async (error) => {
           console.error(`[agent] background_failed message=${assistantMessageId}`, error);
+          try {
+            await prisma.agentMessage.update({
+              where: { id: assistantMessageId },
+              data: {
+                content: `项目总控后台执行失败：${error instanceof Error ? error.message : "未知错误"}`,
+                payload: {
+                  source: "backend-placeholder",
+                  agent: hermesAgentStatus(),
+                  conversationId,
+                  status: "FAILED",
+                  error: error instanceof Error ? error.message : "Background agent task failed",
+                  completedAt: new Date().toISOString(),
+                },
+              },
+            });
+          } catch (updateError) {
+            console.error(`[agent] failed_to_persist_background_failure message=${assistantMessageId}`, updateError);
+          }
         });
       }
     }

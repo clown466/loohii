@@ -44,7 +44,10 @@ async function callHermesAgentUrl(context: HermesAgentContext): Promise<HermesAg
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`Hermes Agent HTTP ${response.status}`);
-    const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch((parseError) => {
+      console.warn(`[hermes-agent] response JSON parse failed: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      return {};
+    });
     return normalizeHermesResponse(data);
   } finally {
     clearTimeout(timeout);

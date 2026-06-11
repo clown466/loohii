@@ -9110,8 +9110,14 @@ const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
     let cancelled = false;
     Promise.all([
       apiClient.getProjectWorkflow(projectId, { episodeId: sourceEpisodeId || undefined }),
-      apiClient.listProjectCharacters(projectId).catch(() => []),
-      apiClient.listProjectScenes(projectId).catch(() => []),
+      apiClient.listProjectCharacters(projectId).catch((error) => {
+        console.warn('[canvas] listProjectCharacters failed for standalone generation:', error instanceof Error ? error.message : error);
+        return [];
+      }),
+      apiClient.listProjectScenes(projectId).catch((error) => {
+        console.warn('[canvas] listProjectScenes failed for standalone generation:', error instanceof Error ? error.message : error);
+        return [];
+      }),
     ])
       .then(([workflow, characters, scenes]) => {
         if (cancelled) return;
@@ -13365,8 +13371,8 @@ function CanvasInner() {
     const timer = window.setTimeout(() => {
       const canvasState = useCanvasStore.getState();
       if (!canvasLoadedRef.current || canvasState.activeProjectId !== projectId || canvasState.activeSceneId !== activeCanvasSceneId) return;
-      saveCanvasScene(projectId, activeCanvasSceneId).catch(() => {
-        // Local canvas persistence remains available if the remote save fails.
+      saveCanvasScene(projectId, activeCanvasSceneId).catch((error) => {
+        console.warn('[canvas] remote save failed, local persistence still available:', error instanceof Error ? error.message : error);
       });
     }, 1200);
     return () => window.clearTimeout(timer);
@@ -13421,8 +13427,8 @@ function CanvasInner() {
             });
             setWorkflowDraftProjectId(`${projectId}:${remote.episodeId || activeEpisodeId}`);
           })
-          .catch(() => {
-            // The canvas update itself should remain visible even if workflow refresh fails.
+          .catch((error) => {
+            console.warn('[canvas] workflow refresh after agent action failed:', error instanceof Error ? error.message : error);
           });
       }
     };
@@ -13448,7 +13454,8 @@ function CanvasInner() {
             setGenerationRecords(filtered);
           }
         })
-        .catch(() => {
+        .catch((error) => {
+          console.warn('[canvas] generation records fetch failed:', error instanceof Error ? error.message : error);
           if (!cancelled) setGenerationRecords([]);
         });
     };
@@ -13852,8 +13859,8 @@ function CanvasInner() {
           });
           setWorkflowDraftProjectId(`${projectId}:${remote.episodeId || activeEpisodeId}`);
         })
-        .catch(() => {
-          // Keep the last persisted state visible; the next poll can recover.
+        .catch((error) => {
+          console.warn('[canvas] workflow poll failed, will retry:', error instanceof Error ? error.message : error);
         });
     }, 5000);
     return () => {
@@ -13910,8 +13917,8 @@ function CanvasInner() {
             recovering = false;
           });
         })
-        .catch(() => {
-          // Keep the local in-flight state; the next poll can recover after a transient network error.
+        .catch((error) => {
+          console.warn('[canvas] infer-all workflow poll failed, will retry:', error instanceof Error ? error.message : error);
           recovering = false;
         });
     };
@@ -14097,8 +14104,14 @@ function CanvasInner() {
     try {
       const [workflow, characters, scenes] = await Promise.all([
         apiClient.getProjectWorkflow(projectId, { episodeId: activeEpisodeId }),
-        apiClient.listProjectCharacters(projectId).catch(() => []),
-        apiClient.listProjectScenes(projectId).catch(() => []),
+        apiClient.listProjectCharacters(projectId).catch((error) => {
+          console.warn('[canvas] listProjectCharacters failed during asset merge:', error instanceof Error ? error.message : error);
+          return [];
+        }),
+        apiClient.listProjectScenes(projectId).catch((error) => {
+          console.warn('[canvas] listProjectScenes failed during asset merge:', error instanceof Error ? error.message : error);
+          return [];
+        }),
       ]);
       const merged = mergeWorkflowAssetsWithProjectRecords(
         workflow?.assets ?? workflowAssets,
@@ -14108,7 +14121,8 @@ function CanvasInner() {
       setWorkflowAssets(merged);
       if (workflow?.stageStatuses) setStageStatuses(workflow.stageStatuses);
       return merged;
-    } catch {
+    } catch (error) {
+      console.warn('[canvas] loadMergedWorkflowAssets failed:', error instanceof Error ? error.message : error);
       return workflowAssets;
     }
   };
@@ -15143,8 +15157,8 @@ function CanvasInner() {
             breakdownScenes: targetScenes,
             clips: result.clips,
             assets: targetAssets,
-          }, { episodeId: override?.episodeId ?? activeEpisodeId }).catch(() => {
-            // Autosave will retry from local state if this immediate sync save fails.
+          }, { episodeId: override?.episodeId ?? activeEpisodeId }).catch((error) => {
+            console.warn('[canvas] workflow save after clip sync failed, autosave will retry:', error instanceof Error ? error.message : error);
           });
         }
       }

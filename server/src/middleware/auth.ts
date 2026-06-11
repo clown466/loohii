@@ -26,7 +26,8 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
 
   try {
     req.user = jwt.verify(token, config.jwtSecret) as AuthUser;
-  } catch {
+  } catch (error) {
+    console.warn(`[auth] token verification failed: ${error instanceof Error ? error.message : "unknown error"}`);
     req.user = undefined;
   }
 
@@ -34,7 +35,18 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
-  optionalAuth(req, _res, () => undefined);
+  const token = readToken(req);
+  if (!token) {
+    unauthorized("Missing authorization token");
+  }
+
+  try {
+    req.user = jwt.verify(token, config.jwtSecret) as AuthUser;
+  } catch (error) {
+    console.warn(`[auth] token verification failed for ${req.method} ${req.originalUrl}: ${error instanceof Error ? error.message : "unknown error"}`);
+    unauthorized("Invalid or expired token");
+  }
+
   if (!req.user?.id) {
     unauthorized();
   }

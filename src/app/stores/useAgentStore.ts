@@ -228,14 +228,16 @@ export const useAgentStore = create<AgentStore>((set) => ({
         isTyping: isRunning,
         runningConversationId: isRunning ? conversationId : '',
       }))
-    }).catch(() => {
+    }).catch((error) => {
+      const errorDetail = error instanceof Error ? error.message : '未知错误'
+      console.warn('[agent-store] sendMessage failed:', errorDetail)
       set((state) => ({
         messages: [...state.messages, {
           id: generateMessageId(),
           role: 'assistant',
-          content: '请求已提交，但当前页面连接已中断。正在尝试从历史对话恢复结果...',
+          content: `请求发送失败：${errorDetail}。正在尝试从历史对话恢复结果...`,
           timestamp: Date.now(),
-          metadata: { conversationId, status: 'RUNNING' },
+          metadata: { conversationId, status: 'RUNNING', error: errorDetail },
         }],
         isTyping: true,
         runningConversationId: conversationId,

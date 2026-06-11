@@ -107,6 +107,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       updateProfile: (data: Partial<User>) => {
+        const previousUser = useAuthStore.getState().user
         set((state) => ({
           user: state.user ? { ...state.user, ...data } : null,
         }))
@@ -114,6 +115,9 @@ export const useAuthStore = create<AuthStore>()(
           if (user) {
             set({ user })
           }
+        }).catch((error) => {
+          console.error('[auth-store] updateProfile failed:', error)
+          set({ user: previousUser })
         })
       },
     }),

@@ -7768,7 +7768,10 @@ function findObjectKeyForValue(value: unknown, target: string): string | undefin
 }
 
 async function findDownloadedDreaminaVideo(dir: string): Promise<string | null> {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const entries = await readdir(dir, { withFileTypes: true }).catch((error) => {
+    console.warn(`[workflow] readdir failed for ${dir}: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  });
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {

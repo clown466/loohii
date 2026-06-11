@@ -332,7 +332,8 @@ function loadLocalScene(projectId = 'local', sceneId = 'default'): { nodes: Node
       Array.isArray(parsed?.nodes) ? parsed.nodes : [],
       Array.isArray(parsed?.edges) ? parsed.edges : [],
     )
-  } catch {
+  } catch (error) {
+    console.warn('[canvas-store] loadLocalScene failed:', error instanceof Error ? error.message : error)
     return null
   }
 }
@@ -341,8 +342,8 @@ function saveLocalScene(nodes: Node[], edges: Edge[], projectId = 'local', scene
   try {
     const clean = sanitizeCanvasScene(nodes, edges)
     localStorage.setItem(storageKey(projectId, sceneId), JSON.stringify({ ...clean, updatedAt: new Date().toISOString() }))
-  } catch {
-    // Keep canvas editing usable when storage is unavailable.
+  } catch (error) {
+    console.warn('[canvas-store] saveLocalScene failed (storage may be full or unavailable):', error instanceof Error ? error.message : error)
   }
 }
 
