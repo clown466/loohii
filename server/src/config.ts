@@ -13,8 +13,10 @@ function csvFromEnv(name: string, fallback: string[]): string[] {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
+const nodeEnv = process.env.NODE_ENV ?? "development";
+
 export const config = {
-  nodeEnv: process.env.NODE_ENV ?? "development",
+  nodeEnv,
   port: intFromEnv("PORT", 3001),
   databaseUrl: process.env.DATABASE_URL ?? "",
   corsOrigins: csvFromEnv("CORS_ORIGINS", [
@@ -22,7 +24,7 @@ export const config = {
     "http://127.0.0.1:5173",
     "https://loohii.com",
   ]),
-  jwtSecret: process.env.JWT_SECRET ?? "loohii-dev-secret-change-me",
+  jwtSecret: requireSecret("JWT_SECRET", nodeEnv),
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
   openAiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
@@ -58,4 +60,13 @@ export function requireDatabaseUrl() {
   if (!config.databaseUrl) {
     throw new Error("DATABASE_URL is not configured. Add it before using database-backed API routes.");
   }
+}
+
+function requireSecret(envName: string, env: string): string {
+  const value = process.env[envName];
+  if (value && value.trim()) return value.trim();
+  if (env === "production") {
+    throw new Error(`${envName} must be set in production.`);
+  }
+  return "loohii-dev-secret-do-not-use-in-production";
 }

@@ -31,8 +31,11 @@ export function errorHandler(
     });
   }
 
-  const message = error instanceof Error ? error.message : "Internal server error";
   console.error(error);
+  const isProduction = process.env.NODE_ENV === "production";
+  const message = isProduction
+    ? "Internal server error"
+    : error instanceof Error ? error.message : "Internal server error";
   return res.status(500).json({ message });
 }
 

@@ -198,6 +198,9 @@ router.post(
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       badRequest("Only http(s) images can be downloaded");
     }
+    if (isPrivateOrReservedHost(url.hostname)) {
+      badRequest("Cannot download from private or internal addresses");
+    }
 
     let upstream: globalThis.Response;
     try {
@@ -389,4 +392,33 @@ function safeDownloadFilename(value: string): string {
 function contentDispositionAttachment(filename: string): string {
   const ascii = filename.replace(/[^\x20-\x7e]+/g, "_").replace(/["\\]/g, "_") || "image.png";
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+function isPrivateOrReservedHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (
+    h === "localhost" ||
+    h.endsWith(".localhost") ||
+    h.endsWith(".local") ||
+    h === "metadata.google.internal" ||
+    h === "[::1]" ||
+    h === "::1"
+  ) {
+    return true;
+  }
+  const parts = h.split(".").map(Number);
+  if (parts.length === 4 && parts.every((p) => Number.isInteger(p) && p >= 0 && p <= 255)) {
+    const [a, b] = parts;
+    if (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

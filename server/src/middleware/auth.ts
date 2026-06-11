@@ -25,7 +25,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   if (!token) return next();
 
   try {
-    req.user = jwt.verify(token, config.jwtSecret) as AuthUser;
+    req.user = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as AuthUser;
   } catch {
     req.user = undefined;
   }

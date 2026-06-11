@@ -7,14 +7,16 @@ import morgan from "morgan";
 import { createApiRouter } from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 
-export function createHttpApp(corsOrigins: string[]) {
+export function createHttpApp(corsOrigins: string[], nodeEnv = "development") {
   const app = express();
 
   app.use(helmet());
+
+  const safeOrigins = corsOrigins.filter((o) => o !== "*");
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || corsOrigins.includes("*") || corsOrigins.includes(origin)) {
+        if (!origin || safeOrigins.includes(origin)) {
           callback(null, true);
           return;
         }
@@ -24,7 +26,11 @@ export function createHttpApp(corsOrigins: string[]) {
     }),
   );
   app.use(express.json({ limit: "10mb" }));
-  app.use(morgan("dev"));
+  if (nodeEnv !== "production") {
+    app.use(morgan("dev"));
+  } else {
+    app.use(morgan("combined"));
+  }
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "loohii-backend", time: new Date().toISOString() });

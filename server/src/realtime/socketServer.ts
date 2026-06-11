@@ -1,3 +1,5 @@
+import jwt from "jsonwebtoken";
+import { config } from "../config";
 import {
   generationEventNames,
   generationRoom,
@@ -132,10 +134,18 @@ export function emitGenerationEvent(
 }
 
 function defaultAuthContext(socket: RealtimeSocketLike): RealtimeAuthContext {
-  return {
-    token: getStringField(socket.handshake?.auth, "token"),
-    userId: getStringField(socket.handshake?.auth, "userId"),
-  };
+  const token = getStringField(socket.handshake?.auth, "token");
+  if (token) {
+    try {
+      const payload = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as { id?: string };
+      if (payload.id) {
+        return { token, userId: payload.id };
+      }
+    } catch {
+      // invalid token — fall through to unauthenticated
+    }
+  }
+  return { token };
 }
 
 function getStringField(value: unknown, key: string): string | undefined {

@@ -4,7 +4,7 @@ import { createHttpApp } from "./http";
 import { createRealtimeServer } from "./realtime";
 
 async function main() {
-  const app = createHttpApp(config.corsOrigins);
+  const app = createHttpApp(config.corsOrigins, config.nodeEnv);
   const httpServer = createServer(app);
 
   const realtime = await createRealtimeServer(httpServer, {
