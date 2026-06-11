@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client";
 import { callDreaminaWebVideoModel, preflightDreaminaWebVideoUpload, queryDreaminaWebVideoModel } from "../ai/dreaminaWebBridge";
 import { callConfiguredImageModel } from "../ai/imageModel";
 import { callConfiguredPlainTextModel, callConfiguredTextModel, callConfiguredVisionTextModel } from "../ai/textModel";
-import { config } from "../config";
+import { config, LOCAL_UPLOAD_ROOT } from "../config";
 import { asyncRoute } from "../lib/asyncRoute";
 import { storyboardReferencesFromGenerationRecords } from "../lib/canvasStoryboardReferences";
 import { normalizeCanvasVideoReferenceInputs } from "../lib/canvasVideoReferences";
@@ -16,6 +16,7 @@ import { HttpError, badRequest, notFound, routeParam } from "../lib/httpErrors";
 import { isRecord } from "../lib/mappers";
 import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
 import { prisma } from "../lib/prisma";
+import { findOwnedProject } from "../lib/projectOwnership";
 import { ok } from "../lib/response";
 import {
   clipStoryboardBoardLayoutStrategy,
@@ -23,12 +24,17 @@ import {
   finalizeClipStoryboardImagePrompt,
   stripLegacyClipStoryboardImageLayoutPrompt,
 } from "../lib/storyboardPrompt";
+import { normalizeCompareText, stringFrom } from "../lib/typeGuards";
+import {
+  getWorkflowEpisodes,
+  workflowEpisodeCanvasSceneId,
+  workflowEpisodeIdForTitle,
+} from "../lib/workflowEpisodes";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 const activeWorkflowRuns = new Map<string, number>();
 const activeImageGenerations = new Map<string, number>();
-const LOCAL_UPLOAD_ROOT = process.env.LOCAL_UPLOAD_ROOT || "/var/lib/loohii/uploads";
 const DREAMINA_CLI_PATH = process.env.DREAMINA_CLI_PATH || "dreamina";
 const ACTIVE_IMAGE_GENERATION_LOCK_TTL_MS = 15 * 60 * 1000;
 const IMAGE_GENERATION_RUNNING_TTL_MS = 20 * 60 * 1000;
@@ -1848,12 +1854,6 @@ router.post(
   }),
 );
 
-async function findOwnedProject(projectId: string, ownerId: string) {
-  const project = await prisma.project.findFirst({ where: { id: projectId, ownerId, deletedAt: null } });
-  if (!project) notFound("Project not found");
-  return project;
-}
-
 async function workflowAuthorityContext(project: any, _sourceText = ""): Promise<WorkflowAuthorityContext> {
   const settings = isRecord(project.settings) ? project.settings : {};
   const setupSettings = isRecord(settings.setupSettings) ? settings.setupSettings : {};
@@ -2152,15 +2152,6 @@ function getWorkflowEpisodeById(metadata: unknown, episodeId: string): { id: str
   return { id: resolvedId || workflowEpisodeIdForTitle(legacy.selectedEpisode, "episode-001"), workflow: legacy };
 }
 
-function getWorkflowEpisodes(metadata: unknown): Record<string, Record<string, unknown>> {
-  if (!isRecord(metadata) || !isRecord(metadata.episodes)) return {};
-  const result: Record<string, Record<string, unknown>> = {};
-  for (const [id, value] of Object.entries(metadata.episodes)) {
-    if (id && isRecord(value)) result[id] = value;
-  }
-  return result;
-}
-
 function writeWorkflowEpisode(
   metadata: Record<string, unknown>,
   episodeId: string,
@@ -2247,19 +2238,6 @@ function resolveWorkflowEpisodeId(metadata: unknown, episodeIdOrTitle: string): 
   return requested;
 }
 
-function workflowEpisodeIdForTitle(title: string, fallback: string): string {
-  const text = title.trim();
-  const numberMatch = text.match(/(?:第\s*)?(\d{1,4})\s*(?:集|话|章|回|episode|ep\b)/i) ?? text.match(/(?:episode|ep)\s*0*(\d{1,4})/i);
-  if (numberMatch) return `episode-${String(Number(numberMatch[1])).padStart(3, "0")}`;
-  const slug = text
-    .toLowerCase()
-    .replace(/[\u3400-\u9fff]+/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return slug ? `episode-${slug}` : fallback;
-}
-
 function uniqueWorkflowEpisodeId(title: string, metadata: unknown): string {
   const episodes = getWorkflowEpisodes(metadata);
   const base = workflowEpisodeIdForTitle(title, `episode-${String(Object.keys(episodes).length + 1).padStart(3, "0")}`);
@@ -2271,9 +2249,7 @@ function uniqueWorkflowEpisodeId(title: string, metadata: unknown): string {
   return `${base}-${Date.now().toString(36)}`;
 }
 
-function workflowEpisodeCanvasSceneId(episodeId: string): string {
-  return episodeId || "default";
-}
+
 
 function episodeSortKey(a: WorkflowEpisodeSummary, b: WorkflowEpisodeSummary): number {
   const aNumber = Number(a.id.match(/episode-(\d+)/)?.[1] ?? Number.NaN);
@@ -5917,9 +5893,7 @@ function mostCommonString(values: string[]): string {
   return Array.from(counts.values()).sort((a, b) => b.count - a.count)[0]?.value ?? "";
 }
 
-function normalizeCompareText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
+
 
 function stringifyWorkflowText(value: unknown): string {
   if (typeof value === "string") return value.trim();
@@ -8158,12 +8132,6 @@ function isDreaminaGeneratedVideoUrlString(value: string): boolean {
 
 function arrayFrom(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
-}
-
-function stringFrom(value: unknown, fallback: string): string;
-function stringFrom(value: unknown, fallback: undefined): string | undefined;
-function stringFrom(value: unknown, fallback: string | undefined): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function numberFrom(value: unknown, fallback: number): number {

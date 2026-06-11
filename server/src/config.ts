@@ -13,6 +13,8 @@ function csvFromEnv(name: string, fallback: string[]): string[] {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
+export const LOCAL_UPLOAD_ROOT = process.env.LOCAL_UPLOAD_ROOT || "/var/lib/loohii/uploads";
+
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: intFromEnv("PORT", 3001),

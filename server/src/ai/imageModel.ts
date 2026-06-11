@@ -1,5 +1,7 @@
+import { isRecord } from "../lib/mappers";
 import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
 import { prisma } from "../lib/prisma";
+import { stringFrom } from "../lib/typeGuards";
 import { callDreaminaWebImageModel, isDreaminaWebProvider } from "./dreaminaWebBridge";
 
 type ProviderConfigLike = {
@@ -1023,16 +1025,6 @@ function capabilitiesToArray(value: unknown): string[] {
       .map(([key]) => key);
   }
   return [];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function stringFrom(value: unknown, fallback: string): string;
-function stringFrom(value: unknown, fallback: undefined): string | undefined;
-function stringFrom(value: unknown, fallback: string | undefined): string | undefined {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function firstString(...values: unknown[]): string {

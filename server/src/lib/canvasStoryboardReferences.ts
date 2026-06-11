@@ -1,4 +1,6 @@
 import { isRecord } from "./mappers";
+import { normalizeCompareText, stringValue } from "./typeGuards";
+import { getWorkflowEpisodes, resolveWorkflowEpisodeId } from "./workflowEpisodes";
 import {
   ensureClipStoryboardBoardLayoutPrompt,
   finalizeClipStoryboardImagePrompt,
@@ -1022,34 +1024,6 @@ function workflowEpisodeTitleFromMetadata(metadata: unknown, episodeId: string):
   return isRecord(workflowCenter) ? stringValue(workflowCenter.selectedEpisode) : "";
 }
 
-function getWorkflowEpisodes(metadata: unknown): Record<string, Record<string, unknown>> {
-  if (!isRecord(metadata) || !isRecord(metadata.episodes)) return {};
-  const result: Record<string, Record<string, unknown>> = {};
-  for (const [id, value] of Object.entries(metadata.episodes)) {
-    if (id && isRecord(value)) result[id] = value;
-  }
-  return result;
-}
-
-function resolveWorkflowEpisodeId(metadata: unknown, episodeIdOrTitle: string): string {
-  const requested = episodeIdOrTitle.trim();
-  if (!requested) return "";
-  const episodes = getWorkflowEpisodes(metadata);
-  if (episodes[requested]) return requested;
-  const requestedKey = normalizeCompareText(requested);
-  for (const [id, episode] of Object.entries(episodes)) {
-    const workflowCenter = isRecord(episode.workflowCenter) ? episode.workflowCenter : {};
-    if (
-      normalizeCompareText(id) === requestedKey ||
-      normalizeCompareText(episode.title) === requestedKey ||
-      normalizeCompareText(workflowCenter.selectedEpisode) === requestedKey
-    ) {
-      return id;
-    }
-  }
-  return requested;
-}
-
 function readMetadataBoolean(metadata: Record<string, unknown>, key: string): boolean | undefined {
   const value = metadata[key];
   if (typeof value === "boolean") return value;
@@ -1248,14 +1222,6 @@ function numberValue(value: unknown): number {
 
 function numericCanvasSize(value: unknown): number {
   return numberValue(typeof value === "string" ? value.replace(/px$/, "") : value);
-}
-
-function normalizeCompareText(value: unknown): string {
-  return stringValue(value).replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function sameJson(a: unknown, b: unknown): boolean {

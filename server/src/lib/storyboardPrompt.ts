@@ -1,3 +1,5 @@
+import { stringValue } from "./typeGuards";
+
 export const MIN_CLIP_STORYBOARD_PANEL_COUNT = 5;
 export const MAX_CLIP_STORYBOARD_PANEL_COUNT = 12;
 
@@ -226,6 +228,4 @@ function normalizeStoryboardPromptSpacing(value: string): string {
     .trim();
 }
 
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
+

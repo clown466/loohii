@@ -14,6 +14,8 @@ import { callHermesAgent, hermesAgentStatus, type HermesAgentResult } from "../l
 import { isRecord, mapProject } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
 import { ok } from "../lib/response";
+import { normalizeCompareText, stringValue } from "../lib/typeGuards";
+import { workflowEpisodeCanvasSceneId } from "../lib/workflowEpisodes";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
@@ -2143,7 +2145,7 @@ async function connectAssetToClipForAgent(
     const data = isRecord(node.data) ? node.data : {};
     return (
       (stringValue(node.type) === "character" || stringValue(node.type) === "imageInput") &&
-      normalizeCompareTextForAgent(stringValue(data.assetName) || stringValue(data.name)) === normalizeCompareTextForAgent(assetName) &&
+      normalizeCompareText(stringValue(data.assetName) || stringValue(data.name)) === normalizeCompareText(assetName) &&
       (
         nodeMatchesClip(node, clipId) ||
         (layout.parentSectionId ? stringValue(node.parentId) === layout.parentSectionId : false) ||
@@ -2480,7 +2482,7 @@ function uniqueAgentNames(values: string[]): string[] {
   const names: string[] = [];
   for (const value of values) {
     const clean = value.replace(/["'“”‘’]/g, "").trim();
-    const key = normalizeCompareTextForAgent(clean);
+    const key = normalizeCompareText(clean);
     if (!clean || seen.has(key)) continue;
     seen.add(key);
     names.push(clean);
@@ -2489,8 +2491,8 @@ function uniqueAgentNames(values: string[]): string[] {
 }
 
 function agentAssetNameMatches(candidate: string, target: string): boolean {
-  const left = normalizeCompareTextForAgent(candidate);
-  const right = normalizeCompareTextForAgent(target);
+  const left = normalizeCompareText(candidate);
+  const right = normalizeCompareText(target);
   return Boolean(left && right && (left === right || left.includes(right) || right.includes(left)));
 }
 
@@ -2579,7 +2581,7 @@ function canvasAssetConnectionLayout(
   const childNodes = nodes.filter((node) => stringValue(node.parentId) === stringValue(section.id));
   const existingAssetIndex = childNodes.findIndex((node) => {
     const data = isRecord(node.data) ? node.data : {};
-    return normalizeCompareTextForAgent(stringValue(data.assetName) || stringValue(data.name) || stringValue(data.label)) === normalizeCompareTextForAgent(assetName);
+    return normalizeCompareText(stringValue(data.assetName) || stringValue(data.name) || stringValue(data.label)) === normalizeCompareText(assetName);
   });
   const referenceCount = childNodes.filter((node) => stringValue(node.type) === "imageInput").length;
   const index = existingAssetIndex >= 0
@@ -2781,9 +2783,9 @@ function findWorkflowAssetForAgent(metadata: unknown, assetKind: "characters" | 
     pushAssets(episode.workflowCenter, id, stringValue(episode.title));
   }
   pushAssets(record.workflowCenter, stringValue(record.activeEpisodeId), "");
-  const target = normalizeCompareTextForAgent(assetName);
-  return candidates.find((item) => normalizeCompareTextForAgent(workflowAssetNameForAgent(item)) === target) ??
-    candidates.find((item) => normalizeCompareTextForAgent(workflowAssetNameForAgent(item)).includes(target) || target.includes(normalizeCompareTextForAgent(workflowAssetNameForAgent(item)))) ??
+  const target = normalizeCompareText(assetName);
+  return candidates.find((item) => normalizeCompareText(workflowAssetNameForAgent(item)) === target) ??
+    candidates.find((item) => normalizeCompareText(workflowAssetNameForAgent(item)).includes(target) || target.includes(normalizeCompareText(workflowAssetNameForAgent(item)))) ??
     null;
 }
 
@@ -2832,9 +2834,7 @@ function stableAgentIdPart(value: string): string {
     .slice(0, 64) || "asset";
 }
 
-function normalizeCompareTextForAgent(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
+
 
 function numberValue(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -3235,13 +3235,9 @@ function resolveCanvasEpisodeId(metadata: unknown, sceneId: string): string {
   return sceneId;
 }
 
-function workflowEpisodeCanvasSceneId(episodeId: string): string {
-  return episodeId || "default";
-}
 
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
+
+
 
 function defaultConversationId(projectId: string): string {
   return `project:${projectId}`;

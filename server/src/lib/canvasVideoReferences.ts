@@ -1,4 +1,5 @@
 import { isRecord } from "./mappers";
+import { stringValue } from "./typeGuards";
 
 type CanvasNode = Record<string, unknown> & {
   id: string;
@@ -332,6 +333,4 @@ function arrayFrom(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function stringValue(value: unknown): string {
-  return typeof value === "string" && value.trim() ? value.trim() : "";
-}
+

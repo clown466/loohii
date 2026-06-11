@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { config } from "../config";
+import { isRecord, stringValue } from "./typeGuards";
 
 export type HermesAgentContext = {
   projectId: string;
@@ -230,18 +231,18 @@ function compactHermesCanvasSummary(canvas: Record<string, unknown>): Record<str
     for (const key of ["id", "type", "selected", "parentId", "title", "label", "name", "kind", "workflowKind", "clipId", "clipTitle", "status", "role"]) {
       if (node[key] !== undefined) item[key] = compactHermesValue(node[key], 1);
     }
-    if (node.prompt !== undefined) item.prompt = shortHermesString(stringFromUnknown(node.prompt), selectedNodes.length ? 500 : 180);
+    if (node.prompt !== undefined) item.prompt = shortHermesString(stringValue(node.prompt), selectedNodes.length ? 500 : 180);
     if (node.outputImage || node.imageUrl || node.avatar || node.generatedImage || node.hasImage) item.hasImage = true;
     if (node.outputVideo || node.hasVideo) item.hasVideo = true;
     return item;
   });
-  const nodeIds = new Set(compactNodes.map((node) => stringFromUnknown(node.id)).filter(Boolean));
+  const nodeIds = new Set(compactNodes.map((node) => stringValue(node.id)).filter(Boolean));
   const edges = Array.isArray(canvas.edges)
     ? canvas.edges
       .filter(isRecord)
-      .filter((edge) => nodeIds.has(stringFromUnknown(edge.source)) || nodeIds.has(stringFromUnknown(edge.target)))
+      .filter((edge) => nodeIds.has(stringValue(edge.source)) || nodeIds.has(stringValue(edge.target)))
       .slice(0, selectedNodes.length ? 48 : 36)
-      .map((edge) => ({ source: stringFromUnknown(edge.source), target: stringFromUnknown(edge.target) }))
+      .map((edge) => ({ source: stringValue(edge.source), target: stringValue(edge.target) }))
     : [];
   return {
     available: canvas.available,
@@ -284,10 +285,10 @@ function projectGlobalSettingsFromProject(project: Record<string, unknown>): Rec
   return {
     ...metadataGlobalSettings,
     ...globalSettings,
-    ...(stringFrom(project.globalPrompt) ? { globalPrompt: stringFrom(project.globalPrompt) } : {}),
-    ...(stringFrom(project.negativePrompt) ? { negativePrompt: stringFrom(project.negativePrompt) } : {}),
-    ...(stringFrom(project.style) ? { style: stringFrom(project.style) } : {}),
-    ...(stringFrom(project.description) ? { description: stringFrom(project.description) } : {}),
+    ...(stringValue(project.globalPrompt) ? { globalPrompt: stringValue(project.globalPrompt) } : {}),
+    ...(stringValue(project.negativePrompt) ? { negativePrompt: stringValue(project.negativePrompt) } : {}),
+    ...(stringValue(project.style) ? { style: stringValue(project.style) } : {}),
+    ...(stringValue(project.description) ? { description: stringValue(project.description) } : {}),
     ...(Object.keys(setupSettings).length ? { setupSettings } : {}),
   };
 }
@@ -295,7 +296,7 @@ function projectGlobalSettingsFromProject(project: Record<string, unknown>): Rec
 function normalizeHermesResponse(value: unknown): HermesAgentResult | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
-  const content = stringFrom(record.content) || stringFrom(record.message) || stringFrom(record.response) || stringFrom(record.text);
+  const content = stringValue(record.content) || stringValue(record.message) || stringValue(record.response) || stringValue(record.text);
   if (!content) return null;
   if (isInvalidHermesContent(content)) return null;
   return {
@@ -313,14 +314,4 @@ function isInvalidHermesContent(value: string): boolean {
   return /^(none|null|undefined|n\/a)$/i.test(value.trim());
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
 
-function stringFrom(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function stringFromUnknown(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}

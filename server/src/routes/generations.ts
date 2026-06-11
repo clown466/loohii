@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound, routeParam } from "../lib/httpErrors";
+import { isRecord } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
 import { created, ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
@@ -342,10 +343,6 @@ function serializeGenerationModel(model: GenerationModelWithProvider) {
     createdAt: model.createdAt,
     updatedAt: model.updatedAt,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function toModelSnapshot(model: {
