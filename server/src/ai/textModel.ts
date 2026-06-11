@@ -462,3 +462,22 @@ function capabilitiesToArray(value: unknown): string[] {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
+
+export const textModelTestInternals = {
+  isSuccessStatus,
+  shouldRetryTextModelStatus,
+  isLengthFinishReason,
+  formatEmptyTextModelResponse,
+  formatTextModelHttpError,
+  summarizeNonJsonResponse,
+  isAbortError,
+  formatSeconds,
+  looksLikeTextModel,
+  isTextModel,
+  defaultMaxTokensForModel,
+  expandedMaxTokensForModel,
+  capabilitiesToArray,
+  resolveChatCompletionsEndpoint,
+  extractTextModelContent,
+  parseJsonOrRaw,
+};

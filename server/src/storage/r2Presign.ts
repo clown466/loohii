@@ -164,3 +164,7 @@ function encodeKeyPath(key: string): string {
     .join("/");
 }
 
+export const r2PresignTestInternals = {
+  encodeKeyPath,
+};
+
