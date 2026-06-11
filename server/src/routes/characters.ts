@@ -6,7 +6,10 @@ import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound, routeParam } from "../lib/httpErrors";
 import { isRecord } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
+import { assertProject } from "../lib/projectOwnership";
 import { created, ok } from "../lib/response";
+import { normalizeCompareText, stringFrom } from "../lib/typeGuards";
+import { getWorkflowEpisodes, workflowEpisodeCanvasSceneId, workflowEpisodeIdForTitle } from "../lib/workflowEpisodes";
 import { requireAuth } from "../middleware/auth";
 
 const router = Router();
@@ -381,12 +384,6 @@ router.delete(
   }),
 );
 
-async function assertProject(projectId: string, ownerId: string) {
-  const project = await prisma.project.findFirst({ where: { id: projectId, ownerId, deletedAt: null } });
-  if (!project) notFound("Project not found");
-  return project;
-}
-
 async function findOwnedCharacter(characterId: string, ownerId: string) {
   const character = await prisma.character.findFirst({
     where: { id: characterId, deletedAt: null, project: { ownerId, deletedAt: null } },
@@ -726,15 +723,6 @@ function getWorkflowEpisodeById(metadata: unknown, episodeId: string): { id: str
   return { id: resolvedId || workflowEpisodeIdForTitle(legacy.selectedEpisode, "episode-001"), workflow: legacy };
 }
 
-function getWorkflowEpisodes(metadata: unknown): Record<string, Record<string, unknown>> {
-  if (!isRecord(metadata) || !isRecord(metadata.episodes)) return {};
-  const result: Record<string, Record<string, unknown>> = {};
-  for (const [id, value] of Object.entries(metadata.episodes)) {
-    if (id && isRecord(value)) result[id] = value;
-  }
-  return result;
-}
-
 function writeWorkflowEpisode(metadata: Record<string, unknown>, episodeId: string, workflow: any, makeActive = false): Record<string, unknown> {
   const id = episodeId || workflowEpisodeIdForTitle(workflow.selectedEpisode, "episode-001");
   const episodes = getWorkflowEpisodes(metadata);
@@ -816,23 +804,6 @@ function resolveWorkflowEpisodeId(metadata: unknown, episodeIdOrTitle: string): 
   return requested;
 }
 
-function workflowEpisodeIdForTitle(title: string, fallback: string): string {
-  const text = title.trim();
-  const numberMatch = text.match(/(?:第\s*)?(\d{1,4})\s*(?:集|话|章|回|episode|ep\b)/i) ?? text.match(/(?:episode|ep)\s*0*(\d{1,4})/i);
-  if (numberMatch) return `episode-${String(Number(numberMatch[1])).padStart(3, "0")}`;
-  const slug = text
-    .toLowerCase()
-    .replace(/[\u3400-\u9fff]+/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return slug ? `episode-${slug}` : fallback;
-}
-
-function workflowEpisodeCanvasSceneId(episodeId: string): string {
-  return episodeId || "default";
-}
-
 function episodeSortKey(a: { id: string; title: string }, b: { id: string; title: string }): number {
   const aNumber = Number(a.id.match(/episode-(\d+)/)?.[1] ?? Number.NaN);
   const bNumber = Number(b.id.match(/episode-(\d+)/)?.[1] ?? Number.NaN);
@@ -875,14 +846,6 @@ function firstLineAfterLabel(value: string | undefined, label: string): string |
   if (!value) return undefined;
   const line = value.split("\n").find((item) => item.trim().startsWith(label));
   return line?.slice(label.length).trim() || undefined;
-}
-
-function normalizeCompareText(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function stringFrom(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function compactCharacterTraits(value: unknown): Record<string, unknown> {

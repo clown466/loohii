@@ -3,6 +3,7 @@ import { z } from "zod";
 import { asyncRoute } from "../lib/asyncRoute";
 import { notFound, routeParam } from "../lib/httpErrors";
 import { prisma } from "../lib/prisma";
+import { assertProject } from "../lib/projectOwnership";
 import { created, ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 
@@ -99,12 +100,6 @@ router.delete(
     ok(res, { deleted: true });
   }),
 );
-
-async function assertProject(projectId: string, ownerId: string) {
-  const project = await prisma.project.findFirst({ where: { id: projectId, ownerId, deletedAt: null } });
-  if (!project) notFound("Project not found");
-  return project;
-}
 
 async function findOwnedScene(sceneId: string, ownerId: string) {
   const scene = await prisma.scene.findFirst({

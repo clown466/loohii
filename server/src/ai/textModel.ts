@@ -1,6 +1,7 @@
 import { config } from "../config";
-import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
 import { badRequest } from "../lib/httpErrors";
+import { isRecord } from "../lib/mappers";
+import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
 import { prisma } from "../lib/prisma";
 
 type ProviderConfigLike = {
@@ -459,6 +460,4 @@ function capabilitiesToArray(value: unknown): string[] {
   return [];
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
+

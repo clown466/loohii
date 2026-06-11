@@ -6,6 +6,7 @@ import { getDreaminaWebStatus, isDreaminaWebProvider } from "../ai/dreaminaWebBr
 import { callImageModel, isImageModel } from "../ai/imageModel";
 import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound, routeParam, unauthorized } from "../lib/httpErrors";
+import { isRecord } from "../lib/mappers";
 import {
   apiKeyLast4,
   decryptModelConfigSecret,
@@ -787,10 +788,6 @@ function parseJsonMaybe(text: string): unknown {
   } catch {
     return null;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isJimengApiProvider(provider: ProviderConfigLike): boolean {

@@ -11,6 +11,8 @@ import { buildEpisodeCanvasSyncScene, writeEpisodeCanvasSyncMetadata } from "../
 import { HttpError, notFound, routeParam } from "../lib/httpErrors";
 import { isRecord } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
+import { findOwnedProject } from "../lib/projectOwnership";
+import { stringValue } from "../lib/typeGuards";
 import { ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 
@@ -191,14 +193,6 @@ router.post(
   }),
 );
 
-async function findOwnedProject(projectId: string, ownerId: string) {
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, ownerId, deletedAt: null },
-  });
-  if (!project) notFound("Project not found");
-  return project;
-}
-
 function getCanvasScenes(metadata: unknown): Record<string, { nodes?: unknown[]; edges?: unknown[]; updatedAt?: string }> {
   if (!isRecord(metadata) || !isRecord(metadata.canvasScenes)) return {};
   return metadata.canvasScenes as Record<string, { nodes?: unknown[]; edges?: unknown[]; updatedAt?: string }>;
@@ -314,10 +308,6 @@ function workflowFromMetadata(metadata: unknown, episodeId: string): Record<stri
   if (episode && isRecord(episode.workflowCenter)) return { ...episode.workflowCenter, episodeId };
   if (isRecord(metadata.workflowCenter)) return { ...metadata.workflowCenter, episodeId };
   return null;
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function isStaleCanvasSave(baseUpdatedAt: string | undefined, existingUpdatedAt: string | undefined): boolean {

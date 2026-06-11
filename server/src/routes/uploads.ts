@@ -4,7 +4,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "../config";
+import { config, LOCAL_UPLOAD_ROOT } from "../config";
 import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound } from "../lib/httpErrors";
 import { ok } from "../lib/response";
@@ -12,7 +12,6 @@ import { requireAuth } from "../middleware/auth";
 import { createR2PresignService } from "../storage";
 
 const router = Router();
-const LOCAL_UPLOAD_ROOT = process.env.LOCAL_UPLOAD_ROOT || "/var/lib/loohii/uploads";
 
 const presignSchema = z.object({
   key: z.string().min(1).max(512),

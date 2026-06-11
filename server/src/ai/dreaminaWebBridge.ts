@@ -5,6 +5,7 @@ import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright-core";
 
 import { isRecord } from "../lib/mappers";
+import { stringFrom } from "../lib/typeGuards";
 import type { ImageAiModelLike, ImageModelCallResult, ImageModelOutput } from "./imageModel";
 
 type DreaminaProviderLike = {
@@ -3340,10 +3341,6 @@ function dreaminaNetworkFallbackWaitMs(): number {
   const configured = Number(process.env.DREAMINA_WEB_NETWORK_FALLBACK_WAIT_MS);
   if (Number.isFinite(configured) && configured >= 60_000) return configured;
   return 4 * 60 * 1000;
-}
-
-function stringFrom(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
 function numberFrom(value: unknown, fallback: number): number {

@@ -57,9 +57,9 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function stringFrom(value: unknown, fallback: string): string;
-function stringFrom(value: unknown, fallback: undefined): string | undefined;
-function stringFrom(value: unknown, fallback: string | undefined): string | undefined {
+export function stringFrom(value: unknown, fallback: string): string;
+export function stringFrom(value: unknown, fallback: undefined): string | undefined;
+export function stringFrom(value: unknown, fallback: string | undefined): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
