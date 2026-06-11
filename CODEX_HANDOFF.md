@@ -6,20 +6,18 @@ This document summarizes the current Loohii / 鹿绘AI project state for Claude 
 
 ## Runtime
 
-- Repo: `/tmp/Manjuui`
-- Live site: `https://loohii.com`
-- Static frontend dir: `/var/www/loohii`
+- Repo: `https://github.com/clown466/loohii`
+- Live site: `https://www.loohii.com`
 - Backend service: `loohii-backend.service`
-- Health check: `https://loohii.com/api/health`
+- Health check: `https://www.loohii.com/api/health`
 
 Useful commands:
 
 ```sh
 npm run server:check
 npm run build
-find /var/www/loohii -mindepth 1 -maxdepth 1 -exec rm -rf {} + && cp -a dist/. /var/www/loohii/
 systemctl restart loohii-backend.service
-curl -fsS https://loohii.com/api/health
+curl -fsS https://www.loohii.com/api/health
 ```
 
 Development rule from the user: after a verified successful change, create a focused local git commit. Do not push unless the user explicitly asks.
@@ -293,7 +291,7 @@ Most recent verified commands:
 npm run server:check
 npm run build
 git diff --check
-curl -fsS https://loohii.com/api/health
+curl -fsS https://www.loohii.com/api/health
 ```
 
 Before committing future changes, rerun the relevant subset. For frontend-only changes, `npm run build` and `git diff --check` are the minimum. For backend changes, include `npm run server:check` and restart `loohii-backend.service`.
