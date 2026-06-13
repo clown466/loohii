@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright-core";
@@ -63,6 +63,44 @@ type DreaminaReferenceMediaUpload = {
   debugText?: string;
 };
 
+type DreaminaRuntimeMediaFile = {
+  name: string;
+  mimeType: string;
+  bytesBase64: string;
+  referenceIndex?: number;
+  referenceLabel?: string;
+  sourceUrl?: string;
+};
+
+type DreaminaRuntimeReferenceUpload = {
+  imageUrls: string[];
+  audioUrls: string[];
+  imageFiles: DreaminaRuntimeMediaFile[];
+  audioFiles: DreaminaRuntimeMediaFile[];
+};
+
+type DreaminaRuntimeUploadedImage = {
+  imageUri: string;
+  width: number;
+  height: number;
+  title: string;
+  referenceIndex?: number;
+  referenceLabel?: string;
+};
+
+type DreaminaRuntimeUploadedAudio = {
+  vid: string;
+  duration?: number;
+  title: string;
+};
+
+type DreaminaRuntimeVideoSubmitResult = {
+  submitId?: string;
+  genStatus?: string;
+  videoUrl?: string;
+  raw: unknown;
+};
+
 type DreaminaReferenceUploadMemory = {
   signature: string;
   imageCount: number;
@@ -79,6 +117,9 @@ const DREAMINA_REFERENCE_UPLOAD_ATTEMPTS = 2;
 const DREAMINA_REFERENCE_IMAGE_MAX_DIMENSION = 1536;
 const DREAMINA_REFERENCE_IMAGE_JPEG_QUALITY = 5;
 const DREAMINA_REFERENCE_AUDIO_STEP_TIMEOUT_MS = 25_000;
+const DREAMINA_WEB_STABLE_VIDEO_MAX_SECONDS = 10;
+const DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_KEY = "dreamina_seedance_40_vision";
+const DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_LABEL = "Dreamina Seedance 2.0 Fast";
 
 export type DreaminaWebVideoInput = {
   prompt: string;
@@ -332,6 +373,15 @@ export async function callDreaminaWebVideoModel(input: DreaminaWebVideoInput): P
 async function callDreaminaWebVideoModelUnlocked(input: DreaminaWebVideoInput): Promise<DreaminaWebVideoResult> {
   const started = Date.now();
   const cdpUrl = dreaminaCdpUrl();
+  const originalPrompt = input.prompt;
+  const requestedDurationSeconds = normalizeVideoDurationSeconds(input.durationSeconds);
+  const submittedDurationSeconds = stableDreaminaWebVideoDurationSeconds(input.durationSeconds);
+  const promptForDreamina = input.prompt;
+  const dreaminaInput = {
+    ...input,
+    prompt: promptForDreamina,
+    durationSeconds: submittedDurationSeconds,
+  };
   let browser: Browser | null = null;
   try {
     browser = await chromium.connectOverCDP(cdpUrl, { timeout: 10000 });
@@ -344,75 +394,48 @@ async function callDreaminaWebVideoModelUnlocked(input: DreaminaWebVideoInput): 
       throw new Error(`Dreamina 云浏览器当前未登录。请先打开 ${dreaminaPublicBrowserUrl()} 手动登录 Dreamina，再重新生成。`);
     }
 
-    await ensureDreaminaVideoMode(page);
-    await closeDreaminaBlockingOverlays(page);
-    await applyVideoOptions(page, input);
-    await closeDreaminaBlockingOverlays(page);
-
-    const capturedPayloads: CapturedJsonPayload[] = [];
-    const responseHandler = async (response: { url(): string; headers(): Record<string, string>; json(): Promise<unknown> }) => {
-      const url = response.url();
-      const contentType = response.headers()["content-type"] || "";
-      if (!/dreamina|capcut|byte|bytedance|aigc|generate|history|queue|task|video/i.test(url)) return;
-      if (!/json/i.test(contentType)) return;
+    const submitWithRuntimeBridge = async (): Promise<DreaminaWebVideoResult> => {
+      let runtimePage = page;
+      let fallbackResult: DreaminaRuntimeVideoSubmitResult;
       try {
-        capturedPayloads.push({ url, capturedAt: Date.now(), payload: await response.json() });
-      } catch {
-        // Ignore non-JSON or opaque responses.
+        fallbackResult = await submitDreaminaVideoByRuntimeBridge(runtimePage, dreaminaInput);
+      } catch (error) {
+        if (!isDreaminaTargetClosedError(error)) throw error;
+        await browser?.close().catch(() => undefined);
+        browser = await chromium.connectOverCDP(cdpUrl, { timeout: 10000 });
+        const retryContext = await activeDreaminaContext(browser);
+        runtimePage = await activeDreaminaPage(retryContext);
+        await ensureDreaminaGeneratorPage(runtimePage);
+        const retrySnapshot = await snapshotDreaminaPage(retryContext, runtimePage);
+        if (!isDreaminaLoggedIn(retrySnapshot)) {
+          throw new Error(`Dreamina 云浏览器当前未登录。请先打开 ${dreaminaPublicBrowserUrl()} 手动登录 Dreamina，再重新生成。`);
+        }
+        fallbackResult = await submitDreaminaVideoByRuntimeBridge(runtimePage, dreaminaInput);
       }
-    };
-    page.on("response", responseHandler);
-
-    const referenceUpload = await uploadReferenceMediaIfPossible(page, {
-      imageUrls: input.referenceImageUrls,
-      audioUrls: input.referenceAudioUrls ?? [],
-    });
-    try {
-      if (referenceUpload) {
-        assertDreaminaReferenceUploadAccepted(referenceUpload);
-      }
-      await fillPrompt(page, input.prompt);
-      await assertDreaminaVideoComposerReady(page);
-      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
-      await page.waitForTimeout(1200);
-      await clickDreaminaGoToBottom(page);
-      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
-      await page.waitForTimeout(1000);
-      const existingVideoKeys = await collectDreaminaVideoUrlKeys(page);
-      const existingFailureCount = await dreaminaWebVideoDomFailureCount(page);
-      capturedPayloads.length = 0;
-      const submittedAt = Date.now();
-      await clickDreaminaGenerate(page);
-      const result = await waitForDreaminaVideoResult(page, capturedPayloads, submittedAt, existingVideoKeys, existingFailureCount);
       return {
-        ...result,
+        ...fallbackResult,
         raw: {
           provider: "dreamina-web",
+          submissionMode: "runtime-bridge",
           cdpUrl,
-          pageUrl: page.url(),
+          pageUrl: runtimePage.url(),
           referenceAudioUrls: input.referenceAudioUrls ?? [],
-          uploadedReferenceImageCount: referenceUpload?.imageUrls.length ?? 0,
-          uploadedReferenceAudioCount: referenceUpload?.audioUrls.length ?? 0,
-          uploadedReferenceFileNames: referenceUpload?.files.map((file) => path.basename(file)) ?? [],
-          reusedExistingReferences: Boolean(referenceUpload?.reusedExistingReferences),
-          composerReferenceItemCountBeforeUpload: referenceUpload?.beforeReferenceItemCount ?? 0,
-          composerReferenceItemCountAfterReset: referenceUpload?.afterResetReferenceItemCount ?? 0,
-          composerReferenceItemCountAfterUpload: referenceUpload?.afterReferenceItemCount ?? 0,
-          composerReferenceStatsAfterUpload: referenceUpload?.afterReferenceStats ?? null,
-          composerResetPageUrl: referenceUpload?.resetPageUrl ?? "",
-          payloads: capturedPayloads.slice(-12).map((entry) => ({
-            url: entry.url,
-            capturedAt: entry.capturedAt,
-            payload: summarizeDreaminaWebPayload(entry.payload),
-          })),
-          result: summarizeDreaminaWebPayload(result.raw),
+          uploadedReferenceImageCount: input.referenceImageUrls.length,
+          uploadedReferenceAudioCount: input.referenceAudioUrls?.length ?? 0,
+          promptSanitizedForDreamina: promptForDreamina !== originalPrompt,
+          originalPrompt: promptForDreamina !== originalPrompt ? originalPrompt : undefined,
+          dreaminaPrompt: promptForDreamina,
+          referenceIdentityLockApplied: false,
+          requestedDurationSeconds,
+          submittedDurationSeconds,
+          durationAdjustedForDreamina: submittedDurationSeconds !== requestedDurationSeconds,
+          result: summarizeDreaminaWebPayload(fallbackResult.raw),
         },
         durationMs: Date.now() - started,
       };
-    } finally {
-      page.off("response", responseHandler);
-      if (referenceUpload?.tempDir) await rm(referenceUpload.tempDir, { recursive: true, force: true }).catch(() => undefined);
-    }
+    };
+
+    return submitWithRuntimeBridge();
   } finally {
     await browser?.close().catch(() => undefined);
   }
@@ -437,10 +460,48 @@ async function preflightDreaminaWebVideoUploadUnlocked(input: DreaminaWebVideoIn
       throw new Error(`Dreamina 云浏览器当前未登录。请先打开 ${dreaminaPublicBrowserUrl()} 手动登录 Dreamina，再重新预检。`);
     }
 
-    await ensureDreaminaVideoMode(page);
-    await closeDreaminaBlockingOverlays(page);
-    await applyVideoOptions(page, input);
-    await closeDreaminaBlockingOverlays(page);
+    const preflightWithRuntimeBridge = async (): Promise<DreaminaWebVideoUploadPreflightResult> => {
+      let runtimePage = page;
+      let runtimePreflight: { imageCount: number; audioCount: number; raw: unknown };
+      try {
+        runtimePreflight = await preflightDreaminaVideoRuntimeBridge(runtimePage, input);
+      } catch (error) {
+        if (!isDreaminaTargetClosedError(error)) throw error;
+        await browser?.close().catch(() => undefined);
+        browser = await chromium.connectOverCDP(cdpUrl, { timeout: 10000 });
+        const retryContext = await activeDreaminaContext(browser);
+        runtimePage = await activeDreaminaPage(retryContext);
+        await ensureDreaminaGeneratorPage(runtimePage);
+        const retrySnapshot = await snapshotDreaminaPage(retryContext, runtimePage);
+        if (!isDreaminaLoggedIn(retrySnapshot)) {
+          throw new Error(`Dreamina 云浏览器当前未登录。请先打开 ${dreaminaPublicBrowserUrl()} 手动登录 Dreamina，再重新预检。`);
+        }
+        runtimePreflight = await preflightDreaminaVideoRuntimeBridge(runtimePage, input);
+      }
+      return {
+        ok: true,
+        raw: {
+          provider: "dreamina-web",
+          preflightMode: "runtime-bridge",
+          cdpUrl,
+          pageUrl: runtimePage.url(),
+          uploadedReferenceImageCount: runtimePreflight.imageCount,
+          uploadedReferenceAudioCount: runtimePreflight.audioCount,
+          result: summarizeDreaminaWebPayload(runtimePreflight.raw),
+        },
+        durationMs: Date.now() - started,
+      };
+    };
+
+    try {
+      await ensureDreaminaVideoMode(page);
+      await closeDreaminaBlockingOverlays(page);
+      await applyVideoOptions(page, input);
+      await closeDreaminaBlockingOverlays(page);
+    } catch (error) {
+      if (!shouldFallbackToDreaminaRuntimeSubmit(error)) throw error;
+      return preflightWithRuntimeBridge();
+    }
 
     const existingReferenceUpload = await existingDreaminaReferenceUploadForInput(page, input);
     if (existingReferenceUpload) {
@@ -467,7 +528,11 @@ async function preflightDreaminaWebVideoUploadUnlocked(input: DreaminaWebVideoIn
     const referenceUpload = await uploadReferenceMediaIfPossible(page, {
       imageUrls: input.referenceImageUrls,
       audioUrls: input.referenceAudioUrls ?? [],
+    }).catch((error: unknown) => {
+      if (!shouldFallbackToDreaminaRuntimeSubmit(error)) throw error;
+      return null;
     });
+    if (!referenceUpload) return preflightWithRuntimeBridge();
     try {
       if (referenceUpload) {
         assertDreaminaReferenceUploadAccepted(referenceUpload);
@@ -521,12 +586,13 @@ async function queryDreaminaWebVideoModelUnlocked(submitId: string, options: { e
     }
 
     const capturedPayloads: CapturedJsonPayload[] = [];
-    const historyPayload = await fetchDreaminaVideoHistoryById(page, trimmedSubmitId).catch(() => null);
+    const historyLookupId = await resolveDreaminaHistoryRecordIdFromRuntime(page, trimmedSubmitId).catch(() => trimmedSubmitId);
+    const historyPayload = await fetchDreaminaVideoHistoryById(page, historyLookupId).catch(() => null);
     if (historyPayload) capturedPayloads.push(historyPayload);
-    const payloadResult = dreaminaWebVideoResultForSubmitId(capturedPayloads, trimmedSubmitId);
+    const payloadResult = dreaminaWebVideoResultForSubmitId(capturedPayloads, historyLookupId);
     const errorMessage = payloadResult.genStatus === "failed" ? dreaminaWebVideoPayloadFailureMessage(payloadResult.raw) : "";
     return {
-      submitId: trimmedSubmitId,
+      submitId: historyLookupId || trimmedSubmitId,
       genStatus: payloadResult.videoUrl ? "succeeded" : payloadResult.genStatus || "running",
       videoUrl: payloadResult.videoUrl,
       raw: {
@@ -534,7 +600,8 @@ async function queryDreaminaWebVideoModelUnlocked(submitId: string, options: { e
         queryMode: "history-only",
         cdpUrl,
         pageUrl: page.url(),
-        submitId: trimmedSubmitId,
+        submitId: historyLookupId || trimmedSubmitId,
+        requestedSubmitId: trimmedSubmitId,
         errorMessage,
         existingVideoUrlCount: options.existingVideoUrls?.length ?? 0,
         payloads: capturedPayloads.slice(-12).map((entry) => ({
@@ -580,6 +647,49 @@ function dreaminaWebVideoQueryUnavailableResult(
     },
     durationMs: Date.now() - started,
   };
+}
+
+async function resolveDreaminaHistoryRecordIdFromRuntime(page: Page, submitId: string): Promise<string> {
+  const trimmed = submitId.trim();
+  if (/^\d{8,}$/.test(trimmed)) return trimmed;
+  if (!trimmed) return trimmed;
+  const resolved = await page.evaluate((targetSubmitId) => {
+    const feature = (window as typeof window & {
+      __debugger?: {
+        ContentGeneratorTaskFeatureService?: {
+          _taskStore?: Array<{
+            task?: {
+              model?: {
+                historyRecordId?: string | number;
+                idModel?: {
+                  submitId?: string | number;
+                  taskId?: string | number;
+                  recordId?: string | number;
+                  historyId?: string | number;
+                };
+              };
+            };
+          }>;
+        };
+      };
+    }).__debugger?.ContentGeneratorTaskFeatureService;
+    const taskStore = feature?._taskStore ?? [];
+    for (const item of taskStore) {
+      const model = item.task?.model;
+      const identifiers = [
+        model?.idModel?.submitId,
+        model?.idModel?.taskId,
+        model?.idModel?.recordId,
+        model?.idModel?.historyId,
+        model?.historyRecordId,
+      ].map((value) => String(value ?? "").trim());
+      if (!identifiers.includes(targetSubmitId)) continue;
+      const historyRecordId = String(model?.historyRecordId || model?.idModel?.recordId || model?.idModel?.historyId || "").trim();
+      if (historyRecordId) return historyRecordId;
+    }
+    return "";
+  }, trimmed).catch(() => "");
+  return resolved || trimmed;
 }
 
 async function withDreaminaWebBrowserTask<T>(kind: string, run: () => Promise<T>): Promise<T> {
@@ -875,7 +985,8 @@ async function uploadReferenceImagesIfPossible(page: Page, parameters: Record<st
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "dreamina-web-refs-"));
   const files: string[] = [];
   for (let index = 0; index < referenceUrls.length; index += 1) {
-    const file = await downloadReferenceMedia(referenceUrls[index], tempDir, `reference-${index + 1}`, "image");
+    const descriptor = dreaminaReferenceImageDescriptor(index, referenceUrls[index]);
+    const file = await downloadReferenceMedia(referenceUrls[index], tempDir, descriptor.baseName, "image");
     files.push(file);
   }
   await fileInput.setInputFiles([], { timeout: 5000 }).catch(() => undefined);
@@ -921,7 +1032,8 @@ async function uploadReferenceMediaIfPossible(
   const audioFiles: string[] = [];
   try {
     for (let index = 0; index < imageUrls.length; index += 1) {
-      imageFiles.push(await downloadReferenceMedia(imageUrls[index], tempDir, `image-${index + 1}`, "image"));
+      const descriptor = dreaminaReferenceImageDescriptor(index, imageUrls[index]);
+      imageFiles.push(await downloadReferenceMedia(imageUrls[index], tempDir, descriptor.baseName, "image"));
     }
     for (let index = 0; index < audioUrls.length; index += 1) {
       audioFiles.push(await downloadReferenceMedia(audioUrls[index], tempDir, `audio-${index + 1}`, "audio"));
@@ -1362,6 +1474,84 @@ async function downloadReferenceMedia(url: string, tempDir: string, baseName: st
     return optimizeDreaminaReferenceImage(filePath, tempDir, baseName).catch(() => filePath);
   }
   return filePath;
+}
+
+async function prepareDreaminaRuntimeReferenceUpload(input: DreaminaWebVideoInput): Promise<DreaminaRuntimeReferenceUpload> {
+  const imageUrls = uniqueHttpUrls(input.referenceImageUrls ?? []).slice(0, 9);
+  const audioUrls = uniqueHttpUrls(input.referenceAudioUrls ?? []).slice(0, 16);
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "dreamina-runtime-media-"));
+  try {
+    const imageFiles: DreaminaRuntimeMediaFile[] = [];
+    const audioFiles: DreaminaRuntimeMediaFile[] = [];
+    for (let index = 0; index < imageUrls.length; index += 1) {
+      const descriptor = dreaminaReferenceImageDescriptor(index, imageUrls[index]);
+      const filePath = await downloadReferenceMedia(imageUrls[index], tempDir, descriptor.baseName, "image");
+      imageFiles.push(await dreaminaRuntimeMediaFileFromPath(filePath, descriptor.baseName, {
+        referenceIndex: descriptor.index,
+        referenceLabel: descriptor.label,
+        sourceUrl: imageUrls[index],
+      }));
+    }
+    for (let index = 0; index < audioUrls.length; index += 1) {
+      const filePath = await downloadReferenceMedia(audioUrls[index], tempDir, `audio-${index + 1}`, "audio");
+      audioFiles.push(await dreaminaRuntimeMediaFileFromPath(filePath, `audio-${index + 1}`));
+    }
+    return { imageUrls, audioUrls, imageFiles, audioFiles };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+async function dreaminaRuntimeMediaFileFromPath(
+  filePath: string,
+  fallbackBaseName: string,
+  metadata: Pick<DreaminaRuntimeMediaFile, "referenceIndex" | "referenceLabel" | "sourceUrl"> = {},
+): Promise<DreaminaRuntimeMediaFile> {
+  const buffer = await readFile(filePath);
+  if (buffer.length === 0) {
+    throw new Error(`Dreamina runtime 素材文件为空：${path.basename(filePath)}`);
+  }
+  if (buffer.length > dreaminaRuntimeMediaMaxBytes(filePath)) {
+    throw new Error(`Dreamina runtime 素材过大：${path.basename(filePath)} (${Math.ceil(buffer.length / 1024 / 1024)}MB)。请减少参考素材大小后重试。`);
+  }
+  const extension = path.extname(filePath) || ".bin";
+  const safeBaseName = fallbackBaseName.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "reference";
+  return {
+    name: `${safeBaseName}${extension.toLowerCase()}`,
+    mimeType: mimeTypeForDreaminaRuntimeFile(filePath),
+    bytesBase64: buffer.toString("base64"),
+    ...metadata,
+  };
+}
+
+function dreaminaReferenceImageDescriptor(index: number, sourceUrl = ""): { index: number; label: string; baseName: string } {
+  const referenceIndex = index + 1;
+  void sourceUrl;
+  const label = `Reference image #${referenceIndex}`;
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "reference";
+  return {
+    index: referenceIndex,
+    label,
+    baseName: `reference-${referenceIndex}-${slug}`,
+  };
+}
+
+function dreaminaRuntimeMediaMaxBytes(filePath: string): number {
+  return /\.(mp3|wav|m4a|aac|ogg|oga)$/i.test(filePath) ? 50 * 1024 * 1024 : 15 * 1024 * 1024;
+}
+
+function mimeTypeForDreaminaRuntimeFile(filePath: string): string {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
+  if (extension === ".png") return "image/png";
+  if (extension === ".webp") return "image/webp";
+  if (extension === ".gif") return "image/gif";
+  if (extension === ".mp3") return "audio/mpeg";
+  if (extension === ".wav") return "audio/wav";
+  if (extension === ".m4a") return "audio/mp4";
+  if (extension === ".aac") return "audio/aac";
+  if (extension === ".ogg" || extension === ".oga") return "audio/ogg";
+  return "application/octet-stream";
 }
 
 async function optimizeDreaminaReferenceImage(inputPath: string, tempDir: string, baseName: string): Promise<string> {
@@ -1940,6 +2130,21 @@ export function dreaminaMediaExtensionForTest(contentType: string, url = "", fal
   return extensionForMediaContentType(contentType, url, fallbackKind);
 }
 
+export function stableDreaminaWebVideoDurationSecondsForTest(value: unknown): number {
+  return stableDreaminaWebVideoDurationSeconds(value);
+}
+
+export function dreaminaWebRuntimeVideoModelForTest(): { key: string; label: string } {
+  return {
+    key: DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_KEY,
+    label: DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_LABEL,
+  };
+}
+
+export function dreaminaReferenceImageDescriptorForTest(index: number, sourceUrl = ""): { index: number; label: string; baseName: string } {
+  return dreaminaReferenceImageDescriptor(index, sourceUrl);
+}
+
 function dreaminaRequestedImageCount(input: { count?: number; parameters?: Record<string, unknown> }): number {
   const explicitCount = input.count ?? numberFrom(input.parameters?.n, 0) ?? numberFrom(input.parameters?.count, 0);
   if (Number.isFinite(explicitCount) && explicitCount > 0) return Math.max(1, Math.min(Math.floor(explicitCount), 4));
@@ -2008,6 +2213,44 @@ async function assertDreaminaVideoComposerReady(page: Page): Promise<void> {
   throw new Error(`Dreamina Web 未处于 AI Video / Omni reference 视频生成模式，已停止提交以免误触发生图。请在云浏览器里切到 AI Video -> Omni reference 后重试。${await dreaminaPageDebugSuffix(page)}`);
 }
 
+function shouldFallbackToDreaminaRuntimeSubmit(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || "");
+  if (!message) return false;
+  if (
+    /未登录|not logged in|登录后|Sign in|Log in/i.test(message)
+    || /素材上传校验失败|应上传|已阻止正式生成/i.test(message)
+    || /审核失败|inappropriate content|content policy|敏感内容|违规/i.test(message)
+    || /弹窗未关闭|关闭该弹窗|验证码|captcha/i.test(message)
+    || /页面已崩溃|Aw,\s*Snap/i.test(message)
+  ) {
+    return false;
+  }
+  return (
+    /白屏|#csr-root|页面文本：空|控件：空/i.test(message)
+    || /没有找到 AI Video\/AI Image 模式选择器/i.test(message)
+    || /没有找到可填写的提示词输入框/i.test(message)
+    || /页面中没有找到生成按钮/i.test(message)
+    || /没有找到参考素材上传入口/i.test(message)
+    || /未处于 AI Video \/ Omni reference/i.test(message)
+    || /未能切换到 AI Video/i.test(message)
+    || /Timeout|timed out|waiting for/i.test(message)
+  );
+}
+
+function isDreaminaTargetClosedError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /Target page, context or browser has been closed|Browser has been closed|Target closed|Protocol error/i.test(message);
+}
+
+async function ensureDreaminaEvaluateNameHelper(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const global = globalThis as unknown as { __name?: <T>(value: T) => T };
+    if (typeof global.__name !== "function") {
+      global.__name = <T>(value: T) => value;
+    }
+  });
+}
+
 function normalizeVideoRatioLabel(value: unknown): string {
   const ratio = String(value || "16:9").trim();
   return /^(1:1|4:3|3:4|16:9|9:16|21:9)$/i.test(ratio) ? ratio : "16:9";
@@ -2017,6 +2260,14 @@ function normalizeVideoDurationSeconds(value: unknown): number {
   const number = Number(value);
   if (!Number.isFinite(number)) return 5;
   return Math.max(4, Math.min(15, Math.round(number)));
+}
+
+function stableDreaminaWebVideoDurationSeconds(value: unknown): number {
+  return Math.min(normalizeVideoDurationSeconds(value), DREAMINA_WEB_STABLE_VIDEO_MAX_SECONDS);
+}
+
+function normalizeDreaminaRuntimeVideoResolution(value: unknown): string {
+  return String(value || "").toLowerCase() === "1080p" ? "1080p" : "720p";
 }
 
 async function selectDreaminaToolbarOption(page: Page, currentValuePattern: RegExp, targetLabel: string): Promise<boolean> {
@@ -2459,9 +2710,588 @@ async function waitForDreaminaVideoResult(
   };
 }
 
+async function submitDreaminaVideoByRuntimeBridge(
+  page: Page,
+  input: DreaminaWebVideoInput,
+): Promise<DreaminaRuntimeVideoSubmitResult> {
+  const referenceUpload = await prepareDreaminaRuntimeReferenceUpload(input);
+  const uploadedImages: DreaminaRuntimeUploadedImage[] = [];
+  const uploadedAudios: DreaminaRuntimeUploadedAudio[] = [];
+  for (const fileInfo of referenceUpload.imageFiles) {
+    uploadedImages.push(await uploadDreaminaRuntimeMediaFile(page, fileInfo, "image") as DreaminaRuntimeUploadedImage);
+  }
+  for (const fileInfo of referenceUpload.audioFiles) {
+    uploadedAudios.push(await uploadDreaminaRuntimeMediaFile(page, fileInfo, "audio") as DreaminaRuntimeUploadedAudio);
+  }
+  const created = await createDreaminaRuntimeVideoTask(page, {
+    prompt: input.prompt,
+    durationMs: normalizeVideoDurationSeconds(input.durationSeconds) * 1000,
+    ratio: normalizeVideoRatioLabel(input.ratio),
+    resolution: normalizeDreaminaRuntimeVideoResolution(input.resolution),
+    uploadedImages,
+    uploadedAudios,
+  });
+  const runtimeResult: DreaminaRuntimeVideoSubmitResult = {
+    submitId: created.submitId,
+    genStatus: dreaminaRuntimeCreatedFailureMessage(created.created) ? "failed" : "running",
+    raw: {
+      submitId: created.uuidSubmitId,
+      historyRecordId: created.historyRecordId,
+      upload: {
+        imageCount: uploadedImages.length,
+        audioCount: uploadedAudios.length,
+      },
+      uploadedImages,
+      uploadedAudios,
+      created: created.created,
+      errorMessage: dreaminaRuntimeCreatedFailureMessage(created.created),
+      taskInput: created.taskInput,
+    },
+  };
+  return {
+    ...runtimeResult,
+    submitId: dreaminaPreferredRuntimeSubmitId(runtimeResult.raw, runtimeResult.submitId),
+    genStatus: runtimeResult.videoUrl ? "succeeded" : runtimeResult.genStatus || "running",
+  };
+}
+
+function dreaminaRuntimeCreatedFailureMessage(value: unknown): string {
+  if (!isRecord(value)) return "";
+  const statusCode = Number(value.statusCode);
+  const recordStatus = Number(value.recordStatus);
+  const errorMessage = stringFrom(value.errorMsg, "") || stringFrom(value.failStarlingMessage, "") || stringFrom(value.msg, "");
+  if (Number.isFinite(statusCode) && statusCode < 0) return errorMessage || `Dreamina runtime task rejected with statusCode ${statusCode}.`;
+  if (recordStatus === 3 && errorMessage) return errorMessage;
+  return "";
+}
+
+async function uploadDreaminaRuntimeMediaFile(
+  page: Page,
+  fileInfo: DreaminaRuntimeMediaFile,
+  kind: "image" | "audio",
+): Promise<DreaminaRuntimeUploadedImage | DreaminaRuntimeUploadedAudio> {
+  await ensureDreaminaEvaluateNameHelper(page);
+  return page.evaluate(async ({ fileInfo, kind }) => {
+    const __name = ((globalThis as unknown as { __name?: <T>(value: T) => T }).__name || Function("value", "return value")) as <T>(value: T) => T;
+    void __name;
+    const windowRef = window as typeof window & {
+      __LOADABLE_LOADED_CHUNKS__?: unknown[];
+      __dreaminaWebpackRequire?: (id: string | number) => Record<string, unknown>;
+      __debugger?: {
+        ContentGeneratorTaskFeatureService?: {
+          _containerService?: unknown;
+        };
+      };
+    };
+    const waitForRuntime = async (): Promise<{
+      req: (id: string | number) => Record<string, unknown>;
+      container: unknown;
+    }> => {
+      const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        if (!windowRef.__dreaminaWebpackRequire && Array.isArray(windowRef.__LOADABLE_LOADED_CHUNKS__)) {
+          windowRef.__LOADABLE_LOADED_CHUNKS__.push([[Date.now() % 1_000_000_000], {}, (req: (id: string | number) => Record<string, unknown>) => {
+            windowRef.__dreaminaWebpackRequire = req;
+          }]);
+        }
+        const req = windowRef.__dreaminaWebpackRequire;
+        const featureService = windowRef.__debugger?.ContentGeneratorTaskFeatureService;
+        const container = featureService?._containerService;
+        if (req && container) return { req, container };
+        await sleep(250);
+      }
+      throw new Error("Dreamina runtime bridge unavailable: webpack require or feature container is missing.");
+    };
+    const { req, container } = await waitForRuntime();
+    if (!req || !container) {
+      throw new Error("Dreamina runtime bridge unavailable: webpack require or feature container is missing.");
+    }
+    const requireModule = (id: string | number): Record<string, unknown> => req(id);
+    const tryRequireModule = (id: string | number): Record<string, unknown> | null => {
+      try {
+        const mod = req(id);
+        return mod && typeof mod === "object" ? mod : null;
+      } catch {
+        return null;
+      }
+    };
+    const getService = (moduleId: string | number, exportName: string) => {
+      const services = tryRequireModule(673395) || tryRequireModule("673395") || tryRequireModule("98253") || tryRequireModule(98253);
+      const serviceModule = tryRequireModule(moduleId) || tryRequireModule(String(moduleId));
+      const serviceId = serviceModule?.[exportName];
+      const getter = services?.cQ;
+      if (typeof getter !== "function" || !serviceId) throw new Error("Dreamina service getter is unavailable.");
+      return getter(container, serviceId);
+    };
+    const runtimeUpload = getService(389946, "H") as {
+      uploadImage(input: { file: File }, options?: { skipCache?: boolean }): Promise<{ ok: boolean; value?: { uri?: string; width?: number; height?: number; md5?: string; fileName?: string }; msg?: string }>;
+      uploadVideo(input: { file: File }, options?: { skipCache?: boolean }): Promise<{ ok: boolean; value?: { vid?: string; duration?: number; md5?: string }; msg?: string }>;
+    };
+
+    const fileFromBase64 = (item: { name: string; mimeType: string; bytesBase64: string }): File => {
+      const binary = atob(item.bytesBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return new File([bytes], item.name, { type: item.mimeType || "application/octet-stream" });
+    };
+
+    if (kind === "image") {
+      const upload = await runtimeUpload.uploadImage({ file: fileFromBase64(fileInfo) }, { skipCache: false });
+      if (!upload.ok || !upload.value?.uri) throw new Error(`Dreamina runtime image upload failed: ${upload.msg || "missing uri"}`);
+      const width = Number(upload.value.width || 0);
+      const height = Number(upload.value.height || 0);
+      if (width <= 0 || height <= 0) throw new Error("Dreamina runtime image upload failed: missing image dimensions");
+      return {
+        imageUri: upload.value.uri,
+        width,
+        height,
+        title: fileInfo.referenceIndex ? `Reference image #${fileInfo.referenceIndex}` : fileInfo.name,
+        referenceIndex: fileInfo.referenceIndex,
+        referenceLabel: fileInfo.referenceLabel,
+      };
+    }
+
+    const upload = await runtimeUpload.uploadVideo({ file: fileFromBase64(fileInfo) }, { skipCache: false });
+    if (!upload.ok || !upload.value?.vid) throw new Error(`Dreamina runtime audio upload failed: ${upload.msg || "missing vid"}`);
+    return {
+      vid: upload.value.vid,
+      duration: Number(upload.value.duration || 0) || undefined,
+      title: fileInfo.name,
+    };
+  }, { fileInfo, kind });
+}
+
+async function createDreaminaRuntimeVideoTask(
+  page: Page,
+  input: {
+    prompt: string;
+    durationMs: number;
+    ratio: string;
+    resolution: string;
+    uploadedImages: DreaminaRuntimeUploadedImage[];
+    uploadedAudios: DreaminaRuntimeUploadedAudio[];
+  },
+): Promise<{
+  submitId?: string;
+  uuidSubmitId?: string;
+  historyRecordId?: string;
+  created: unknown;
+  taskInput: unknown;
+}> {
+  await ensureDreaminaEvaluateNameHelper(page);
+  return page.evaluate(async ({ prompt, durationMs, ratio, resolution, uploadedImages, uploadedAudios, modelReqKey, modelLabel }) => {
+    const __name = ((globalThis as unknown as { __name?: <T>(value: T) => T }).__name || Function("value", "return value")) as <T>(value: T) => T;
+    void __name;
+    const windowRef = window as typeof window & {
+      __LOADABLE_LOADED_CHUNKS__?: unknown[];
+      __dreaminaWebpackRequire?: (id: string | number) => Record<string, unknown>;
+      __debugger?: {
+        ContentGeneratorTaskFeatureService?: {
+          _containerService?: unknown;
+          _taskStore?: Array<{
+            task?: {
+              model?: {
+                uniqueKey?: string | number;
+                historyRecordId?: string | number;
+                idModel?: {
+                  submitId?: string | number;
+                  taskId?: string | number;
+                  recordId?: string | number;
+                  historyId?: string | number;
+                };
+              };
+            };
+          }>;
+          createAIGCVideoTask?: (input: unknown, options?: unknown) => Promise<{
+            ok: boolean;
+            value?: {
+              uniqueKey?: string;
+              historyRecordId?: string;
+              idModel?: { submitId?: string; recordId?: string; historyId?: string; taskId?: string };
+              statusModel?: { recordStatus?: string | number; statusCode?: string | number; queueInfo?: unknown; errorMsg?: string; failStarlingMessage?: string; errorCode?: string | number; logid?: string };
+              preGenItemIds?: string[];
+              taskExtra?: unknown;
+            };
+            msg?: string;
+            code?: string | number;
+            errorInfo?: unknown;
+          }> | {
+            ok: boolean;
+            value?: {
+              uniqueKey?: string;
+              historyRecordId?: string;
+              idModel?: { submitId?: string; recordId?: string; historyId?: string; taskId?: string };
+              statusModel?: { recordStatus?: string | number; statusCode?: string | number; queueInfo?: unknown; errorMsg?: string; failStarlingMessage?: string; errorCode?: string | number; logid?: string };
+              preGenItemIds?: string[];
+              taskExtra?: unknown;
+            };
+            msg?: string;
+            code?: string | number;
+            errorInfo?: unknown;
+          };
+        };
+      };
+    };
+    const waitForRuntime = async (): Promise<{
+      req: (id: string | number) => Record<string, unknown>;
+      featureService: NonNullable<NonNullable<typeof windowRef.__debugger>["ContentGeneratorTaskFeatureService"]>;
+    }> => {
+      const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        if (!windowRef.__dreaminaWebpackRequire && Array.isArray(windowRef.__LOADABLE_LOADED_CHUNKS__)) {
+          windowRef.__LOADABLE_LOADED_CHUNKS__.push([[Date.now() % 1_000_000_000], {}, (req: (id: string | number) => Record<string, unknown>) => {
+            windowRef.__dreaminaWebpackRequire = req;
+          }]);
+        }
+        const req = windowRef.__dreaminaWebpackRequire;
+        const featureService = windowRef.__debugger?.ContentGeneratorTaskFeatureService;
+        if (req && featureService?._containerService && featureService.createAIGCVideoTask) return { req, featureService };
+        await sleep(250);
+      }
+      throw new Error("Dreamina runtime bridge unavailable: webpack require, feature container, or video task service is missing.");
+    };
+    const { req, featureService } = await waitForRuntime();
+    const requireModule = (id: string | number): Record<string, unknown> => req(id);
+    const enums = requireModule("615851") as {
+      DAAIGCMode: Record<string, unknown>;
+      DAPriority: Record<string, unknown>;
+      DAVideoMode: Record<string, unknown>;
+    };
+    const materialList: unknown[] = [];
+    const metaList: unknown[] = [];
+    for (const image of uploadedImages) {
+      const materialIndex = materialList.length;
+      const title = image.referenceIndex ? `Reference image #${image.referenceIndex}` : image.title;
+      materialList.push({
+        materialType: "image",
+        imageInfo: {
+          imageUri: image.imageUri,
+          width: image.width,
+          height: image.height,
+          title,
+        },
+      });
+      metaList.push({ metaType: "image", materialRef: { materialIdx: materialIndex } });
+    }
+    for (const audio of uploadedAudios) {
+      const materialIndex = materialList.length;
+      materialList.push({
+        materialType: "audio",
+        audioInfo: {
+          vid: audio.vid,
+          duration: audio.duration,
+          title: audio.title,
+          originAudio: { vid: audio.vid, duration: audio.duration },
+        },
+      });
+      metaList.push({ metaType: "audio", materialRef: { materialIdx: materialIndex } });
+    }
+    metaList.push({ metaType: "text", text: prompt });
+
+    const normalizedRatio = /^(1:1|4:3|3:4|16:9|9:16|21:9)$/i.test(String(ratio || "")) ? ratio : "16:9";
+    const taskInput = {
+      isRegenerate: false,
+      mode: enums.DAAIGCMode.workbench,
+      workspaceId: new URLSearchParams(location.search).get("workspace") || "0",
+      taskPayload: {
+        taskExtra: {
+          enterFrom: "click",
+          sceneOptions: JSON.stringify({ resolution }),
+        },
+      },
+      input: {
+        videoGenInputs: [{
+          prompt,
+          fps: 24,
+          durationMs,
+          resolution,
+          videoMode: enums.DAVideoMode._default,
+          unifiedEditInput: materialList.length > 0 ? { materialList, metaList } : undefined,
+        }],
+        modelReqKey,
+        seed: Math.floor(Math.random() * 2_100_000_000),
+        videoAspectRatio: normalizedRatio,
+        priority: enums.DAPriority.Normal,
+      },
+    };
+    const createAIGCVideoTask = featureService?.createAIGCVideoTask;
+    if (!createAIGCVideoTask) throw new Error("Dreamina runtime video task service is unavailable.");
+    const created = await createAIGCVideoTask.call(featureService, taskInput, { disableLimitTips: true });
+    if (!created?.ok || !created.value) {
+      const detail = created?.errorInfo ? ` ${JSON.stringify(created.errorInfo).slice(0, 800)}` : "";
+      throw new Error(`Dreamina runtime task creation failed: ${created?.msg || created?.code || "unknown error"}${detail}`);
+    }
+    const model = created.value;
+    const modelSubmitId = (): string => String(model.idModel?.submitId || model.uniqueKey || "").trim();
+    const modelHistoryRecordId = (): string => String(model.historyRecordId || model.idModel?.recordId || model.idModel?.historyId || "").trim();
+    const taskStoreHistoryRecordId = (): string => {
+      const submitId = modelSubmitId();
+      if (!submitId) return "";
+      for (const item of featureService._taskStore ?? []) {
+        const taskModel = item.task?.model;
+        const identifiers = [
+          taskModel?.uniqueKey,
+          taskModel?.idModel?.submitId,
+          taskModel?.idModel?.taskId,
+          taskModel?.idModel?.recordId,
+          taskModel?.idModel?.historyId,
+          taskModel?.historyRecordId,
+        ].map((value) => String(value ?? "").trim());
+        if (!identifiers.includes(submitId)) continue;
+        return String(taskModel?.historyRecordId || taskModel?.idModel?.recordId || taskModel?.idModel?.historyId || "").trim();
+      }
+      return "";
+    };
+    let historyRecordId = modelHistoryRecordId() || taskStoreHistoryRecordId();
+    const deadline = Date.now() + 5_000;
+    while (!/^\d{8,}$/.test(historyRecordId) && Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+      historyRecordId = modelHistoryRecordId() || taskStoreHistoryRecordId();
+    }
+    const submitId = modelSubmitId();
+    return {
+      submitId: historyRecordId || submitId,
+      uuidSubmitId: submitId,
+      historyRecordId,
+      created: {
+        ok: created.ok,
+        code: created.code,
+        submitId,
+        historyRecordId,
+        statusCode: model.statusModel?.statusCode,
+        recordStatus: model.statusModel?.recordStatus,
+        errorCode: model.statusModel?.errorCode,
+        errorMsg: model.statusModel?.errorMsg,
+        failStarlingMessage: model.statusModel?.failStarlingMessage,
+        logid: model.statusModel?.logid,
+        queueInfo: model.statusModel?.queueInfo,
+        preGenItemIds: model.preGenItemIds,
+        taskExtra: model.taskExtra,
+      },
+      targetModel: {
+        key: modelReqKey,
+        label: modelLabel,
+      },
+      taskInput,
+    };
+  }, {
+    ...input,
+    modelReqKey: DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_KEY,
+    modelLabel: DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_LABEL,
+  });
+}
+
+async function preflightDreaminaVideoRuntimeBridge(
+  page: Page,
+  input: DreaminaWebVideoInput,
+): Promise<{ imageCount: number; audioCount: number; raw: unknown }> {
+  const referenceUpload = await prepareDreaminaRuntimeReferenceUpload(input);
+  await ensureDreaminaEvaluateNameHelper(page);
+  return page.evaluate(async ({ prompt, durationSeconds, ratio, resolution, referenceUpload, modelReqKey, modelLabel }) => {
+    const __name = ((globalThis as unknown as { __name?: <T>(value: T) => T }).__name || Function("value", "return value")) as <T>(value: T) => T;
+    void __name;
+    const windowRef = window as typeof window & {
+      __LOADABLE_LOADED_CHUNKS__?: unknown[];
+      __dreaminaWebpackRequire?: (id: string | number) => Record<string, unknown>;
+      __debugger?: {
+        ContentGeneratorTaskFeatureService?: { _containerService?: unknown };
+      };
+    };
+    const waitForRuntime = async (): Promise<{
+      req: (id: string | number) => Record<string, unknown>;
+      container: unknown;
+    }> => {
+      const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      const deadline = Date.now() + 15_000;
+      while (Date.now() < deadline) {
+        if (!windowRef.__dreaminaWebpackRequire && Array.isArray(windowRef.__LOADABLE_LOADED_CHUNKS__)) {
+          windowRef.__LOADABLE_LOADED_CHUNKS__.push([[Date.now() % 1_000_000_000], {}, (req: (id: string | number) => Record<string, unknown>) => {
+            windowRef.__dreaminaWebpackRequire = req;
+          }]);
+        }
+        const req = windowRef.__dreaminaWebpackRequire;
+        const container = windowRef.__debugger?.ContentGeneratorTaskFeatureService?._containerService;
+        if (req && container) return { req, container };
+        await sleep(250);
+      }
+      throw new Error("Dreamina runtime bridge unavailable: webpack require or feature container is missing.");
+    };
+    const { req, container } = await waitForRuntime();
+    const requireModule = (id: string | number): Record<string, unknown> => req(id);
+    const tryRequireModule = (id: string | number): Record<string, unknown> | null => {
+      try {
+        const mod = req(id);
+        return mod && typeof mod === "object" ? mod : null;
+      } catch {
+        return null;
+      }
+    };
+    const getService = (moduleId: string, exportName: string) => {
+      const services = tryRequireModule(673395) || tryRequireModule("673395") || tryRequireModule("98253") || tryRequireModule(98253);
+      const serviceModule = tryRequireModule(moduleId) || tryRequireModule(String(moduleId));
+      const serviceId = serviceModule?.[exportName];
+      const getter = services?.cQ;
+      if (typeof getter !== "function" || !serviceId) throw new Error("Dreamina service getter is unavailable.");
+      return getter(container, serviceId);
+    };
+    const runtimeUpload = getService("389946", "H") as {
+      uploadImage(input: { file: File }, options?: { skipCache?: boolean }): Promise<{ ok: boolean; value?: { uri?: string; width?: number; height?: number; md5?: string; fileName?: string }; msg?: string }>;
+      uploadVideo(input: { file: File }, options?: { skipCache?: boolean }): Promise<{ ok: boolean; value?: { vid?: string; duration?: number; md5?: string }; msg?: string }>;
+    };
+
+    const fileFromBase64 = (item: { name: string; mimeType: string; bytesBase64: string }): File => {
+      const binary = atob(item.bytesBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return new File([bytes], item.name, { type: item.mimeType || "application/octet-stream" });
+    };
+
+    const uploadedImages: Array<{ imageUri: string; width: number; height: number; title: string }> = [];
+    for (const fileInfo of referenceUpload.imageFiles) {
+      const upload = await runtimeUpload.uploadImage({ file: fileFromBase64(fileInfo) }, { skipCache: false });
+      if (!upload.ok || !upload.value?.uri) throw new Error(`Dreamina runtime image upload failed: ${upload.msg || "missing uri"}`);
+      uploadedImages.push({
+        imageUri: upload.value.uri,
+        width: Number(upload.value.width || 0),
+        height: Number(upload.value.height || 0),
+        title: fileInfo.name,
+      });
+    }
+
+    const uploadedAudios: Array<{ vid: string; duration?: number; title: string }> = [];
+    for (const fileInfo of referenceUpload.audioFiles) {
+      const upload = await runtimeUpload.uploadVideo({ file: fileFromBase64(fileInfo) }, { skipCache: false });
+      if (!upload.ok || !upload.value?.vid) throw new Error(`Dreamina runtime audio upload failed: ${upload.msg || "missing vid"}`);
+      uploadedAudios.push({
+        vid: upload.value.vid,
+        duration: Number(upload.value.duration || 0) || undefined,
+        title: fileInfo.name,
+      });
+    }
+
+    const enums = requireModule("615851") as {
+      DAAIGCMode: Record<string, unknown>;
+      DAPriority: Record<string, unknown>;
+      DAVideoMode: Record<string, unknown>;
+    };
+    const seedFactory = requireModule("987210") as { W: () => { submitId: string; createTime: string; createPlatform: number } };
+    const taskPayloadFactory = requireModule("677123") as {
+      P: (input: unknown) => { taskPayload: { taskExtra: Record<string, unknown> } };
+    };
+    const converterModule = requireModule("704512") as { H: new (input: unknown) => { convert(): unknown } };
+    const resultModule = requireModule("342590") as { TZ: (value: unknown) => { ok: boolean; value: unknown; msg?: string } };
+
+    const materialList: unknown[] = [];
+    const metaList: unknown[] = [];
+    for (const image of uploadedImages) {
+      const materialIndex = materialList.length;
+      materialList.push({ materialType: "image", imageInfo: image });
+      metaList.push({ metaType: "image", materialRef: { materialIdx: materialIndex } });
+    }
+    for (const audio of uploadedAudios) {
+      const materialIndex = materialList.length;
+      materialList.push({
+        materialType: "audio",
+        audioInfo: {
+          vid: audio.vid,
+          duration: audio.duration,
+          title: audio.title,
+          originAudio: { vid: audio.vid, duration: audio.duration },
+        },
+      });
+      metaList.push({ metaType: "audio", materialRef: { materialIdx: materialIndex } });
+    }
+    metaList.push({ metaType: "text", text: prompt });
+
+    const seed = seedFactory.W();
+    const taskPayload = taskPayloadFactory.P({
+      submitId: seed.submitId,
+      isRegenerate: false,
+      taskPayload: {
+        taskExtra: {
+          enterFrom: "preflight",
+          sceneOptions: JSON.stringify({ resolution }),
+        },
+      },
+    });
+    const normalizedRatio = normalizeRuntimeVideoRatio(ratio);
+    const durationMs = normalizeRuntimeVideoDurationMs(durationSeconds);
+    const params = {
+      ...seed,
+      ...taskPayload,
+      mode: enums.DAAIGCMode.workbench,
+      workspaceId: new URLSearchParams(location.search).get("workspace") || "0",
+      input: {
+        videoGenInputs: [{
+          prompt,
+          fps: 24,
+          durationMs,
+          resolution,
+          videoMode: enums.DAVideoMode._default,
+          unifiedEditInput: materialList.length > 0 ? { materialList, metaList } : undefined,
+        }],
+        modelReqKey,
+        seed: Math.floor(Math.random() * 2_100_000_000),
+        videoAspectRatio: normalizedRatio,
+        priority: enums.DAPriority.Normal,
+      },
+    };
+    const RuntimeVideoConverter = converterModule.H;
+    const submitInput = new RuntimeVideoConverter(params).convert();
+    const wrapped = resultModule.TZ(submitInput);
+    if (!wrapped.ok) throw new Error(wrapped.msg || "Dreamina runtime converter failed.");
+    return {
+      imageCount: uploadedImages.length,
+      audioCount: uploadedAudios.length,
+      raw: {
+        submitId: seed.submitId,
+        upload: {
+          imageCount: uploadedImages.length,
+          audioCount: uploadedAudios.length,
+        },
+        dryRun: true,
+        targetModel: {
+          key: modelReqKey,
+          label: modelLabel,
+        },
+        submitInput,
+      },
+    };
+
+    function normalizeRuntimeVideoDurationMs(value: unknown): number {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return 5000;
+      return Math.max(4, Math.min(15, Math.round(numeric))) * 1000;
+    }
+
+    function normalizeRuntimeVideoRatio(value: unknown): string {
+      const text = String(value || "16:9").trim();
+      return /^(1:1|4:3|3:4|16:9|9:16|21:9)$/i.test(text) ? text : "16:9";
+    }
+  }, {
+    prompt: input.prompt,
+    durationSeconds: normalizeVideoDurationSeconds(input.durationSeconds),
+    ratio: normalizeVideoRatioLabel(input.ratio),
+    resolution: normalizeDreaminaRuntimeVideoResolution(input.resolution),
+    referenceUpload,
+    modelReqKey: DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_KEY,
+    modelLabel: DREAMINA_SEEDANCE_2_FAST_VIDEO_MODEL_LABEL,
+  });
+}
+
+function dreaminaPreferredRuntimeSubmitId(raw: unknown, fallback: string | undefined): string | undefined {
+  const historyId = findDeepStringValue(raw, ["history_record_id", "historyRecordId", "history_id", "historyId", "task_id", "taskId"]);
+  if (historyId && /^\d{8,}$/.test(historyId)) return historyId;
+  const submitId = findDeepStringValue(raw, ["submit_id", "submitId"]);
+  if (submitId) return submitId;
+  return fallback;
+}
+
 async function fetchDreaminaVideoHistoryById(page: Page, submitId: string): Promise<CapturedJsonPayload | null> {
   const historyId = submitId.trim();
-  if (!/^\d{8,}$/.test(historyId)) return null;
+  if (!/^[a-zA-Z0-9_-]{8,}$/.test(historyId)) return null;
   const url = "https://mweb-api-sg.capcut.com/mweb/v1/get_history_by_ids?aid=513641&device_platform=web&region=JP&da_version=3.3.17&web_version=7.5.0&aigc_features=app_lip_sync";
   const payload = await page.evaluate(async ({ url, historyId }) => {
     const response = await fetch(url, {
@@ -2740,6 +3570,7 @@ function summarizeDreaminaWebPayload(value: unknown): unknown {
   const text = JSON.stringify(value);
   if (!text || text.length <= 6000) return value;
   const parsed = isRecord(value) ? value : {};
+  const runtimeTaskInput = summarizeDreaminaRuntimeTaskInput(value);
   return {
     ret: parsed.ret,
     errmsg: parsed.errmsg,
@@ -2747,7 +3578,52 @@ function summarizeDreaminaWebPayload(value: unknown): unknown {
     submitId: findDeepStringValue(value, ["submit_id", "submitId", "history_record_id", "historyRecordId", "history_id", "historyId", "task_id", "taskId"]),
     status: findDeepStringValue(value, ["gen_status", "genStatus", "status", "message"]),
     videoUrl: dreaminaWebVideoResultFromPayloads([{ url: "", capturedAt: Date.now(), payload: value }]).videoUrl,
+    ...(runtimeTaskInput ? { runtimeTaskInput } : {}),
     summary: text.slice(0, 6000),
+  };
+}
+
+function summarizeDreaminaRuntimeTaskInput(value: unknown): unknown {
+  const root = isRecord(value) ? value : {};
+  const taskInput = isRecord(root.taskInput) ? root.taskInput : null;
+  const input = isRecord(taskInput?.input) ? taskInput.input : null;
+  const videoInputs = Array.isArray(input?.videoGenInputs) ? input.videoGenInputs : [];
+  const firstVideoInput = isRecord(videoInputs[0]) ? videoInputs[0] : null;
+  if (!taskInput || !input || !firstVideoInput) return null;
+  const unifiedEditInput = isRecord(firstVideoInput.unifiedEditInput) ? firstVideoInput.unifiedEditInput : null;
+  const materials = Array.isArray(unifiedEditInput?.materialList) ? unifiedEditInput.materialList : [];
+  const metaList = Array.isArray(unifiedEditInput?.metaList) ? unifiedEditInput.metaList : [];
+  return {
+    modelReqKey: stringFrom(input.modelReqKey, ""),
+    videoMode: firstVideoInput.videoMode,
+    hasUnifiedEditInput: Boolean(unifiedEditInput),
+    materialCount: materials.length,
+    materials: materials.map((material) => summarizeDreaminaRuntimeMaterial(material)),
+    metaList,
+  };
+}
+
+function summarizeDreaminaRuntimeMaterial(material: unknown): unknown {
+  if (!isRecord(material)) return material;
+  const imageInfo = isRecord(material.imageInfo) ? material.imageInfo : null;
+  const audioInfo = isRecord(material.audioInfo) ? material.audioInfo : null;
+  return {
+    materialType: stringFrom(material.materialType, ""),
+    ...(imageInfo ? {
+      imageInfo: {
+        imageUri: stringFrom(imageInfo.imageUri, ""),
+        width: Number(imageInfo.width || 0),
+        height: Number(imageInfo.height || 0),
+        title: stringFrom(imageInfo.title, ""),
+      },
+    } : {}),
+    ...(audioInfo ? {
+      audioInfo: {
+        vid: stringFrom(audioInfo.vid, ""),
+        duration: Number(audioInfo.duration || 0) || undefined,
+        title: stringFrom(audioInfo.title, ""),
+      },
+    } : {}),
   };
 }
 

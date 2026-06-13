@@ -39,11 +39,36 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      dreamina-browser:
+        condition: service_started
     env_file:
       - .env.production
     ports:
       - "3001:3001"
+    volumes:
+      - loohii_uploads:/var/lib/loohii/uploads
+
+  dreamina-browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.dreamina-browser
+    image: dreamina-browser:latest
+    container_name: dreamina-browser
+    restart: unless-stopped
+    environment:
+      DISPLAY: ":99"
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      DREAMINA_START_URL: "https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0"
+      CDP_ADVERTISED_HOST: dreamina-browser
+    ports:
+      - "7900:7900"
+      - "9223:9223"
+    volumes:
+      - dreamina_chrome_data8:/home/dreamina/.config/chromium
 
 volumes:
   loohii_postgres_data:
   loohii_redis_data:
+  loohii_uploads:
+  dreamina_chrome_data8:
+    external: true

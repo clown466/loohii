@@ -6,15 +6,27 @@ import helmet from "helmet";
 import morgan from "morgan";
 import { createApiRouter } from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
+import { installVncHttpProxy } from "./vncProxy";
 
 export function createHttpApp(corsOrigins: string[]) {
   const app = express();
 
-  app.use(helmet());
+  installVncHttpProxy(app);
+
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        connectSrc: ["'self'", "http:", "https:", "ws:", "wss:"],
+        imgSrc: ["'self'", "data:", "blob:", "http:", "https:"],
+        mediaSrc: ["'self'", "data:", "blob:", "http:", "https:"],
+        upgradeInsecureRequests: null,
+      },
+    },
+  }));
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || corsOrigins.includes("*") || corsOrigins.includes(origin)) {
+        if (isAllowedCorsOrigin(origin, corsOrigins)) {
           callback(null, true);
           return;
         }
@@ -45,3 +57,14 @@ export function createHttpApp(corsOrigins: string[]) {
   return app;
 }
 
+function isAllowedCorsOrigin(origin: string | undefined, corsOrigins: string[]): boolean {
+  if (!origin) return true;
+  if (corsOrigins.includes("*") || corsOrigins.includes(origin)) return true;
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    return ["localhost", "127.0.0.1", "loohii-app"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}

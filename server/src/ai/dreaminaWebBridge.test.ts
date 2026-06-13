@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   dreaminaMediaExtensionForTest,
+  dreaminaReferenceImageDescriptorForTest,
   dreaminaWebBrowserTaskForTest,
   dreaminaWebExclusiveTaskForTest,
   dreaminaReferenceMediaForTest,
@@ -13,6 +14,8 @@ import {
   dreaminaWebVideoPendingStatusForTest,
   dreaminaWebVideoResultForSubmitIdForTest,
   dreaminaWebVideoResultFromPayloadsForTest,
+  dreaminaWebRuntimeVideoModelForTest,
+  stableDreaminaWebVideoDurationSecondsForTest,
 } from "./dreaminaWebBridge";
 
 const submittedAt = 1_780_758_000_000;
@@ -217,6 +220,26 @@ test("Dreamina Web video DOM failure ignores story words like shark-toothed", ()
   const bodyText = "Tiffany's fake beauty face fractures; her mouth opens into a shark-toothed rage mask. AI Video Dreamina Seedance 2.0 Fast Omni reference 9:16 11s 209 Go to bottom";
 
   assert.equal(dreaminaWebVideoDomFailureMessageForTest(bodyText), "");
+});
+
+test("Dreamina Web video runtime duration uses the stable Dreamina range", () => {
+  assert.equal(stableDreaminaWebVideoDurationSecondsForTest(15), 10);
+  assert.equal(stableDreaminaWebVideoDurationSecondsForTest(12), 10);
+  assert.equal(stableDreaminaWebVideoDurationSecondsForTest(8), 8);
+});
+
+test("Dreamina Web runtime uses Seedance 2.0 Fast model key", () => {
+  assert.deepEqual(dreaminaWebRuntimeVideoModelForTest(), {
+    key: "dreamina_seedance_40_vision",
+    label: "Dreamina Seedance 2.0 Fast",
+  });
+});
+
+test("Dreamina Web reference descriptors stay neutral", () => {
+  const descriptor = dreaminaReferenceImageDescriptorForTest(0, "https://loohii.com/Chloe-Zombie-Flora.png");
+
+  assert.equal(descriptor.label, "Reference image #1");
+  assert.equal(descriptor.baseName, "reference-1-reference-image-1");
 });
 
 test("Dreamina Web video media references include images and audio", () => {

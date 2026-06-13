@@ -1,0 +1,11 @@
+FROM dreamina-browser:base
+
+USER root
+COPY docker/dreamina-browser/start.sh /opt/dreamina/start.sh
+COPY docker/dreamina-browser/cdp-host-rewrite-proxy.js /opt/dreamina/cdp-host-rewrite-proxy.js
+RUN chmod 755 /opt/dreamina/start.sh \
+  && chmod 644 /opt/dreamina/cdp-host-rewrite-proxy.js \
+  && chown -R dreamina:dreamina /opt/dreamina
+USER dreamina
+
+CMD ["bash", "/opt/dreamina/start.sh"]
