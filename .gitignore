@@ -21,3 +21,5 @@ coverage/
 uploads/
 output/
 tmp/
+.superpowers/
+.layout-repair-backup/

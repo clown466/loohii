@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Position } from '@xyflow/react';
 import { ClipboardCheck, Languages, RotateCw } from 'lucide-react';
 import { useParams } from 'react-router';
@@ -6,11 +6,12 @@ import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { cn } from '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
-import { apiClient, type ModelConfig } from '../../../lib/apiClient';
+import { apiClient } from '../../../lib/apiClient';
 import {
   type CanvasNodeProps,
   CanvasNodeResizer,
   CanvasHandle,
+  PromptTextarea,
   canvasGenerationStartedAt,
   canvasGenerationAgeMs,
   canvasNodePromptText,
@@ -19,17 +20,21 @@ import {
   isCanvasPromptWithinApiLimit,
   canvasPromptTooLongError,
   modelOptionLabel,
-  isWorkflowTextModel,
   CANVAS_TRANSLATION_STALE_MS,
 } from './shared';
+import {
+  availableTextModelId,
+  shouldShowUnavailableTextModel,
+  textModelSelectPlaceholder,
+  useTextModelOptions,
+} from './modelOptions';
 
 export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const edges = useCanvasStore((s) => s.edges);
   const nodes = useCanvasStore((s) => s.nodes);
   const { id: projectId } = useParams();
-  const [textModels, setTextModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
+  const { textModels, loading: modelsLoading, failed: modelLoadFailed } = useTextModelOptions();
   const translationAbortRef = useRef<AbortController | null>(null);
   const translationRequestIdRef = useRef(0);
   const incomingSource = useMemo(() => {
@@ -52,27 +57,27 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
   const translationStalled = isTranslating && (translationAge === null || translationAge > CANVAS_TRANSLATION_STALE_MS);
 
   useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setTextModels(result.models.filter(isWorkflowTextModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTextModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!incomingPrompt || data.sourcePrompt) return;
     updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
   }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
+
+  useEffect(() => {
+    if (!incomingPrompt || !incomingSource || isTranslating) return;
+    const storedSourcePrompt = String(data.sourcePrompt || '').trim();
+    if (!storedSourcePrompt || storedSourcePrompt === incomingPrompt) return;
+    const storedSourceNodeId = String(data.sourceNodeId || '');
+    const shouldFollowSource = data.batchTranslation === true || !storedSourceNodeId || storedSourceNodeId === incomingSource.id;
+    if (!shouldFollowSource) return;
+    updateNodeData(id, {
+      sourcePrompt: incomingPrompt,
+      sourceNodeId: incomingSource.id,
+      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
+      translatedPrompt: '',
+      status: 'waiting',
+      error: '左侧提示词已更新，旧译文已清空，请重新翻译。',
+      translationStartedAt: '',
+    });
+  }, [data.batchTranslation, data.sourceNodeId, data.sourcePrompt, id, incomingPrompt, incomingSource, isTranslating, updateNodeData]);
 
   useEffect(() => () => {
     translationAbortRef.current?.abort();
@@ -138,7 +143,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
     try {
       const result = await apiClient.translateCanvasPrompt(projectId || 'local', {
         prompt,
-        aiModelId: data.modelId || undefined,
+        aiModelId: availableTextModelId(data.modelId, textModels, modelsLoading),
         sourceLanguage,
         targetLanguage,
         preserveStructure: data.preserveStructure !== false,
@@ -202,7 +207,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={420} minHeight={300} />
-      <div className="scrollbar-none h-full w-full min-w-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-cyan-500/70">
+      <div className="scrollbar-none h-full w-full min-w-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-cyan-500/70">
         <div className="flex items-center gap-3 border-b border-zinc-800 p-3 cursor-grab active:cursor-grabbing">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-300">
             <Languages className="h-5 w-5" />
@@ -221,7 +226,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 ? "border-red-500/30 bg-red-500/10 text-red-300"
                 : isTranslating
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
+                  : "border-border bg-zinc-900 text-zinc-400"
           )}>
             {translationStalled ? '已中断' : isTranslating ? '翻译中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待翻译'}
           </Badge>
@@ -230,7 +235,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className="space-y-3 p-3">
           <div className="grid grid-cols-2 gap-2">
             <select
-              className="nodrag nopan h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
+              className="nodrag nopan h-8 rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
               value={sourceLanguage}
               onChange={(event) => updateNodeData(id, { sourceLanguage: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -241,7 +246,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               <option value="English">英文</option>
             </select>
             <select
-              className="nodrag nopan h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
+              className="nodrag nopan h-8 rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
               value={targetLanguage}
               onChange={(event) => updateNodeData(id, { targetLanguage: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -253,14 +258,14 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
 
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <option value="">{textModels.length ? '默认文本模型' : '未配置文本模型'}</option>
-            {data.modelId && !textModels.some((model) => model.id === data.modelId) ? (
+            <option value="">{textModelSelectPlaceholder(textModels, modelsLoading)}</option>
+            {shouldShowUnavailableTextModel(data.modelId, textModels, modelsLoading) ? (
               <option value={String(data.modelId)}>当前模型不可用</option>
             ) : null}
             {textModels.map((model) => (
@@ -294,11 +299,13 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 读取左侧
               </Button>
             </div>
-            <textarea
-              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
+            <PromptTextarea
+              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
               value={String(data.sourcePrompt || incomingPrompt || '')}
               placeholder="输入要翻译的提示词，或从左侧连入图片/视频/分镜节点。"
-              onChange={(event) => updateNodeData(id, { sourcePrompt: event.target.value })}
+              modalTitle={`${data.title || '提示词翻译'} · 原提示词`}
+              modalSubtitle="完整原提示词"
+              onChange={(value) => updateNodeData(id, { sourcePrompt: value })}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
@@ -324,11 +331,13 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 复制
               </Button>
             </div>
-            <textarea
-              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
+            <PromptTextarea
+              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
               value={translatedPrompt}
               placeholder="翻译完成后显示在这里。"
-              onChange={(event) => updateNodeData(id, { translatedPrompt: event.target.value })}
+              modalTitle={`${data.title || '提示词翻译'} · 翻译结果`}
+              modalSubtitle="完整翻译结果"
+              onChange={(value) => updateNodeData(id, { translatedPrompt: value })}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
@@ -381,7 +390,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
             type="button"
             variant="secondary"
             size="sm"
-            className="nodrag nopan h-8 bg-zinc-800 text-[11px] text-zinc-200 hover:bg-zinc-700"
+            className="nodrag nopan h-8 bg-layer-4 text-[11px] text-zinc-200 hover:bg-zinc-700"
             disabled={!translatedPrompt || outgoingTargets.length === 0}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -414,4 +423,3 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
     </>
   );
 };
-

@@ -5,10 +5,10 @@ import { Button } from "../components/ui/button";
 
 export function LandingPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-[#09090b] text-zinc-50">
-      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-zinc-800/50 bg-[#09090b]/80 px-4 backdrop-blur sm:px-6 lg:px-12">
+    <div className="flex min-h-screen flex-col bg-background text-zinc-50">
+      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-zinc-800/50 bg-background/80 px-4 backdrop-blur sm:px-6 lg:px-12">
         <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/90 text-white">
             L
           </div>
           鹿绘AI
@@ -22,7 +22,7 @@ export function LandingPage() {
 
         <div className="flex items-center gap-3 sm:gap-4">
           <Link to="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">登录</Link>
-          <Button asChild className="bg-indigo-600 hover:bg-indigo-500 max-[360px]:px-3">
+          <Button asChild className="bg-primary hover:bg-primary/90 max-[360px]:px-3">
             <Link to="/register">免费开始</Link>
           </Button>
         </div>
@@ -31,8 +31,8 @@ export function LandingPage() {
       <main className="flex flex-1 flex-col items-center">
         {/* Hero Section */}
         <section className="mx-auto flex w-full max-w-6xl flex-col items-center px-4 py-16 text-center sm:px-6 md:py-32">
-          <div className="inline-flex items-center rounded-full border border-indigo-500/30 bg-indigo-500/10 px-3 py-1 text-sm text-indigo-300 mb-8 backdrop-blur-sm">
-            <span className="flex h-2 w-2 rounded-full bg-indigo-500 mr-2 animate-pulse"></span>
+          <div className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm text-primary mb-8 backdrop-blur-sm">
+            <span className="flex h-2 w-2 rounded-full bg-primary/90 mr-2 animate-pulse"></span>
             鹿绘AI 2.0 现已发布，搭载全新 AI 引擎
           </div>
           
@@ -45,12 +45,12 @@ export function LandingPage() {
           </p>
           
           <div className="flex w-full flex-col items-center gap-4 sm:w-auto sm:flex-row">
-            <Button asChild size="lg" className="h-14 px-8 text-base bg-indigo-600 hover:bg-indigo-500 gap-2 w-full sm:w-auto">
+            <Button asChild size="lg" className="h-14 px-8 text-base bg-primary hover:bg-primary/90 gap-2 w-full sm:w-auto">
               <Link to="/register">
                 立即开始创作 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" className="h-14 px-8 text-base gap-2 w-full sm:w-auto bg-[#141416] border-zinc-800 hover:bg-zinc-800">
+            <Button size="lg" variant="outline" className="h-14 px-8 text-base gap-2 w-full sm:w-auto bg-[#141416] border-zinc-800 hover:bg-layer-4">
               <Play className="h-4 w-4" /> 观看演示
             </Button>
           </div>
@@ -59,7 +59,7 @@ export function LandingPage() {
         {/* Hero Image Mockup */}
         <section className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6 sm:pb-24">
           <div className="rounded-2xl border border-zinc-800 bg-[#141416] p-2 shadow-2xl relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+            <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
             <img src="https://images.unsplash.com/photo-1618331835717-801e976710b2?w=1600&q=80" alt="App Interface" className="rounded-xl w-full h-auto object-cover aspect-[16/9]" />
           </div>
         </section>
@@ -78,8 +78,8 @@ export function LandingPage() {
                 { icon: <Wand2 />, title: "全能 AI Agent 辅助", desc: "无论是修改画面细节、延伸剧情还是保持角色一致性，AI 助手都在你身边随时待命。" },
                 { icon: <Users />, title: "预设系统与协作", desc: "保存你的专属风格预设、提示词模板和导演指导，随时在团队间共享，保证风格统一。" }
               ].map((feature, i) => (
-                <div key={i} className="bg-[#09090b] border border-zinc-800 p-8 rounded-2xl hover:border-zinc-600 transition-colors">
-                  <div className="h-12 w-12 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-6">
+                <div key={i} className="bg-background border border-zinc-800 p-8 rounded-2xl hover:border-zinc-600 transition-colors">
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-6">
                     {React.cloneElement(feature.icon as React.ReactElement, { className: "h-6 w-6" })}
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
@@ -91,10 +91,10 @@ export function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-zinc-800 py-12 bg-[#09090b]">
+      <footer className="border-t border-zinc-800 py-12 bg-background">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2 font-bold tracking-tight">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-zinc-800 text-zinc-300 text-xs">L</div>
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-layer-4 text-zinc-300 text-xs">L</div>
             鹿绘AI © 2026
           </div>
           <div className="text-sm text-zinc-500">

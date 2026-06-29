@@ -23,7 +23,7 @@ router.get(
   "/projects/:projectId/scenes",
   asyncRoute(async (req, res) => {
     const projectId = routeParam(req.params.projectId, "projectId");
-    await assertProject(projectId, req.user!.id);
+    await assertProjectExists(projectId, req.user!.id);
     const scenes = await prisma.scene.findMany({
       where: { projectId, deletedAt: null },
       orderBy: { orderIndex: "asc" },
@@ -36,7 +36,7 @@ router.post(
   "/projects/:projectId/scenes",
   asyncRoute(async (req, res) => {
     const projectId = routeParam(req.params.projectId, "projectId");
-    await assertProject(projectId, req.user!.id);
+    await assertProjectExists(projectId, req.user!.id);
     const input = sceneSchema.parse(req.body);
     const scene = await prisma.scene.create({
       data: {
@@ -102,6 +102,15 @@ router.delete(
 
 async function assertProject(projectId: string, ownerId: string) {
   const project = await prisma.project.findFirst({ where: { id: projectId, ownerId, deletedAt: null } });
+  if (!project) notFound("Project not found");
+  return project;
+}
+
+async function assertProjectExists(projectId: string, ownerId: string) {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ownerId, deletedAt: null },
+    select: { id: true },
+  });
   if (!project) notFound("Project not found");
   return project;
 }

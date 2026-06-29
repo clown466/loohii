@@ -43,6 +43,35 @@ test("agent prompt-removal request is not mistaken for asset connection", () => 
   assert.match(actions[0].prompt, /the lab/);
 });
 
+test("agent parses prompt text removal from connected prompt request", () => {
+  const request = "去掉提示词里的frying pan and delivery bag，其他不变。";
+
+  assert.deepEqual(agentTestInternals.promptNamesToRemoveFromUserRequest(request), ["frying pan", "delivery bag"]);
+});
+
+test("draft-only agent removes requested text from linked node full prompt", () => {
+  const request = "去掉提示词里的frying pan and delivery bag，其他不变。";
+  const longPrefix = "Intro rules. ".repeat(180);
+  const prompt = `${longPrefix}Chloe exits with a frying pan and delivery bag while Flora watches.\nExact dialogue: Flora: \"Go.\"`;
+  const linkedContext = agentTestInternals.linkedNodePromptContextForDraftAgent({
+    linkedNodeIds: ["video-clip-010"],
+    linkedNodePrompts: [{
+      id: "video-clip-010",
+      type: "video",
+      title: "Clip 10 · Flock Exits 视频任务",
+      clipId: "clip-010",
+      prompt,
+    }],
+  }, []);
+
+  const result = agentTestInternals.draftOnlyPromptRemovalResult(request, linkedContext);
+
+  assert.match(result, /Clip 10/);
+  assert.doesNotMatch(result, /frying pan/i);
+  assert.doesNotMatch(result, /delivery bag/i);
+  assert.match(result, /Exact dialogue: Flora: “Go\.”/);
+});
+
 test("agent asset removal request emits remove asset action for target clip", () => {
   const request = "把clip07的视频节点的Tiffany和Plastic Guards资产去掉，并在视频提示词里去掉这两个角色的存在描述";
 
@@ -53,6 +82,55 @@ test("agent asset removal request emits remove asset action for target clip", ()
   assert.equal(actions[0].clipId, "clip-007");
   assert.deepEqual([...actions[0].assetNames].sort(), ["Plastic Guards", "Tiffany"].sort());
   assert.equal(actions[0].updatePrompts, true);
+});
+
+test("agent wrapped canvas-agent request does not infer asset removal from linked node summary", () => {
+  const request = [
+    "你是画布智能体节点。请在当前项目内执行用户要求。",
+    "",
+    "用户要求：稍微修改这个提示词，把其中可能涉及到不过审的描述修改下，不要修改任何对白内容",
+    "",
+    "智能体节点ID：agent-1",
+    "连接节点：[{\"id\":\"episode-sync-video-node-episode-001-clip-001\",\"type\":\"video\",\"title\":\"Clip 01 · Shotgun at the dock 视频任务\",\"clipId\":\"clip-001\",\"prompt\":\"Characters: Chloe, Flora, Bob, Zombie. Setting: Underground Loading Dock. Chloe fires a shotgun.\"}]",
+  ].join("\n");
+  const preloaded = [{
+    canvas: {
+      assetNames: ["Underground Loading Dock", "Shotgun", "Zombie", "Chloe", "Flora", "Bob"],
+      nodes: [
+        {
+          id: "episode-sync-video-node-episode-001-clip-001",
+          type: "video",
+          clipId: "clip-001",
+          title: "Clip 01 · Shotgun at the dock 视频任务",
+          prompt: "Characters: Chloe, Flora, Bob, Zombie. Setting: Underground Loading Dock. Chloe fires a shotgun.",
+        },
+      ],
+      edges: [],
+    },
+  }];
+
+  assert.equal(agentTestInternals.agentEffectiveUserRequest(request), "稍微修改这个提示词，把其中可能涉及到不过审的描述修改下，不要修改任何对白内容");
+  assert.equal(agentTestInternals.userRequestExplicitlyAsksAssetRemoval(request), false);
+  const actions = agentTestInternals.deterministicActionsFromUserRequest(agentTestInternals.agentEffectiveUserRequest(request), preloaded);
+  assert.equal(actions.some((action: any) => action.type === "remove_asset_from_clip"), false);
+});
+
+test("agent removable asset guard never treats core clip nodes as asset references", () => {
+  assert.equal(agentTestInternals.agentRemovableAssetReferenceNode({
+    id: "episode-sync-video-episode-001-clip-001",
+    type: "section",
+    data: { title: "Clip 01 · Shotgun Blast · 视频板", clipId: "clip-001" },
+  }), false);
+  assert.equal(agentTestInternals.agentRemovableAssetReferenceNode({
+    id: "episode-sync-video-node-episode-001-clip-001",
+    type: "video",
+    data: { title: "Clip 01 · Shotgun Blast 视频任务", clipId: "clip-001", assetName: "Shotgun" },
+  }), false);
+  assert.equal(agentTestInternals.agentRemovableAssetReferenceNode({
+    id: "episode-sync-video-ref-episode-001-clip-001-asset-shotgun",
+    type: "imageInput",
+    data: { assetName: "Shotgun", assetKind: "props", clipSyncRole: "video-asset:shotgun" },
+  }), true);
 });
 
 test("agent asset removal uses asset names from loaded canvas", () => {

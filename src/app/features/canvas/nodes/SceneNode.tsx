@@ -45,10 +45,10 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={240} minHeight={210} />
-      <div className="h-full w-full min-w-[240px] overflow-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
-      <div className="bg-zinc-800/50 px-3 py-2 text-xs font-medium text-zinc-300 flex justify-between items-center cursor-grab active:cursor-grabbing">
+      <div className="h-full w-full min-w-[240px] overflow-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
+      <div className="bg-layer-4/50 px-3 py-2 text-xs font-medium text-zinc-300 flex justify-between items-center cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5">
-          <ImagePlay className="h-3.5 w-3.5 text-indigo-400" />
+          <ImagePlay className="h-3.5 w-3.5 text-primary" />
           {data.title || "分镜"}
         </div>
         {referenceImages.length > 0 && (
@@ -63,7 +63,9 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
               <img
                 src={ref.url}
                 alt={ref.label}
-                className="h-10 w-10 cursor-zoom-in rounded border border-zinc-700 object-cover"
+                loading="lazy"
+                decoding="async"
+                className="h-10 w-10 cursor-zoom-in rounded border border-border object-cover"
                 onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
                 onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
               />
@@ -81,14 +83,16 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
             <img
               src={data.image}
               alt="Scene"
+              loading="lazy"
+              decoding="async"
               className="h-full w-full cursor-zoom-in object-cover"
               onClick={(event) => previewCanvasImage(event, { url: data.image, title: data.title || '分镜图', subtitle: data.description || undefined })}
               onDoubleClick={(event) => previewCanvasImage(event, { url: data.image, title: data.title || '分镜图', subtitle: data.description || undefined })}
             />
           ) : data.status === 'generating' ? (
             <div className="flex flex-col items-center justify-center gap-2">
-              <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 w-[45%] animate-pulse" />
+              <div className="h-1.5 w-24 bg-layer-4 rounded-full overflow-hidden">
+                <div className="h-full bg-primary/90 w-[45%] animate-pulse" />
               </div>
               <span className="text-xs text-zinc-500 font-mono">生成中...</span>
             </div>
@@ -118,7 +122,7 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 text-[10px] px-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
+          className="h-6 text-[10px] px-2 bg-primary/10 text-primary hover:bg-primary/20"
           onClick={handleGenerate}
         >
           {data.status === 'completed' ? '重新生成' : '生成'}

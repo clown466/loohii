@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Position } from '@xyflow/react';
 import { ClipboardCheck, RotateCw } from 'lucide-react';
 import { useParams } from 'react-router';
@@ -6,28 +6,33 @@ import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { cn } from '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
-import { apiClient, type ModelConfig } from '../../../lib/apiClient';
+import { apiClient } from '../../../lib/apiClient';
 import {
   type CanvasNodeProps,
   CanvasNodeResizer,
   CanvasHandle,
+  PromptTextarea,
   canvasGenerationStartedAt,
   canvasGenerationAgeMs,
   canvasNodePromptText,
   canvasNodePromptLabel,
   modelOptionLabel,
-  isWorkflowTextModel,
   formatDurationMs,
   CANVAS_TRANSLATION_STALE_MS,
 } from './shared';
+import {
+  availableTextModelId,
+  shouldShowUnavailableTextModel,
+  textModelSelectPlaceholder,
+  useTextModelOptions,
+} from './modelOptions';
 
 export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const edges = useCanvasStore((s) => s.edges);
   const nodes = useCanvasStore((s) => s.nodes);
   const { id: projectId } = useParams();
-  const [textModels, setTextModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
+  const { textModels, loading: modelsLoading, failed: modelLoadFailed } = useTextModelOptions();
   const inspectAbortRef = useRef<AbortController | null>(null);
   const inspectRequestIdRef = useRef(0);
   const incomingSource = useMemo(() => {
@@ -40,24 +45,6 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
   const isInspecting = status === 'inspecting';
   const inspectAge = canvasGenerationAgeMs(data.inspectStartedAt);
   const inspectStalled = isInspecting && (inspectAge === null || inspectAge > CANVAS_TRANSLATION_STALE_MS);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setTextModels(result.models.filter(isWorkflowTextModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setTextModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     if (!incomingPrompt || data.sourcePrompt) return;
@@ -132,7 +119,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
       const result = await apiClient.inspectCanvasPrompt(projectId || 'local', {
         prompt,
         question: nextQuestion,
-        aiModelId: data.modelId || undefined,
+        aiModelId: availableTextModelId(data.modelId, textModels, modelsLoading),
         context: String(data.context || ''),
       }, { signal: abortController.signal });
       if (inspectRequestIdRef.current !== requestId || abortController.signal.aborted) return;
@@ -172,7 +159,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={440} minHeight={340} />
-      <div className="scrollbar-none h-full w-full min-w-[440px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-amber-500/70">
+      <div className="scrollbar-none h-full w-full min-w-[440px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-amber-500/70">
         <div className="flex cursor-grab items-center gap-3 border-b border-zinc-800 p-3 active:cursor-grabbing">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-amber-500/10 text-amber-300">
             <ClipboardCheck className="h-5 w-5" />
@@ -191,7 +178,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
                 ? "border-red-500/30 bg-red-500/10 text-red-300"
                 : isInspecting
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
+                  : "border-border bg-zinc-900 text-zinc-400"
           )}>
             {inspectStalled ? '已中断' : isInspecting ? '检查中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待检查'}
           </Badge>
@@ -199,14 +186,14 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
         <div className="space-y-3 p-3">
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-amber-500"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-amber-500"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
-            <option value="">{textModels.length ? '默认文本模型' : '未配置文本模型'}</option>
-            {data.modelId && !textModels.some((model) => model.id === data.modelId) ? (
+            <option value="">{textModelSelectPlaceholder(textModels, modelsLoading)}</option>
+            {shouldShowUnavailableTextModel(data.modelId, textModels, modelsLoading) ? (
               <option value={String(data.modelId)}>当前模型不可用</option>
             ) : null}
             {textModels.map((model) => (
@@ -231,11 +218,13 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
                 读取左侧
               </Button>
             </div>
-            <textarea
-              className="nodrag nopan min-h-[105px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
+            <PromptTextarea
+              className="nodrag nopan min-h-[105px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
               value={String(data.sourcePrompt || incomingPrompt || '')}
               placeholder="输入要检查的提示词，或从左侧连入图片/视频/分镜节点。"
-              onChange={(event) => updateNodeData(id, { sourcePrompt: event.target.value })}
+              onChange={(value) => updateNodeData(id, { sourcePrompt: value })}
+              modalTitle={`${data.title || '提示词检查'} · 原提示词`}
+              modalSubtitle="完整提示词"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
@@ -245,11 +234,13 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div>
             <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">问题</span>
-            <textarea
-              className="nodrag nopan min-h-[68px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
+            <PromptTextarea
+              className="nodrag nopan min-h-[68px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
               value={String(data.question || '')}
               placeholder="例如：这个故事板提示词里有哪些角色有台词？每句台词在哪个格子？"
-              onChange={(event) => updateNodeData(id, { question: event.target.value })}
+              onChange={(value) => updateNodeData(id, { question: value })}
+              modalTitle={`${data.title || '提示词检查'} · 问题`}
+              modalSubtitle="完整问题"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
@@ -275,11 +266,13 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
                 复制
               </Button>
             </div>
-            <textarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
+            <PromptTextarea
+              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
               value={answer}
               placeholder="检查完成后显示在这里。"
-              onChange={(event) => updateNodeData(id, { answer: event.target.value })}
+              onChange={(value) => updateNodeData(id, { answer: value })}
+              modalTitle={`${data.title || '提示词检查'} · 检查结果`}
+              modalSubtitle="完整结果"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
@@ -339,4 +332,3 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
     </>
   );
 };
-

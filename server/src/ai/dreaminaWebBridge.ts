@@ -208,6 +208,11 @@ export function isDreaminaWebProvider(provider?: DreaminaProviderLike | null): b
 }
 
 export async function getDreaminaWebStatus(): Promise<DreaminaWebStatus> {
+  const localRunnerUrl = dreaminaLocalRunnerUrl();
+  if (localRunnerUrl) {
+    return getDreaminaLocalRunnerStatus(localRunnerUrl);
+  }
+
   const cdpUrl = dreaminaCdpUrl();
   const publicUrl = dreaminaPublicBrowserUrl();
   let browser: Browser | null = null;
@@ -367,6 +372,11 @@ async function callDreaminaWebImageModelUnlocked(
 }
 
 export async function callDreaminaWebVideoModel(input: DreaminaWebVideoInput): Promise<DreaminaWebVideoResult> {
+  const localRunnerUrl = dreaminaLocalRunnerUrl();
+  if (localRunnerUrl) {
+    return callDreaminaLocalRunner<DreaminaWebVideoResult>(localRunnerUrl, "/generate-video", input);
+  }
+
   return withDreaminaWebBrowserTask("video-generation", () => callDreaminaWebVideoModelUnlocked(input));
 }
 
@@ -442,6 +452,11 @@ async function callDreaminaWebVideoModelUnlocked(input: DreaminaWebVideoInput): 
 }
 
 export async function preflightDreaminaWebVideoUpload(input: DreaminaWebVideoInput): Promise<DreaminaWebVideoUploadPreflightResult> {
+  const localRunnerUrl = dreaminaLocalRunnerUrl();
+  if (localRunnerUrl) {
+    return callDreaminaLocalRunner<DreaminaWebVideoUploadPreflightResult>(localRunnerUrl, "/preflight-video", input);
+  }
+
   return withDreaminaWebBrowserTask("video-preflight", () => preflightDreaminaWebVideoUploadUnlocked(input));
 }
 
@@ -564,6 +579,11 @@ async function preflightDreaminaWebVideoUploadUnlocked(input: DreaminaWebVideoIn
 }
 
 export async function queryDreaminaWebVideoModel(submitId: string, options: { existingVideoUrls?: string[] } = {}): Promise<DreaminaWebVideoQueryResult> {
+  const localRunnerUrl = dreaminaLocalRunnerUrl();
+  if (localRunnerUrl) {
+    return callDreaminaLocalRunner<DreaminaWebVideoQueryResult>(localRunnerUrl, "/query-video", { submitId, ...options });
+  }
+
   return withDreaminaWebBrowserTask("video-query", () => queryDreaminaWebVideoModelUnlocked(submitId, options));
 }
 
@@ -4184,6 +4204,72 @@ function ratioFromSize(value: string): string {
 
 function dreaminaCdpUrl(): string {
   return process.env.DREAMINA_BROWSER_CDP_URL || "http://127.0.0.1:9222";
+}
+
+function dreaminaLocalRunnerUrl(): string {
+  return String(process.env.DREAMINA_LOCAL_RUNNER_URL || "").trim().replace(/\/+$/, "");
+}
+
+async function getDreaminaLocalRunnerStatus(baseUrl: string): Promise<DreaminaWebStatus> {
+  const cdpUrl = `${baseUrl} (local runner)`;
+  try {
+    const response = await fetch(`${baseUrl}/status`, { signal: AbortSignal.timeout(15_000) });
+    const payload = await parseDreaminaLocalRunnerResponse<DreaminaWebStatus>(response);
+    return {
+      ...payload,
+      cdpUrl: payload.cdpUrl || cdpUrl,
+      publicUrl: payload.publicUrl || baseUrl,
+      message: payload.message || (payload.loggedIn ? "Dreamina local runner is connected and logged in." : "Dreamina local runner is connected but not logged in."),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Dreamina local runner status failed.";
+    return {
+      ok: false,
+      connected: false,
+      loggedIn: false,
+      url: "",
+      title: "",
+      pageCount: 0,
+      cdpUrl,
+      publicUrl: baseUrl,
+      message: `Dreamina local runner unavailable: ${message}`,
+    };
+  }
+}
+
+async function callDreaminaLocalRunner<T>(baseUrl: string, path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(dreaminaLocalRunnerTimeoutMs()),
+  });
+  return parseDreaminaLocalRunnerResponse<T>(response);
+}
+
+async function parseDreaminaLocalRunnerResponse<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  let payload: unknown;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    throw new Error(`Dreamina local runner returned non-JSON response (${response.status}): ${text.slice(0, 500)}`);
+  }
+  if (!response.ok) {
+    const message = isRecord(payload) ? stringFrom(payload.error, "") || stringFrom(payload.message, "") : "";
+    throw new Error(message || `Dreamina local runner request failed with HTTP ${response.status}.`);
+  }
+  if (isRecord(payload) && payload.ok === false) {
+    const message = stringFrom(payload.error, "") || stringFrom(payload.message, "");
+    throw new Error(message || "Dreamina local runner request failed.");
+  }
+  return (isRecord(payload) && "data" in payload ? payload.data : payload) as T;
+}
+
+function dreaminaLocalRunnerTimeoutMs(): number {
+  const configured = Number(process.env.DREAMINA_LOCAL_RUNNER_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured >= 30_000) return configured;
+  return 10 * 60 * 1000;
 }
 
 function dreaminaStartUrl(): string {

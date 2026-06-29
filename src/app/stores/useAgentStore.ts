@@ -97,9 +97,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
         ? previous.activeConversationId
         : conversations[0]?.id || generateConversationId(projectId)
       set({ conversations, activeConversationId, activeProjectId: projectId })
-      if (conversations.some((conversation) => conversation.id === activeConversationId) && previous.activeConversationId !== activeConversationId) {
-        void useAgentStore.getState().loadConversationMessages(projectId, activeConversationId)
-      }
     } finally {
       set({ isLoadingConversations: false })
     }

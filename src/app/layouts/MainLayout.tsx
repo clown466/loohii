@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { Suspense, useState, useRef, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import {
   Bell,
   ChevronRight,
@@ -161,12 +162,12 @@ export function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen h-[100dvh] w-full flex-col overflow-hidden bg-[#09090b] text-[14px] text-[#fafafa]">
+    <div className="flex h-screen h-[100dvh] w-full flex-col overflow-hidden bg-background text-[14px] text-foreground">
       {/* Topbar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#1f1f23] bg-[#0f0f11] px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Link to="/app/dashboard" className="flex min-w-0 items-center gap-2 font-bold text-base tracking-tight hover:opacity-80 transition-opacity sm:text-lg">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-[#6366f1] to-[#818cf8] text-white">
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-primary to-primary/80 text-white">
               L
             </div>
             <span className="truncate">鹿绘AI</span>
@@ -174,7 +175,7 @@ export function MainLayout() {
           {isProjectPage && (
             <div className="ml-2 hidden min-w-0 items-center gap-2 text-sm sm:flex">
               <ChevronRight className="h-4 w-4 text-[#71717a]" />
-              <Link to={`/app/project/${projectId}/setup`} className="truncate font-medium hover:text-[#a5b4fc] transition-colors">
+              <Link to={`/app/project/${projectId}/setup`} className="truncate font-medium hover:text-primary transition-colors">
                 {currentProject?.title ?? "项目设置"}
               </Link>
             </div>
@@ -182,26 +183,26 @@ export function MainLayout() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="flex h-8 items-center gap-1.5 rounded-full border border-[#27272a] bg-[#1f1f23] px-2 text-xs sm:px-3">
+          <div className="flex h-8 items-center gap-1.5 rounded-full border border-border bg-layer-4 px-2 text-xs sm:px-3">
             <Coins className="h-3.5 w-3.5 text-[#f59e0b]" />
             <span className="font-medium">{user?.credits?.toLocaleString() ?? '0'} 积分</span>
           </div>
-          <button className="relative h-8 w-8 flex items-center justify-center text-[#71717a] hover:text-[#fafafa] transition-colors rounded-full hover:bg-[#27272a]">
+          <button className="relative h-8 w-8 flex items-center justify-center text-[#71717a] hover:text-foreground transition-colors rounded-full hover:bg-accent">
             <Bell className="h-4 w-4" />
             <span className="absolute top-2 right-2.5 h-1.5 w-1.5 rounded-full bg-[#ef4444]"></span>
           </button>
           <div className="relative" ref={avatarMenuRef}>
             <button
               onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
-              className="h-8 w-8 rounded-full border border-[#27272a] overflow-hidden ml-1 hover:border-[#6366f1] transition-colors"
+              className="h-8 w-8 rounded-full border border-border overflow-hidden ml-1 hover:border-primary transition-colors"
             >
               <img src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User" className="h-full w-full object-cover" />
             </button>
             {isAvatarMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-40 rounded-lg border border-[#27272a] bg-[#18181b] shadow-xl z-50 py-1">
+              <div className="absolute right-0 top-full mt-2 w-40 rounded-lg border border-border bg-card shadow-xl z-50 py-1">
                 <button
                   onClick={handleSignOut}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-[#fafafa] hover:bg-[#27272a] transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-foreground hover:bg-accent transition-colors"
                 >
                   <LogOut className="h-4 w-4 text-[#71717a]" />
                   退出登录
@@ -229,7 +230,7 @@ export function MainLayout() {
               aria-label={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
               title={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
               onClick={() => setIsSidebarOpen((value) => !value)}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[#27272a] bg-[#18181b] text-[#a1a1aa] transition-colors hover:border-[#6366f1]/70 hover:bg-[#1f1f23] hover:text-[#fafafa]"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/70 hover:bg-layer-4 hover:text-foreground"
             >
               {isSidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             </button>
@@ -247,7 +248,7 @@ export function MainLayout() {
             )}
 
             <div className="mt-auto flex flex-col gap-2">
-              <div className="h-px bg-[#1f1f23] w-full" />
+              <div className="h-px bg-layer-4 w-full" />
               <NavItem icon={<Settings />} label="设置" to="/app/settings/profile" isOpen={isSidebarOpen} active={location.pathname.includes('/settings')} />
             </div>
           </div>
@@ -263,8 +264,16 @@ export function MainLayout() {
         )}
 
         {/* Content Router View */}
-        <main className="relative min-w-0 flex-1 overflow-auto bg-[#09090b]">
-          <Outlet />
+        <main className="relative min-w-0 flex-1 overflow-auto bg-background">
+          <ErrorBoundary>
+            <Suspense fallback={
+              <div className="flex h-full items-center justify-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" />
+              </div>
+            }>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
 
         {/* AI Agent Panel */}
@@ -277,11 +286,11 @@ export function MainLayout() {
                 : "w-full translate-x-full overflow-hidden border-none md:w-0 md:translate-x-0"
             )}
           >
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#1f1f23] bg-[#18181b] px-3 sm:h-14 sm:px-4">
+            <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#1f1f23] bg-card px-3 sm:h-14 sm:px-4">
               <div className="flex min-w-0 items-center gap-2 font-medium text-[14px]">
                 🤖 项目总控
                 <span className="h-2 w-2 rounded-full bg-[#22c55e]"></span>
-                <span className="truncate rounded border border-[#27272a] bg-[#111113] px-1.5 py-0.5 text-[10px] font-normal text-[#a1a1aa]">
+                <span className="truncate rounded border border-border bg-[#111113] px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
                   {agentModeLabel}
                 </span>
               </div>
@@ -291,7 +300,7 @@ export function MainLayout() {
                   variant="ghost"
                   size="icon"
                   title="新对话"
-                  className="h-7 w-7 rounded-full text-[#71717a] hover:bg-[#27272a] hover:text-[#fafafa]"
+                  className="h-7 w-7 rounded-full text-[#71717a] hover:bg-accent hover:text-foreground"
                   onClick={handleStartNewAgentConversation}
                 >
                   <Plus className="h-4 w-4" />
@@ -302,14 +311,14 @@ export function MainLayout() {
                   size="icon"
                   title="历史对话"
                   className={cn(
-                    "h-7 w-7 rounded-full text-[#71717a] hover:bg-[#27272a] hover:text-[#fafafa]",
-                    isAgentHistoryOpen && "bg-[#27272a] text-[#fafafa]"
+                    "h-7 w-7 rounded-full text-[#71717a] hover:bg-accent hover:text-foreground",
+                    isAgentHistoryOpen && "bg-accent text-foreground"
                   )}
                   onClick={() => setIsAgentHistoryOpen((value) => !value)}
                 >
                   <MessageSquare className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-[#71717a] hover:text-[#fafafa] hover:bg-[#27272a]" onClick={() => setIsAgentOpen(false)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-[#71717a] hover:text-foreground hover:bg-accent" onClick={() => setIsAgentOpen(false)}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -321,7 +330,7 @@ export function MainLayout() {
                   <span className="text-[12px] font-medium text-[#d4d4d8]">历史对话</span>
                   <button
                     type="button"
-                    className="text-[12px] text-[#a5b4fc] transition-colors hover:text-[#fafafa]"
+                    className="text-[12px] text-primary transition-colors hover:text-foreground"
                     onClick={() => projectId && void loadAgentConversations(projectId)}
                   >
                     刷新
@@ -329,12 +338,12 @@ export function MainLayout() {
                 </div>
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {isLoadingConversations && (
-                    <div className="rounded-md border border-[#27272a] bg-[#111113] px-3 py-2 text-[12px] text-[#a1a1aa]">
+                    <div className="rounded-md border border-border bg-[#111113] px-3 py-2 text-[12px] text-muted-foreground">
                       正在加载历史...
                     </div>
                   )}
                   {!isLoadingConversations && conversations.length === 0 && (
-                    <div className="rounded-md border border-[#27272a] bg-[#111113] px-3 py-2 text-[12px] text-[#a1a1aa]">
+                    <div className="rounded-md border border-border bg-[#111113] px-3 py-2 text-[12px] text-muted-foreground">
                       还没有历史对话
                     </div>
                   )}
@@ -344,8 +353,8 @@ export function MainLayout() {
                       className={cn(
                         "group relative rounded-md border pr-9 transition-colors",
                         conversation.id === activeConversationId
-                          ? "border-[#6366f1]/70 bg-[#1f1f23]"
-                          : "border-[#27272a] bg-[#111113] hover:border-[#3f3f46] hover:bg-[#18181b]"
+                          ? "border-primary/70 bg-layer-4"
+                          : "border-border bg-[#111113] hover:border-[#3f3f46] hover:bg-card"
                       )}
                     >
                       <button
@@ -353,8 +362,8 @@ export function MainLayout() {
                         className="block w-full px-3 py-2 text-left"
                         onClick={() => handleLoadAgentConversation(conversation.id)}
                       >
-                        <div className="truncate text-[13px] font-medium text-[#fafafa]">{conversation.title}</div>
-                        <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-[#a1a1aa]">{conversation.preview}</div>
+                        <div className="truncate text-[13px] font-medium text-foreground">{conversation.title}</div>
+                        <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-muted-foreground">{conversation.preview}</div>
                         <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[#71717a]">
                           <span>{formatAgentConversationTime(conversation.updatedAt)}</span>
                           <span>{conversation.messageCount} 条</span>
@@ -378,19 +387,19 @@ export function MainLayout() {
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#111113] p-3 sm:gap-5 sm:p-4">
               {/* Welcome message with suggestions */}
               {isLoadingMessages && (
-                <div className="w-full rounded-lg border-l-2 border-[#6366f1] bg-[#1c1c1f] p-3.5 text-[14px] text-[#a1a1aa] shadow-sm sm:w-[90%]">
+                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-muted-foreground shadow-sm sm:w-[90%]">
                   正在加载对话...
                 </div>
               )}
 
               {!isLoadingMessages && messages.length === 0 && (
-                <div className="w-full rounded-lg border-l-2 border-[#6366f1] bg-[#1c1c1f] p-3.5 text-[14px] text-[#fafafa] shadow-sm sm:w-[90%]">
+                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-foreground shadow-sm sm:w-[90%]">
                   <p className="mb-2">{currentProject ? `${currentProject.title} 总控已就绪。` : '项目总控已就绪。'}</p>
-                  <p className="mb-1 text-[#a1a1aa]">需要我帮你：</p>
-                  <ul className="list-disc pl-4 space-y-1.5 text-[#a5b4fc] cursor-pointer">
-                    <li className="hover:text-[#fafafa] transition-colors" onClick={() => { sendProjectAgentMessage("继续生成剩余分镜"); }}>继续生成剩余分镜</li>
-                    <li className="hover:text-[#fafafa] transition-colors" onClick={() => { sendProjectAgentMessage("检查当前集流程状态"); }}>检查当前集流程状态</li>
-                    <li className="hover:text-[#fafafa] transition-colors" onClick={() => { sendProjectAgentMessage("根据项目全局设定优化分镜"); }}>根据全局设定优化分镜</li>
+                  <p className="mb-1 text-muted-foreground">需要我帮你：</p>
+                  <ul className="list-disc pl-4 space-y-1.5 text-primary cursor-pointer">
+                    <li className="hover:text-foreground transition-colors" onClick={() => { sendProjectAgentMessage("继续生成剩余分镜"); }}>继续生成剩余分镜</li>
+                    <li className="hover:text-foreground transition-colors" onClick={() => { sendProjectAgentMessage("检查当前集流程状态"); }}>检查当前集流程状态</li>
+                    <li className="hover:text-foreground transition-colors" onClick={() => { sendProjectAgentMessage("根据项目全局设定优化分镜"); }}>根据全局设定优化分镜</li>
                   </ul>
                 </div>
               )}
@@ -400,10 +409,10 @@ export function MainLayout() {
                 <div
                   key={msg.id}
                   className={cn(
-                    "whitespace-pre-wrap break-words rounded-lg p-3.5 text-[14px] leading-relaxed text-[#fafafa] shadow-sm",
+                    "whitespace-pre-wrap break-words rounded-lg p-3.5 text-[14px] leading-relaxed text-foreground shadow-sm",
                     msg.role === 'user'
-                      ? "w-[92%] self-end bg-[#6366f1]/15 sm:w-[85%]"
-                      : "w-full border-l-2 border-[#6366f1] bg-[#1c1c1f] sm:w-[90%]"
+                      ? "w-[92%] self-end bg-primary/15 sm:w-[85%]"
+                      : "w-full border-l-2 border-primary bg-[#1c1c1f] sm:w-[90%]"
                   )}
                 >
                   <div>{msg.content}</div>
@@ -415,11 +424,11 @@ export function MainLayout() {
 
               {/* Typing indicator */}
               {isTyping && (
-                <div className="w-full rounded-lg border-l-2 border-[#6366f1] bg-[#1c1c1f] p-3.5 text-[14px] text-[#a1a1aa] shadow-sm sm:w-[90%]">
+                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-muted-foreground shadow-sm sm:w-[90%]">
                   <div className="flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-full bg-[#6366f1] animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="inline-block h-2 w-2 rounded-full bg-[#6366f1] animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="inline-block h-2 w-2 rounded-full bg-[#6366f1] animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="inline-block h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="inline-block h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="inline-block h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               )}
@@ -427,7 +436,7 @@ export function MainLayout() {
             </div>
 
             {/* Agent Input */}
-            <div className="shrink-0 border-t border-[#1f1f23] bg-[#18181b] p-3">
+            <div className="shrink-0 border-t border-[#1f1f23] bg-card p-3">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -436,16 +445,16 @@ export function MainLayout() {
                     setAgentInput("");
                   }
                 }}
-                className="flex min-h-[72px] items-end rounded-lg border border-[#27272a] bg-[#1f1f23] p-1 transition-colors focus-within:border-[#6366f1]"
+                className="flex min-h-[72px] items-end rounded-lg border border-border bg-layer-4 p-1 transition-colors focus-within:border-primary"
               >
-                <Button type="button" variant="ghost" size="icon" className="mb-0.5 ml-1 h-8 w-8 shrink-0 text-[#71717a] hover:text-[#fafafa]">
+                <Button type="button" variant="ghost" size="icon" className="mb-0.5 ml-1 h-8 w-8 shrink-0 text-[#71717a] hover:text-foreground">
                   <Paperclip className="h-4 w-4" />
                 </Button>
                 <textarea
                   ref={agentInputRef}
                   placeholder="消息输入或 / 命令..."
                   rows={2}
-                  className="min-h-[52px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-2 py-2 text-[14px] leading-5 text-[#fafafa] placeholder:text-[#71717a] focus:outline-none"
+                  className="min-h-[52px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-2 py-2 text-[14px] leading-5 text-foreground placeholder:text-[#71717a] focus:outline-none"
                   value={agentInput}
                   onChange={(e) => setAgentInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -457,7 +466,7 @@ export function MainLayout() {
                     }
                   }}
                 />
-                <Button type="submit" size="icon" className="mb-0.5 mr-1 h-8 w-8 shrink-0 rounded-md border-0 bg-gradient-to-r from-[#6366f1] to-[#818cf8] text-white hover:opacity-90">
+                <Button type="submit" size="icon" className="mb-0.5 mr-1 h-8 w-8 shrink-0 rounded-md border-0 bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90">
                   <Send className="h-4 w-4" />
                 </Button>
               </form>
@@ -468,7 +477,7 @@ export function MainLayout() {
         {/* Folded Agent Tab */}
         {isProjectPage && !isAgentOpen && (
           <button 
-            className="absolute top-1/2 right-0 z-20 flex h-20 w-6 -translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 border-[#27272a] bg-[#1f1f23] text-[#71717a] shadow-lg transition-colors hover:bg-[#27272a] hover:text-[#fafafa] sm:h-24"
+            className="absolute top-1/2 right-0 z-20 flex h-20 w-6 -translate-y-1/2 items-center justify-center rounded-l-2xl border border-r-0 border-border bg-layer-4 text-[#71717a] shadow-lg transition-colors hover:bg-accent hover:text-foreground sm:h-24"
             onClick={() => setIsAgentOpen(true)}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -486,18 +495,15 @@ function NavItem({ icon, label, to, isOpen, active, isSubnav }: { icon: React.Re
     <Link 
       to={to} 
       className={cn(
-        "relative flex h-10 items-center gap-3 rounded-md px-3 text-[14px] font-medium transition-colors whitespace-nowrap overflow-hidden group",
+        "relative flex h-10 items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-[14px] font-medium transition-colors whitespace-nowrap overflow-hidden group",
         isSubnav && "ml-0.5",
-        active 
-          ? "bg-[#1f1f23] text-[#fafafa]" 
-          : "text-[#71717a] hover:bg-[#18181b] hover:text-[#a1a1aa]"
+        active
+          ? "border-l-primary text-foreground font-medium"
+          : "text-[#71717a] hover:bg-card hover:text-muted-foreground"
       )}
       title={!isOpen ? label : undefined}
     >
-      {active && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[60%] bg-[#6366f1] rounded-r-full" />
-      )}
-      <div className={cn("flex-shrink-0 flex items-center justify-center w-5", active ? "text-[#fafafa]" : "")}>
+      <div className={cn("flex-shrink-0 flex items-center justify-center w-5", active ? "text-foreground" : "")}>
         {React.cloneElement(icon as React.ReactElement, { className: iconSize })}
       </div>
       <span className={cn("transition-opacity duration-200", isOpen ? "opacity-100" : "opacity-0 w-0")}>
@@ -528,7 +534,7 @@ function AgentActionLog({ metadata }: { metadata?: Record<string, unknown> }) {
   if (!actionResults.length && !metadata?.source && !metadata?.status) return null;
 
   return (
-    <div className="mt-3 space-y-2 border-t border-[#27272a] pt-2 text-[12px] leading-5 text-[#a1a1aa]">
+    <div className="mt-3 space-y-2 border-t border-border pt-2 text-[12px] leading-5 text-muted-foreground">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded border border-[#3f3f46] bg-[#111113] px-1.5 py-0.5 text-[11px] text-[#d4d4d8]">
           {sourceLabel}
@@ -549,7 +555,7 @@ function AgentActionLog({ metadata }: { metadata?: Record<string, unknown> }) {
       {actionResults.length > 0 && (
         <div className="space-y-1">
           {actionResults.map((result, index) => (
-            <div key={`${stringValue(result.type)}-${index}`} className="rounded-md border border-[#27272a] bg-[#141417] px-2 py-1.5">
+            <div key={`${stringValue(result.type)}-${index}`} className="rounded-md border border-border bg-[#141417] px-2 py-1.5">
               <span className={result.ok === false ? "text-[#fca5a5]" : "text-[#d4d4d8]"}>
                 {index + 1}. {formatAgentActionResult(result)}
               </span>

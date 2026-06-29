@@ -8,11 +8,18 @@ export function hasLegacyClipStoryboardImageLayoutPrompt(prompt: unknown): boole
   return LEGACY_STORYBOARD_PATTERN.test(stringValue(prompt));
 }
 
-export function clipStoryboardBoardLayoutStrategy(panelCount?: number): string {
+export function clipStoryboardBoardLayoutStrategy(panelCount?: number, aspectRatio = "16:9"): string {
   const panelText = panelCount ? `${panelCount} sequential panels` : "the selected number of sequential panels";
+  const isPortrait = /^(\d+):(\d+)$/.test(aspectRatio) && (() => {
+    const [w, h] = aspectRatio.split(":").map(Number);
+    return h > w;
+  })();
+  const frameGuidance = isPortrait
+    ? "Use a full-page comic grid with thin black gutters. Since the target is portrait/vertical video, frames should feel natural for tall aspect ratios."
+    : "Use a full-page comic grid with thin black gutters and vertical-video-friendly frames: most panels should be tighter and taller-feeling rather than very wide.";
   return [
-    `Storyboard layout: one 16:9 compact multi-panel comic page using ${panelText} in left-to-right, top-to-bottom reading order.`,
-    "Use a full-page comic grid with thin black gutters and vertical-video-friendly frames: most panels should be tighter and taller-feeling rather than very wide.",
+    `Storyboard layout: one ${aspectRatio} compact multi-panel comic page using ${panelText} in left-to-right, top-to-bottom reading order.`,
+    frameGuidance,
     "Favor medium close-ups, close-ups, reaction close-ups, over-shoulders, hand/prop inserts, and expression inserts; use wide/group panels sparingly for orientation only.",
     "Each panel should contain only the characters needed for that panel beat; do not duplicate the same character multiple times inside one panel.",
     "Place a small readable panel number label such as P1, P2, P3 in a corner of each panel.",
@@ -22,18 +29,18 @@ export function clipStoryboardBoardLayoutStrategy(panelCount?: number): string {
   ].join(" ");
 }
 
-export function ensureClipStoryboardBoardLayoutPrompt(prompt: unknown, panelCount?: number): string {
+export function ensureClipStoryboardBoardLayoutPrompt(prompt: unknown, panelCount?: number, aspectRatio?: string): string {
   const text = stripLegacyClipStoryboardImageLayoutPrompt(stringValue(prompt));
   if (!text) return text;
   if (hasCompleteClipStoryboardBoardLayoutPrompt(text)) return text;
   return normalizeStoryboardPromptSpacing([
-    clipStoryboardBoardLayoutStrategy(panelCount ?? detectStoryboardPanelCount(text)),
+    clipStoryboardBoardLayoutStrategy(panelCount ?? detectStoryboardPanelCount(text), aspectRatio),
     text,
   ].filter(Boolean).join("\n\n"));
 }
 
-export function finalizeClipStoryboardImagePrompt(prompt: unknown, panelCount?: number): string {
-  const text = ensureClipStoryboardBoardLayoutPrompt(stripComicStoryboardLayoutPrompt(prompt), panelCount);
+export function finalizeClipStoryboardImagePrompt(prompt: unknown, panelCount?: number, aspectRatio?: string): string {
+  const text = ensureClipStoryboardBoardLayoutPrompt(stripComicStoryboardLayoutPrompt(prompt), panelCount, aspectRatio);
   if (!text) return text;
   return normalizeStoryboardPromptSpacing(
     dedupeStoryboardPanelSpeechBubbles(text
@@ -57,16 +64,16 @@ export function finalizeClipStoryboardImagePrompt(prompt: unknown, panelCount?: 
   );
 }
 
-function stripComicStoryboardLayoutPrompt(prompt: unknown): string {
+export function stripComicStoryboardLayoutPrompt(prompt: unknown): string {
   return stringValue(prompt)
-    .replace(/Storyboard layout:\s*one 16:9 (?:compact\s*)?multi-panel comic page[\s\S]*?(?:Visible text stays to panel labels and speech bubbles\.|Use only panel numbers and intentional speech bubbles as visible text; camera, lens, movement, and shot metadata belong to the video prompt, not the image\.)\s*/gi, "")
-    .replace(/Storyboard layout:\s*one 16:9 multi-panel comic page[\s\S]*?Place a small readable panel number label such as P1, P2, P3 in a corner of\s*(?=(?:Required continuity characters|Use linked|Create|Comic panels in reading order|Panel\s+\d+:|Character reference|Dialogue lock|$))/gi, "")
+    .replace(/Storyboard layout:\s*one \d+:\d+ (?:compact\s*)?multi-panel comic page[\s\S]*?(?:Visible text stays to panel labels and speech bubbles\.|Use only panel numbers and intentional speech bubbles as visible text; camera, lens, movement, and shot metadata belong to the video prompt, not the image\.)\s*/gi, "")
+    .replace(/Storyboard layout:\s*one \d+:\d+ multi-panel comic page[\s\S]*?Place a small readable panel number label such as P1, P2, P3 in a corner of\s*(?=(?:Required continuity characters|Use linked|Create|Comic panels in reading order|Panel\s+\d+:|Character reference|Dialogue lock|$))/gi, "")
     .replace(/\b(?:each|the selected number of large sequential panels in left-to-right, top-to-bottom reading order\. Use a full-page comic grid with thin black gutters and large cinematic 3D American comic frames\. Place a small readable panel number label such as P1, P2, P3 in a corner of each)\s+panel\. Show spoken dialogue as clean white comic speech bubbles inside the relevant panels\. Visible text stays to panel labels and speech bubbles\./gi, " ");
 }
 
 function hasCompleteClipStoryboardBoardLayoutPrompt(prompt: string): boolean {
-  return /Storyboard layout:\s*one 16:9 compact multi-panel comic page/i.test(prompt) &&
-    /vertical-video-friendly frames/i.test(prompt) &&
+  return /Storyboard layout:\s*one \d+:\d+ compact multi-panel comic page/i.test(prompt) &&
+    /vertical-video-friendly frames|frames should feel natural for tall aspect ratios/i.test(prompt) &&
     /Show spoken dialogue as clean white comic speech bubbles/i.test(prompt);
 }
 

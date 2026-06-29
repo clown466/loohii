@@ -8,7 +8,6 @@ import { cn } from '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
 import {
   apiClient,
-  type ModelConfig,
   type CanvasVideoGenerationInput,
   type CanvasVideoGenerationResponse,
 } from '../../../lib/apiClient';
@@ -16,6 +15,7 @@ import {
   type CanvasNodeProps,
   CanvasNodeResizer,
   CanvasHandle,
+  PromptTextarea,
   publicImageUrl,
   publicAudioUrl,
   previewCanvasImage,
@@ -32,7 +32,6 @@ import {
   normalizeVideoRatio,
   normalizeGenerationCount,
   modelOptionLabel,
-  isWorkflowVideoModel,
   canvasVideoProviderFailed,
   canvasVideoResultErrorMessage,
   canvasVideoPollErrorMessage,
@@ -52,14 +51,14 @@ import {
   CANVAS_VIDEO_POLL_INTERVAL_MS,
   CANVAS_VIDEO_POLL_TIMEOUT_MS,
 } from './shared';
+import { useVideoModelOptions } from './modelOptions';
 
 export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
   const { id: projectId } = useParams();
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const edges = useCanvasStore((s) => s.edges);
   const nodes = useCanvasStore((s) => s.nodes);
-  const [videoModels, setVideoModels] = useState<ModelConfig[]>([]);
-  const [modelLoadFailed, setModelLoadFailed] = useState(false);
+  const { videoModels, failed: modelLoadFailed } = useVideoModelOptions();
   const referenceImages = useMemo(() => {
     const videoNode = nodes.find((node) => node.id === id);
     const incomingEdges = edges.filter((edge) => edge.target === id);
@@ -418,24 +417,6 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
     promptOptimizeAbortRef.current?.abort();
   }, [stopCanvasVideoPolling]);
 
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setVideoModels(result.models.filter(isWorkflowVideoModel));
-        setModelLoadFailed(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setVideoModels([]);
-        setModelLoadFailed(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const updatePrompt = (nextPrompt: string) => {
     updateNodeData(id, {
       prompt: nextPrompt,
@@ -635,7 +616,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={520} minHeight={300} />
-      <div className="scrollbar-none h-full w-full overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-sky-500/70">
+      <div className="scrollbar-none h-full w-full overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-sky-500/70">
         <div className="flex items-center gap-3 border-b border-zinc-800 p-3 cursor-grab active:cursor-grabbing">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-300">
             <MonitorPlay className="h-5 w-5" />
@@ -654,7 +635,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                 ? "border-red-500/30 bg-red-500/10 text-red-300"
                 : videoStatus === 'submitted' || videoStatus === 'generating'
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-zinc-700 bg-zinc-900 text-zinc-400"
+                  : "border-border bg-zinc-900 text-zinc-400"
           )}>
             {statusLabel}
           </Badge>
@@ -662,7 +643,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
 
         <div className="border-b border-zinc-800 px-3 py-2">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="flex rounded-md border border-zinc-700 bg-zinc-900 p-0.5 text-[11px]">
+            <div className="flex rounded-md border border-border bg-zinc-900 p-0.5 text-[11px]">
               <button type="button" className="rounded bg-zinc-700 px-3 py-1 font-medium text-zinc-100">全能参考</button>
               <button type="button" className="px-3 py-1 font-medium text-zinc-400">首帧视频</button>
             </div>
@@ -685,14 +666,16 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                   src={ref.url}
                   alt={ref.label}
                   title={ref.label}
-                  className="h-12 w-12 shrink-0 cursor-zoom-in rounded border border-zinc-700 object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  className="h-12 w-12 shrink-0 cursor-zoom-in rounded border border-border object-cover"
                   onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '视频参考图' })}
                   onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '视频参考图' })}
                 />
               ))}
             </div>
           ) : (
-            <div className="flex h-16 items-center justify-center rounded border border-dashed border-zinc-700 bg-zinc-900/40 text-[12px] text-zinc-500">
+            <div className="flex h-16 items-center justify-center rounded border border-dashed border-border bg-zinc-900/40 text-[12px] text-zinc-500">
               从左侧连入图片输入、角色图或资产图作为参考
             </div>
           )}
@@ -715,7 +698,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         "inline-flex max-w-full items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
                         hasAudio
                           ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-                          : "border-zinc-700 bg-zinc-900 text-zinc-500"
+                          : "border-border bg-zinc-900 text-zinc-500"
                       )}
                       title={hasAudio ? ref.fileName || ref.url : '该台词角色还没有音频参考'}
                     >
@@ -739,11 +722,13 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className="space-y-3 px-3 py-3">
           <div>
             <div className="mb-1.5 text-[11px] font-medium text-zinc-400">视频提示词</div>
-            <textarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-zinc-700 bg-[#09090b] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-sky-500"
+            <PromptTextarea
+              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-sky-500"
               value={prompt}
               placeholder="描述你想要生成的内容，并连接参考图。"
-              onChange={(event) => updatePrompt(event.target.value)}
+              modalTitle={`${data.title || '视频节点'} · 视频提示词`}
+              modalSubtitle="完整视频提示词"
+              onChange={updatePrompt}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
@@ -775,7 +760,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                   <div>
                     <div className="mb-1 text-[11px] text-zinc-500">视频模型</div>
                     <select
-                      className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
+                      className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
                       value={String(data.modelId || '')}
                       onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
                       onPointerDown={(event) => event.stopPropagation()}
@@ -793,7 +778,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                   <div>
                     <div className="mb-1 text-[11px] text-zinc-500">生成数量</div>
                     <select
-                      className="nodrag nopan h-8 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
+                      className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
                       value={selectedCount}
                       onChange={(event) => updateNodeData(id, { count: Number(event.target.value) })}
                       onPointerDown={(event) => event.stopPropagation()}
@@ -815,7 +800,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan h-8 rounded-md text-[11px] transition-colors",
-                          selectedResolution === resolution ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                          selectedResolution === resolution ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-layer-4"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -838,7 +823,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan h-8 rounded-md text-[11px] transition-colors",
-                          selectedDuration === seconds ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
+                          selectedDuration === seconds ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-layer-4"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -861,7 +846,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan h-8 rounded text-[12px]",
-                          includeAudio === value ? "bg-zinc-600 text-zinc-50" : "text-zinc-400 hover:bg-zinc-800"
+                          includeAudio === value ? "bg-zinc-600 text-zinc-50" : "text-zinc-400 hover:bg-layer-4"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -884,7 +869,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan flex h-11 flex-col items-center justify-center gap-1 rounded-md border text-[10px] transition-colors",
-                          selectedRatio === item.value ? "border-sky-500 bg-sky-500/10 text-sky-200" : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700"
+                          selectedRatio === item.value ? "border-sky-500 bg-sky-500/10 text-sky-200" : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-border"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -906,7 +891,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
 
           {outputVideo ? (
-            <video src={outputVideo} controls className="aspect-video w-full rounded-md border border-zinc-700 bg-black" />
+            <video src={outputVideo} controls className="aspect-video w-full rounded-md border border-border bg-black" />
           ) : null}
 
           {data.videoError ? <div className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[11px] leading-4 text-amber-200">{data.videoError}</div> : null}
@@ -925,7 +910,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
             size="sm"
             title="手动优化不过审提示词，不会提交 Dreamina 任务"
             disabled={promptOptimizing || videoGenerating || previewInFlight}
-            className="nodrag nopan h-9 border-violet-500/40 bg-violet-500/10 px-3 text-[12px] text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="nodrag nopan h-9 border-primary/40 bg-primary/10 px-3 text-[12px] text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -941,7 +926,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
             size="sm"
             title="只预检将上传给 Dreamina 的图片和音频，不提交任务"
             disabled={videoStatus === 'generating' || previewInFlight || promptOptimizing}
-            className="nodrag nopan h-9 border-zinc-700 bg-zinc-900 px-3 text-[12px] text-zinc-200 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="nodrag nopan h-9 border-border bg-zinc-900 px-3 text-[12px] text-zinc-200 hover:bg-layer-4 disabled:cursor-not-allowed disabled:opacity-60"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -972,4 +957,3 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
     </>
   );
 };
-

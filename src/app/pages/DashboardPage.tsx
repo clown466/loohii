@@ -49,14 +49,14 @@ export function DashboardPage() {
           <div className="relative w-full sm:w-72 lg:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#71717a]" />
             <Input
-              className="pl-9 bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+              className="pl-9 bg-layer-4 border-border focus-visible:ring-primary"
               placeholder="搜索项目..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <Link to="/app/project/new/setup" className="w-full sm:w-auto">
-            <Button className="h-9 w-full gap-2 rounded-md border-0 bg-gradient-to-r from-[#6366f1] to-[#818cf8] text-white hover:opacity-90 sm:w-auto">
+            <Button className="h-9 w-full gap-2 rounded-md border-0 bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 sm:w-auto">
               <Plus className="h-4 w-4" />
               新建项目
             </Button>
@@ -72,17 +72,17 @@ export function DashboardPage() {
               onClick={() => setActiveTab(tab)}
               className={`shrink-0 px-4 py-1.5 text-[14px] font-medium rounded-md transition-colors ${
                 activeTab === tab 
-                  ? "bg-[#1f1f23] text-[#fafafa] shadow-sm" 
-                  : "text-[#71717a] hover:text-[#fafafa] hover:bg-[#18181b]"
+                  ? "bg-layer-4 text-foreground shadow-sm" 
+                  : "text-[#71717a] hover:text-foreground hover:bg-card"
               }`}
             >
               {tab}
             </button>
           ))}
         </div>
-        <div className="flex w-fit items-center gap-1 rounded-md border border-[#27272a] bg-[#1f1f23] p-1">
-          <Button variant="ghost" size="icon" className={`h-7 w-7 rounded-sm ${viewMode === 'grid' ? 'bg-[#27272a] text-[#fafafa]' : 'text-[#71717a] hover:text-[#fafafa]'}`} onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
-          <Button variant="ghost" size="icon" className={`h-7 w-7 rounded-sm ${viewMode === 'list' ? 'bg-[#27272a] text-[#fafafa]' : 'text-[#71717a] hover:text-[#fafafa]'}`} onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
+        <div className="flex w-fit items-center gap-1 rounded-md border border-border bg-layer-4 p-1">
+          <Button variant="ghost" size="icon" className={`h-7 w-7 rounded-sm ${viewMode === 'grid' ? 'bg-accent text-foreground' : 'text-[#71717a] hover:text-foreground'}`} onClick={() => setViewMode('grid')}><LayoutGrid className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className={`h-7 w-7 rounded-sm ${viewMode === 'list' ? 'bg-accent text-foreground' : 'text-[#71717a] hover:text-foreground'}`} onClick={() => setViewMode('list')}><List className="h-4 w-4" /></Button>
         </div>
       </div>
 
@@ -97,11 +97,11 @@ export function DashboardPage() {
               <circle cx="11" cy="11" r="2" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-[#fafafa] mb-2">{searchQuery ? "没有匹配的项目" : "还没有项目"}</h3>
-          <p className="text-[#a1a1aa] mb-6">{searchQuery ? "试试其他关键词" : "创建你的第一个 AI 动画项目"}</p>
+          <h3 className="text-lg font-medium text-foreground mb-2">{searchQuery ? "没有匹配的项目" : "还没有项目"}</h3>
+          <p className="text-muted-foreground mb-6">{searchQuery ? "试试其他关键词" : "创建你的第一个 AI 动画项目"}</p>
           {!searchQuery && (
             <Link to="/app/project/new/setup">
-              <Button className="gap-2 bg-gradient-to-r from-[#6366f1] to-[#818cf8] hover:opacity-90 text-white border-0">
+              <Button className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:opacity-90 text-white border-0">
                 <Plus className="h-4 w-4" />
                 新建项目
               </Button>
@@ -111,8 +111,8 @@ export function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-6">
           {/* Create New Card */}
-          <Link to="/app/project/new/setup" className="group flex h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#27272a] bg-[#111113] text-[#71717a] transition-all hover:border-[#6366f1]/50 hover:bg-[#6366f1]/5 hover:text-[#a5b4fc] sm:h-[260px]">
-            <div className="h-12 w-12 rounded-full bg-[#18181b] group-hover:bg-[#6366f1]/20 flex items-center justify-center mb-4 transition-colors">
+          <Link to="/app/project/new/setup" className="group flex h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-[#111113] text-[#71717a] transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary sm:h-[260px]">
+            <div className="h-12 w-12 rounded-full bg-card group-hover:bg-primary/20 flex items-center justify-center mb-4 transition-colors">
               <Plus className="h-6 w-6" />
             </div>
             <span className="font-medium text-[14px]">新建项目</span>
@@ -120,35 +120,35 @@ export function DashboardPage() {
 
           {/* Project Cards */}
           {filteredProjects.map((project) => (
-            <div key={project.id} className="group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border border-[#27272a] bg-[#18181b] transition-all hover:border-[#6366f1] hover:shadow-[0_0_0_1px_rgba(99,102,241,1)] sm:h-[260px]">
+            <div key={project.id} className="group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary hover:shadow-[0_0_0_1px_rgba(245,166,35,1)] sm:h-[260px]">
               {/* Cover 60% */}
-              <div className="h-[60%] w-full bg-[#09090b] relative overflow-hidden shrink-0">
+              <div className="h-[60%] w-full bg-background relative overflow-hidden shrink-0">
                 <img src={project.cover} alt={project.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Link to={`/app/project/${project.id}/canvas`} className="h-10 w-10 rounded-full bg-[#18181b] flex items-center justify-center text-[#fafafa] hover:bg-[#6366f1] transition-colors" title="进入">
+                  <Link to={`/app/project/${project.id}/canvas`} className="h-10 w-10 rounded-full bg-card flex items-center justify-center text-foreground hover:bg-primary transition-colors" title="进入">
                     <Play className="h-4 w-4 ml-0.5" />
                   </Link>
-                  <button className="h-10 w-10 rounded-full bg-[#18181b] flex items-center justify-center text-[#fafafa] hover:bg-[#27272a] transition-colors" title="重命名">
+                  <button className="h-10 w-10 rounded-full bg-card flex items-center justify-center text-foreground hover:bg-accent transition-colors" title="重命名">
                     <Edit2 className="h-4 w-4" />
                   </button>
-                  <button className="h-10 w-10 rounded-full bg-[#18181b] flex items-center justify-center text-[#fafafa] hover:bg-[#27272a] transition-colors" title="复制">
+                  <button className="h-10 w-10 rounded-full bg-card flex items-center justify-center text-foreground hover:bg-accent transition-colors" title="复制">
                     <Copy className="h-4 w-4" />
                   </button>
-                  <button onClick={(e) => handleDelete(e, project.id, project.title)} className="h-10 w-10 rounded-full bg-[#18181b] flex items-center justify-center text-[#ef4444] hover:bg-[#7f1d1d] transition-colors" title="删除">
+                  <button onClick={(e) => handleDelete(e, project.id, project.title)} className="h-10 w-10 rounded-full bg-card flex items-center justify-center text-[#ef4444] hover:bg-[#7f1d1d] transition-colors" title="删除">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
               {/* Info 40% */}
-              <div className="p-4 flex flex-col h-[40%] bg-[#18181b]">
+              <div className="p-4 flex flex-col h-[40%] bg-card">
                 <div className="flex justify-between items-start mb-1">
-                  <Link to={`/app/project/${project.id}/canvas`} className="font-medium text-[14px] text-[#fafafa] truncate pr-2 hover:text-[#a5b4fc] transition-colors">{project.title}</Link>
-                  <span className="text-[12px] text-[#a1a1aa] shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
+                  <Link to={`/app/project/${project.id}/canvas`} className="font-medium text-[14px] text-foreground truncate pr-2 hover:text-primary transition-colors">{project.title}</Link>
+                  <span className="text-[12px] text-muted-foreground shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
                 </div>
                 <div className="mt-auto flex min-w-0 items-center gap-2 pt-2 text-[12px] text-[#71717a]">
-                  <Badge variant="secondary" className="text-[11px] h-5 px-1.5 font-normal bg-[#1f1f23] text-[#a1a1aa] hover:bg-[#27272a] border-0">{project.ratio}</Badge>
-                  <Badge variant="secondary" className="h-5 max-w-[120px] truncate border-0 bg-[#1f1f23] px-1.5 text-[11px] font-normal text-[#a1a1aa] hover:bg-[#27272a]">{project.style}</Badge>
+                  <Badge variant="secondary" className="text-[11px] h-5 px-1.5 font-normal bg-layer-4 text-muted-foreground hover:bg-accent border-0">{project.ratio}</Badge>
+                  <Badge variant="secondary" className="h-5 max-w-[120px] truncate border-0 bg-layer-4 px-1.5 text-[11px] font-normal text-muted-foreground hover:bg-accent">{project.style}</Badge>
                   <span className="ml-auto shrink-0">{getTimeAgo(project.createdAt)}</span>
                 </div>
               </div>

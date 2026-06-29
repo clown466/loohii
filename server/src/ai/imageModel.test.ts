@@ -70,6 +70,7 @@ test("aizahuo gpt-image-2 references use responses endpoint and pixel dimensions
   assert.equal(request.endpoint.href, "https://aizahuo.shop/v1/responses");
   assert.equal(request.body.model, "gpt-5.5");
   assert.equal("prompt" in request.body, false);
+  assert.equal(request.body.background, true);
   assert.equal(request.body.stream, false);
   assert.deepEqual(request.body.tool_choice, { type: "image_generation" });
   assert.deepEqual(request.body.tools, [{
@@ -115,6 +116,7 @@ test("aizahuo gpt-image-2 generations default to pixel dimensions", () => {
 
   assert.equal(request.endpoint.href, "https://aizahuo.shop/v1/responses");
   assert.equal(request.body.model, "gpt-5.5");
+  assert.equal(request.body.background, true);
   assert.deepEqual(request.body.tool_choice, { type: "image_generation" });
   assert.deepEqual(request.body.tools, [{
     type: "image_generation",
@@ -133,6 +135,7 @@ test("aizahuo gpt-image-2 responses model can be overridden by model defaults", 
 
   assert.equal(request.endpoint.href, "https://aizahuo.shop/v1/responses");
   assert.equal(request.body.model, "gpt-5.4");
+  assert.equal(request.body.background, true);
   assert.deepEqual(request.body.tools, [{
     type: "image_generation",
     model: "gpt-image-2",
@@ -149,6 +152,7 @@ test("aizahuo gpt-image-2 preserves explicit pixel dimensions", () => {
 
   assert.equal(request.endpoint.href, "https://aizahuo.shop/v1/responses");
   assert.equal(request.body.model, "gpt-5.5");
+  assert.equal(request.body.background, true);
   assert.deepEqual(request.body.tool_choice, { type: "image_generation" });
   assert.deepEqual(request.body.tools, [{
     type: "image_generation",
@@ -156,6 +160,15 @@ test("aizahuo gpt-image-2 preserves explicit pixel dimensions", () => {
     size: "1824x1024",
     quality: "high",
   }]);
+});
+
+test("aizahuo gpt-image-2 responses background mode can be disabled per request", () => {
+  const request = buildImageHttpRequestForTest(imageModel("https://aizahuo.shop/v1"), "draw a blue circle", {
+    responses_background: false,
+  });
+
+  assert.equal(request.endpoint.href, "https://aizahuo.shop/v1/responses");
+  assert.equal("background" in request.body, false);
 });
 
 test("aizahuo gpt-image-2 maps common aspect ratios to valid pixel dimensions", () => {

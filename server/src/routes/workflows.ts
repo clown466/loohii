@@ -5,22 +5,33 @@ import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { TEAM_SCENE_PATTERN } from "./workflowPatterns.js";
 import { callDreaminaWebVideoModel, preflightDreaminaWebVideoUpload, queryDreaminaWebVideoModel } from "../ai/dreaminaWebBridge";
 import { callConfiguredImageModel } from "../ai/imageModel";
 import { callConfiguredPlainTextModel, callConfiguredTextModel, callConfiguredVisionTextModel } from "../ai/textModel";
 import { config } from "../config";
 import { asyncRoute } from "../lib/asyncRoute";
+import { applyWorkflowAssetImageToCanvasScenes, canvasSyncableImageUrl, fillMissingAssetImageAcrossEpisodes } from "../lib/canvasAssetImageSync";
+import { allocateClipDialogueToBeats, extractDialogueSpeakerNames as extractAllocatedDialogueSpeakerNames } from "../lib/clipDialogueAllocator";
 import { storyboardReferencesFromGenerationRecords } from "../lib/canvasStoryboardReferences";
 import { normalizeCanvasVideoReferenceInputs } from "../lib/canvasVideoReferences";
 import { HttpError, badRequest, notFound, routeParam } from "../lib/httpErrors";
 import { isRecord } from "../lib/mappers";
 import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
 import { prisma } from "../lib/prisma";
+import { hoistRepeatedShotRules } from "../lib/workflowPromptDedupe";
 import { ok } from "../lib/response";
+import {
+  buildSceneVisualBible,
+  detectSceneVisualConflict,
+  resolveSceneVisualLockForSetting,
+  type SceneVisualBible,
+} from "../lib/sceneVisualContinuity.js";
 import {
   clipStoryboardBoardLayoutStrategy,
   ensureClipStoryboardBoardLayoutPrompt,
   finalizeClipStoryboardImagePrompt,
+  stripComicStoryboardLayoutPrompt,
   stripLegacyClipStoryboardImageLayoutPrompt,
 } from "../lib/storyboardPrompt";
 import { requireAuth } from "../middleware/auth";
@@ -38,8 +49,14 @@ const DREAMINA_CLI_TIMEOUT_MS = 180 * 1000;
 const DREAMINA_QUERY_TIMEOUT_MS = 180 * 1000;
 const WORKFLOW_PROMPT_FIELD_MAX_CHARS = 600;
 const PROMPT_API_MAX_CHARS = 20000;
+const SEGMENTED_STORYBOARD_SOURCE_LENGTH = 6500;
+const SEGMENTED_STORYBOARD_TIMEOUT_FALLBACK_LENGTH = 5000;
 const DREAMINA_WEB_VIDEO_PROMPT_MAX_CHARS = 4000;
 const DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS = 3900;
+const COMPACT_WORKFLOW_VIDEO_MIN_BEAT_CHARS = 70;
+const COMPACT_WORKFLOW_VIDEO_SECOND_PASS_MIN_BEAT_CHARS = 48;
+const COMPACT_WORKFLOW_VIDEO_MAX_BEAT_CHARS = 300;
+const COMPACT_WORKFLOW_VIDEO_FOOTER = "No subtitles, UI, watermarks, random text, gore, or identity drift.";
 const MIN_CLIP_STORYBOARD_PANEL_COUNT = 5;
 const MAX_CLIP_STORYBOARD_PANEL_COUNT = 12;
 const COMPACT_CHARACTER_TRAIT_KEYS = new Set([
@@ -75,6 +92,7 @@ const workflowDraftSchema = z.object({
   activeStage: z.string().max(80).optional(),
   breakdownScenes: z.array(z.record(z.string(), z.unknown())).optional(),
   clips: z.array(z.record(z.string(), z.unknown())).optional(),
+  lastRun: z.record(z.string(), z.unknown()).optional(),
   assets: z
     .object({
       characters: z.array(z.unknown()).optional(),
@@ -267,6 +285,10 @@ type NormalizedStoryboardShot = {
   characters: string[];
   setting: string;
   references: string;
+  canonicalSceneId: string;
+  sceneVisualLock: string;
+  sceneZone: string;
+  sceneAnchors: string[];
   visualPrompt: string;
   directorBoardPrompt: string;
   status: string;
@@ -290,9 +312,38 @@ type WorkflowAuthorityContext = {
   requiresSpecificFruitIdentity: boolean;
 };
 
+type CharacterCanonicalizer = {
+  canonicalizeName: (name: string) => string;
+  canonicalizeList: (names: string[]) => string[];
+  canonicalizeText: (text: string) => string;
+};
+
 type StoryboardControlLevel = "hard" | "medium" | "soft" | "none";
 type StoryboardType = "multi_panel" | "start_end_keyframes" | "mood_reference" | "none";
 type ClipDialogueDensity = "low" | "medium" | "high";
+
+const STORYBOARD_BREAKDOWN_QUALITY_RULES = [
+  "- Preserve source event order exactly. If the source says an action happens before dialogue, keep that action in an earlier beat and start the dialogue later.",
+  "- Do not make a character speak before the source says they speak. Dialogue can overlap action only when the source explicitly makes them simultaneous.",
+  "- Each shot must contain concrete visible content. Never output camera-only shots such as close-up, eye-level, static, 85mm without describing what is visible.",
+  "- For every shot with characters, include blocking in action/references/visualPrompt: screen side or relative position, facing direction, held items, worn items, and visible state.",
+  "- Temporary contamination, wet clothing, splashes, slime, stains, soot, wounds, or damage must be scoped to the exact affected character and current story moment. Do not carry it across a location/time transition or into later clips unless the source explicitly says it is still visible.",
+  "- Clip-to-clip memory should preserve durable spatial layout, held/owned props, restraints, wardrobe changes, injuries with explicit persistence, and entry/exit positions; it should not preserve one-off spill residue by default.",
+  "- Shot durations should vary between 1 and 3 seconds. Do not assign every shot 3 seconds.",
+  "- Clip duration should follow the actual story beat within the video model range of 4-15 seconds. Prefer 7-10 shots only for longer/full clips with several actions, reactions, or dialogue timing changes.",
+];
+
+const VIDEO_STATE_AND_ASSET_RULES = [
+  "Every S beat must include camera language: shot size, camera angle, camera movement, composition/blocking, and lens or focal length.",
+  "Every beat must explicitly restate current physical state for characters who are actually visible in that beat because the video model has no memory from previous clips.",
+  "Respect locked asset images and asset fact cards as hard constraints. Do not write actions that conflict with worn gear, helmets, masks, held props, body type, or locked identity.",
+  "Only introduce a state change such as removing a helmet or dropping a weapon when the source text, current shots, or project settings explicitly allow it.",
+  "Carry state forward across beats and clips until the source or shots clearly changes it back.",
+  "Treat temporary contamination, wet clothing, wounds, soot, splashes, slime, stains, spills, and damage as scoped state, not permanent identity. Attach it only to the exact affected character, carry it only while the source/current shots keep emphasizing it, and drop it after a location/time transition unless the source explicitly says it remains visible.",
+  "Never spread a temporary state from one character to the whole cast or to later clips by default. If a later beat needs the state, restate the affected character by name and why it is still visible.",
+  "For each beat, mention screen side or relative position, facing direction, held items, worn items, and visible contamination/damage only for visible characters; do not list the whole clip cast unless they all appear.",
+  "Infer acting from the current story beat. Add emotion, facial expression, and dialogue delivery only where it helps the shot, especially close-ups, reactions, and spoken lines; do not force the same acting note into every S beat.",
+];
 
 type ClipPreflight = {
   pass: boolean;
@@ -341,6 +392,16 @@ type ClipVideoStoryboardBeat = {
   label: string;
   text: string;
   dialogue?: string;
+  camera?: string;
+  composition?: string;
+  action?: string;
+  sourceTitle?: string;
+  sourceDescription?: string;
+  sourceReferences?: string;
+  sourceVisualPrompt?: string;
+  visibleCharacters?: string[];
+  state?: string;
+  performance?: string;
 };
 
 type WorkflowEpisodeSummary = {
@@ -387,7 +448,18 @@ router.post(
       updatedAt: now,
       lastRun: undefined,
     };
-    const nextMetadata = writeWorkflowEpisode(metadata, id, workflow, true);
+    const writtenMetadata = writeWorkflowEpisode(metadata, id, workflow, true);
+    const nextMetadata = {
+      ...writtenMetadata,
+      canvasScenes: {
+        ...(isRecord(writtenMetadata.canvasScenes) ? writtenMetadata.canvasScenes : {}),
+        [id]: {
+          nodes: [],
+          edges: [],
+          updatedAt: now,
+        },
+      },
+    };
     await prisma.project.update({
       where: { id: project.id },
       data: { metadata: nextMetadata },
@@ -426,10 +498,27 @@ router.put(
     const requestEpisodeId = resolveWorkflowEpisodeId(project.metadata, input.episodeId || query.episodeId || "");
     const metadata = isRecord(project.metadata) ? project.metadata : {};
     const current = getWorkflowState(metadata, requestEpisodeId);
+    const currentLastRun = isRecord(current.lastRun) ? current.lastRun : {};
+    const incomingLastRun = isRecord(input.lastRun) ? input.lastRun : {};
+    const currentStatus = stringFrom(currentLastRun.status, "");
+    const incomingStatus = stringFrom(incomingLastRun.status, "");
+    const currentClipCount = Array.isArray(current.clips) ? current.clips.length : 0;
+    const currentSceneCount = Array.isArray(current.breakdownScenes) ? current.breakdownScenes.length : 0;
+    const incomingClipCount = Array.isArray(input.clips) ? input.clips.length : undefined;
+    const incomingSceneCount = Array.isArray(input.breakdownScenes) ? input.breakdownScenes.length : undefined;
+    if (
+      currentStatus === "storyboard-repaired" &&
+      incomingStatus !== "storyboard-repaired" &&
+      incomingClipCount !== undefined &&
+      incomingClipCount < currentClipCount &&
+      (incomingSceneCount === undefined || incomingSceneCount < currentSceneCount)
+    ) {
+      badRequest("当前分镜已被后端修复，拒绝用旧页面草稿覆盖。请刷新页面后继续编辑。");
+    }
     const safeInput = {
       ...input,
       ...(input.breakdownScenes
-        ? { breakdownScenes: input.breakdownScenes.map((scene, index) => enrichWorkflowScene(scene, index)) }
+        ? { breakdownScenes: input.breakdownScenes.map((scene, index) => enrichWorkflowScene(scene, index, current.sceneVisualBibles)) }
         : {}),
       ...(input.clips ? { clips: input.clips.map((clip, index) => normalizeWorkflowClip(clip, index)) } : {}),
       ...(input.assets
@@ -612,6 +701,9 @@ router.post(
     const query = episodeQuerySchema.parse(req.query);
     const input = workflowAssetImageSelectionSchema.parse(req.body);
     const assetName = input.assetName.trim();
+    const requestEpisodeId = resolveWorkflowEpisodeId(project.metadata, query.episodeId || "");
+    const workflow = getWorkflowState(project.metadata, requestEpisodeId);
+    const currentWorkflowAsset = findWorkflowAssetItem(workflow.assets, input.assetKind, assetName);
     const asset = await prisma.asset.findFirst({
       where: {
         id: input.assetId,
@@ -626,6 +718,9 @@ router.post(
     if (!isCanvasGeneratedImage && !matchesWorkflowAssetImage(asset, input.assetKind, assetName)) {
       badRequest("这张图片不属于当前资产，不能设为当前图。");
     }
+    if (input.assetKind === "scenes" && !workflowSceneImageCompatible(currentWorkflowAsset, assetMetadata)) {
+      badRequest("这张场景图属于另一个规范场景，不能设为当前场景图。");
+    }
     const assignableAsset = isCanvasGeneratedImage
       ? await prisma.asset.update({
           where: { id: asset.id },
@@ -635,15 +730,15 @@ router.post(
               ...assetMetadata,
               workflowAssetKind: input.assetKind,
               assetName,
+              ...(input.assetKind === "scenes" ? workflowSceneImageMetadata(currentWorkflowAsset) : {}),
               selectedFromCanvas: true,
               selectedAsAssetImageAt: new Date().toISOString(),
             },
           },
         })
       : asset;
-    const requestEpisodeId = resolveWorkflowEpisodeId(project.metadata, query.episodeId || "");
-    const workflow = await syncWorkflowSelectedAssetImage(project, input.assetKind, assetName, assignableAsset, requestEpisodeId);
-    ok(res, { workflow, asset: assignableAsset });
+    const selectedWorkflow = await syncWorkflowSelectedAssetImage(project, input.assetKind, assetName, assignableAsset, requestEpisodeId);
+    ok(res, { workflow: selectedWorkflow, asset: assignableAsset });
   }),
 );
 
@@ -684,7 +779,7 @@ router.delete(
     const metadata = isRecord(project.metadata) ? project.metadata : {};
     const requestEpisodeId = resolveWorkflowEpisodeId(metadata, query.episodeId || "");
     const workflow = getWorkflowState(metadata, requestEpisodeId);
-    const assets = isRecord(workflow.assets) ? workflow.assets : defaultAssets();
+    const assets: Record<string, unknown> = isRecord(workflow.assets) ? workflow.assets : defaultAssets();
     const currentItems: unknown[] = Array.isArray((assets as Record<string, unknown>)[input.assetKind])
       ? ((assets as Record<string, unknown>)[input.assetKind] as unknown[])
       : [];
@@ -1321,6 +1416,9 @@ router.post(
       input.aiModelId,
     );
     const optimizedPrompt = cleanOptimizedPrompt(result.rawText);
+    if (isPromptOptimizationModelRefusal(optimizedPrompt)) {
+      badRequest("提示词优化失败：文本模型拒绝处理该提示词，请切换文本模型，或手动降低敏感动作/画面描述后重试。");
+    }
     if (!optimizedPrompt || isPromptOptimizationPlaceholder(optimizedPrompt)) {
       badRequest("提示词优化失败：文本模型返回了无效占位内容，请重试或切换文本模型。");
     }
@@ -1403,8 +1501,10 @@ router.post(
     const workflow = getWorkflowState(project.metadata, requestEpisodeId);
     const existingAsset = findWorkflowAssetItem(workflow.assets, input.assetKind, assetName);
     const referenceImageUrls = collectWorkflowAssetReferenceUrls(existingAsset, input);
+    const exactPrompt = stringFrom(input.prompt, "").trim();
+    const strippedExactPrompt = stripLegacyWorkflowAssetPromptScaffold(exactPrompt);
     const prompt = input.preservePromptExact
-      ? stringFrom(input.prompt, "").trim()
+      ? strippedExactPrompt || buildWorkflowAssetImagePrompt(project, input.assetKind, assetName, existingAsset, undefined, referenceImageUrls.length)
       : input.usePromptAsFinal
         ? ensureWorkflowAssetPromptAuthority(project, input.assetKind, assetName, existingAsset, stringFrom(input.prompt, ""), referenceImageUrls.length)
         : buildWorkflowAssetImagePrompt(project, input.assetKind, assetName, existingAsset, input.prompt, referenceImageUrls.length);
@@ -1417,6 +1517,15 @@ router.post(
       ...(input.parameters ?? {}),
       ...(referenceImageUrls.length > 0 ? { image_urls: referenceImageUrls } : {}),
     };
+    const currentSceneBibles = input.assetKind === "scenes" && Array.isArray(workflow.sceneVisualBibles)
+      ? workflow.sceneVisualBibles
+      : [];
+    const currentBible = input.assetKind === "scenes"
+      ? currentSceneBibles.find((bible) => bible.canonicalSceneId === stringFrom(existingAsset?.canonicalSceneId, ""))
+      : undefined;
+    const visualConflictWarning = input.assetKind === "scenes"
+      ? sceneVisualConflictWarning(currentBible, prompt)
+      : "";
     await expireStaleImageGenerations(project.id, req.user!.id);
     const generationLockKey = imageGenerationLockKey({
       kind: "workflow-asset-image",
@@ -1449,6 +1558,9 @@ router.post(
             size: input.size,
             referenceImageUrls,
             referenceAssetIds: input.referenceAssetIds ?? [],
+            ...(input.assetKind === "scenes" ? workflowSceneImageMetadata(existingAsset) : {}),
+            ...(input.assetKind === "scenes" ? { visualConflictWarning } : {}),
+            ...(input.assetKind === "scenes" ? { metadata: { visualConflictWarning } } : {}),
             parameters: requestParameters,
           },
           parameters: requestParameters,
@@ -1492,6 +1604,8 @@ router.post(
             size: input.size,
             referenceImageUrls,
             referenceAssetIds: input.referenceAssetIds ?? [],
+            ...(input.assetKind === "scenes" ? workflowSceneImageMetadata(existingAsset) : {}),
+            ...(input.assetKind === "scenes" ? { visualConflictWarning } : {}),
             parameters: requestParameters,
             model: result.model,
             revisedPrompt: image.revisedPrompt,
@@ -1524,6 +1638,7 @@ router.post(
             generationId: generation.id,
             model: result.model,
             revisedPrompt: image.revisedPrompt,
+            visualConflictWarning,
           }, requestEpisodeId);
 
       ok(res, {
@@ -1641,9 +1756,12 @@ router.post(
       input.aiModelId,
     );
     const optimizedJson = await parseModelJsonWithRepair("Clip AI优化", modelResult.rawText, input.aiModelId, storyboardJsonShape());
-    const optimizedShots = optimizeWorkflowClipShots(normalizeOptimizedClipShots(optimizedJson, targetShots), clip.id);
+    const optimizedShots = optimizeWorkflowClipShots(
+      canonicalizeStoryboardShots(normalizeOptimizedClipShots(optimizedJson, targetShots), authority),
+      clip.id,
+    );
     const optimizedClip = {
-      ...buildWorkflowClip(optimizedShots, clipIndex, workflowClipContext(project, workflowAssetCharacters(currentWorkflow.assets), currentWorkflow.assets)),
+      ...buildWorkflowClip(optimizedShots, clipIndex, workflowClipContext(project, workflowAssetCharacters(currentWorkflow.assets), currentWorkflow.assets, currentWorkflow.sourceText)),
       id: clip.id,
       title: clip.title,
     };
@@ -1708,18 +1826,20 @@ router.post(
     const targetShots = currentWorkflow.breakdownScenes.filter((shot) => shotIdSet.has(shot.id));
     if (targetShots.length === 0) badRequest("当前 Clip 没有关联分镜，无法生成视频提示词。");
 
+    const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
     const recoveredStoryboardPrompt = await recoverWorkflowClipStoryboardPrompt(project.id, metadata, requestEpisodeId, currentWorkflow, clip);
     const clipForPrompt = recoveredStoryboardPrompt && recoveredStoryboardPrompt !== clip.storyboardPrompt
       ? { ...clip, storyboardPrompt: recoveredStoryboardPrompt }
       : clip;
-    const generated = regenerateWorkflowClipSeedancePrompt(project, currentWorkflow, clipForPrompt, targetShots);
+    const canonicalTargetShots = canonicalizeStoryboardShots(targetShots, authority);
+    const canonicalClipForPrompt = canonicalizeWorkflowClipCharacters(clipForPrompt, authority);
+    const generated = regenerateWorkflowClipSeedancePrompt(project, currentWorkflow, canonicalClipForPrompt, canonicalTargetShots);
     if (input.aiModelId) {
-      const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
       generated.seedancePrompt = await refineWorkflowClipSeedancePrompt({
         project,
         workflow: currentWorkflow,
-        clip: clipForPrompt,
-        shots: targetShots,
+        clip: canonicalClipForPrompt,
+        shots: canonicalTargetShots,
         prompt: generated.seedancePrompt,
         aiModelId: input.aiModelId,
         authority,
@@ -1727,8 +1847,8 @@ router.post(
     }
     const nextClip = {
       ...clip,
-      ...(clipForPrompt.storyboardPrompt && clipForPrompt.storyboardPrompt !== clip.storyboardPrompt
-        ? { storyboardPrompt: clipForPrompt.storyboardPrompt }
+      ...(canonicalClipForPrompt.storyboardPrompt && canonicalClipForPrompt.storyboardPrompt !== clip.storyboardPrompt
+        ? { storyboardPrompt: canonicalClipForPrompt.storyboardPrompt }
         : {}),
       ...generated,
     };
@@ -1800,11 +1920,11 @@ router.post(
     );
     const structured = await parseModelJsonWithRepair("Clip故事板推理", modelResult.rawText, input.aiModelId, clipStoryboardPlanJsonShape());
     const continuity = clipStoryboardContinuityContext(currentWorkflow, clip, targetShots);
-    const plan = normalizeClipStoryboardPlan(structured, clip, targetShots, input);
+    const plan = normalizeClipStoryboardPlan(structured, clip, targetShots, input, project.aspectRatio, currentWorkflow, authority);
     const prompt = finalizeClipStoryboardImagePrompt(enforceClipStoryboardDialoguePrompt(
       enforceClipStoryboardContinuityPrompt(plan.prompt, continuity),
       targetShots,
-    ), plan.panelCount);
+    ), plan.panelCount, project.aspectRatio);
     const nextClip = {
       ...clip,
       storyboardPrompt: prompt,
@@ -1812,29 +1932,38 @@ router.post(
       storyboardNotes: plan.notes || "",
       seedancePrompt: "",
     };
-    const next = {
-      ...currentWorkflow,
-      clips: currentWorkflow.clips.map((item) => (item.id === clip.id ? nextClip : item)),
-      stageStatuses: {
-        ...currentWorkflow.stageStatuses,
-        storyboard: "done",
-        video: "idle",
-      },
-      lastRun: {
-        ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
-        status: "clip-storyboard-planned",
-        stage: "storyboard",
-        clipId: clip.id,
-        completedAt: new Date().toISOString(),
-      },
-      updatedAt: new Date().toISOString(),
-    };
-
-    const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(metadata, next);
-    const nextMetadata = writeWorkflowEpisode(metadata, episodeId, next, true);
-    await prisma.project.update({
-      where: { id: project.id },
-      data: { metadata: nextMetadata },
+    const savedMetadata = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${project.id} FOR UPDATE`;
+      const currentProject = await tx.project.findUnique({
+        where: { id: project.id },
+        select: { metadata: true },
+      });
+      const freshMetadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
+      const freshWorkflow = getWorkflowState(freshMetadata, requestEpisodeId);
+      const freshNext = {
+        ...freshWorkflow,
+        clips: freshWorkflow.clips.map((item) => (item.id === clip.id ? nextClip : item)),
+        stageStatuses: {
+          ...freshWorkflow.stageStatuses,
+          storyboard: "done",
+          video: "idle",
+        },
+        lastRun: {
+          ...(isRecord(freshWorkflow.lastRun) ? freshWorkflow.lastRun : {}),
+          status: "clip-storyboard-planned",
+          stage: "storyboard",
+          clipId: clip.id,
+          completedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(freshMetadata, freshNext);
+      const nextMetadata = writeWorkflowEpisode(freshMetadata, episodeId, freshNext, true);
+      await tx.project.update({
+        where: { id: project.id },
+        data: { metadata: nextMetadata as Prisma.InputJsonValue },
+      });
+      return { nextMetadata, freshNext, episodeId };
     });
 
     ok(res, {
@@ -1842,7 +1971,7 @@ router.post(
       prompt,
       continuityCharacters: continuity.continuityCharacters,
       model: modelResult.model,
-      workflow: { ...next, episodeId, episodes: getWorkflowEpisodeList(nextMetadata) },
+      workflow: { ...savedMetadata.freshNext, episodeId: savedMetadata.episodeId, episodes: getWorkflowEpisodeList(savedMetadata.nextMetadata) },
       clip: nextClip,
     });
   }),
@@ -1900,13 +2029,27 @@ function projectAuthorityPromptBlock(authority: WorkflowAuthorityContext): strin
   ].filter(Boolean).join("\n");
 }
 
+function existingAssetNameLanguageRules(authority: WorkflowAuthorityContext): string {
+  if (authority.existingCharacters.length === 0) return "";
+  return [
+    "Existing asset name lock:",
+    "- When the source text uses Chinese, story prose may remain Chinese for review, but existing asset identities must not be translated or renamed.",
+    "- Character, prop, and scene names that match Existing Character records or existing project asset memory must use the existing canonical asset name exactly.",
+    "- Dialogue speaker labels should use the canonical existing character name when the speaker is an existing character; keep only the spoken dialogue text in the source language.",
+    "- If the source says 克洛伊/克洛依, use Chloe when Chloe exists; 弗洛拉/芙洛拉 uses Flora; 鲍勃 uses Bob; 里奥/利奥 uses Leo; 蒂芙尼 uses Tiffany; 尤金 uses Eugene. Apply this mapping only for matching existing records.",
+    "- Put the Chinese wording in aliases or references if useful; do not create duplicate Chinese-named assets for existing characters.",
+  ].join("\n");
+}
+
 async function generateWorkflowBreakdown(project: any, input: z.infer<typeof runWorkflowSchema>) {
   const authority = await workflowAuthorityContext(project, input.sourceText);
   if (input.stage === "storyboard") {
     const currentWorkflow = getWorkflowState(project.metadata, input.episodeId);
-    const storyboardResult = await generateStoryboardJson(project, input, currentWorkflow.assets, authority);
+    ensureWorkflowAssetsExtractedForStoryboard(currentWorkflow.assets);
+    const storyboardAssets = workflowAssetsWithSceneVisualBiblesForStoryboard(currentWorkflow);
+    const storyboardResult = await generateStoryboardJson(project, input, storyboardAssets, authority);
     const storyboardJson = storyboardResult.structured;
-    const merged = mergeBreakdownJson(currentWorkflow.assets, storyboardJson);
+    const merged = mergeBreakdownJson(storyboardAssets, storyboardJson);
 
     return {
       normalized: normalizeBreakdown(merged, input, project, authority),
@@ -1922,31 +2065,32 @@ async function generateWorkflowBreakdown(project: any, input: z.infer<typeof run
     };
   }
 
-  if (input.stage !== "full-breakdown") {
-    const modelResult = await callWorkflowTextModel(
-      "工作流结构化拆解",
+  if (input.stage === "assets") {
+    const assetsResult = await callWorkflowTextModel(
+      "资产提取",
       [
         {
           role: "system",
           content:
-            "You are a production workflow agent for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. The JSON must describe extracted characters, locations/assets, and storyboard beats for one episode. Keep visual prompts concise and concrete. Use strict JSON: double-quoted keys, no trailing commas, no raw double quote characters inside string values.",
+            "You are an asset extraction agent for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. Use strict JSON: double-quoted keys, no trailing commas, no raw double quote characters inside string values.",
         },
         {
           role: "user",
-          content: buildBreakdownPrompt(project, input, authority),
+          content: buildAssetExtractionPrompt(project, input, authority),
         },
       ],
       input.aiModelId,
     );
+    const assetsJson = await parseModelJsonWithRepair("资产提取", assetsResult.rawText, input.aiModelId, assetJsonShape());
     return {
       normalized: normalizeBreakdown(
-        await parseModelJsonWithRepair("工作流结构化拆解", modelResult.rawText, input.aiModelId, workflowJsonShape()),
+        assetsJson,
         input,
         project,
         authority,
       ),
-      model: modelResult.model,
-      rawText: modelResult.rawText,
+      model: assetsResult.model,
+      rawText: assetsResult.rawText,
     };
   }
 
@@ -1966,11 +2110,12 @@ async function generateWorkflowBreakdown(project: any, input: z.infer<typeof run
     input.aiModelId,
   );
   const assetsJson = await parseModelJsonWithRepair("资产提取", assetsResult.rawText, input.aiModelId, assetJsonShape());
-  await persistWorkflowAssetsProgress(project, input, assetsJson);
+  const canonicalAssetsJson = canonicalizeWorkflowAssetsWithAuthority(normalizeWorkflowAssets(assetsJson), authority);
+  await persistWorkflowAssetsProgress(project, input, canonicalAssetsJson, authority);
 
-  const storyboardResult = await generateStoryboardJson(project, input, assetsJson, authority);
+  const storyboardResult = await generateStoryboardJson(project, input, canonicalAssetsJson, authority);
   const storyboardJson = storyboardResult.structured;
-  const merged = mergeBreakdownJson(assetsJson, storyboardJson);
+  const merged = mergeBreakdownJson(canonicalAssetsJson, storyboardJson);
 
   return {
     normalized: normalizeBreakdown(merged, input, project, authority),
@@ -1993,21 +2138,31 @@ async function generateStoryboardJson(
   assetsJson: unknown,
   authority: WorkflowAuthorityContext,
 ) {
-  const firstResult = await callWorkflowTextModel(
-    "分镜拆解",
-    [
-      {
-        role: "system",
-        content:
-          "You are a storyboard breakdown agent for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. Use strict JSON: double-quoted keys, no trailing commas, no raw double quote characters inside string values.",
-      },
-      {
-        role: "user",
-        content: buildStoryboardOnlyPrompt(project, input, assetsJson, authority),
-      },
-    ],
-    input.aiModelId,
-  );
+  if (input.sourceText.length >= SEGMENTED_STORYBOARD_SOURCE_LENGTH) {
+    return generateSegmentedStoryboardJson(project, input, assetsJson, authority);
+  }
+
+  let firstResult: Awaited<ReturnType<typeof callWorkflowTextModel>>;
+  try {
+    firstResult = await callWorkflowTextModel(
+      "分镜拆解",
+      [
+        {
+          role: "system",
+          content:
+            "You are a storyboard breakdown agent for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. Use strict JSON: double-quoted keys, no trailing commas, no raw double quote characters inside string values.",
+        },
+        {
+          role: "user",
+          content: buildStoryboardOnlyPrompt(project, input, assetsJson, authority),
+        },
+      ],
+      input.aiModelId,
+    );
+  } catch (error) {
+    if (!isWorkflowTextTimeoutError(error) || input.sourceText.length < SEGMENTED_STORYBOARD_TIMEOUT_FALLBACK_LENGTH) throw error;
+    return generateSegmentedStoryboardJson(project, input, assetsJson, authority);
+  }
   const firstStructured = await parseModelJsonWithRepair("分镜拆解", firstResult.rawText, input.aiModelId, storyboardJsonShape());
   if (!hasSourceLanguageMismatch(input.sourceText, firstStructured)) {
     return { ...firstResult, structured: firstStructured };
@@ -2042,6 +2197,141 @@ async function generateStoryboardJson(
   };
 }
 
+async function generateSegmentedStoryboardJson(
+  project: any,
+  input: z.infer<typeof runWorkflowSchema>,
+  assetsJson: unknown,
+  authority: WorkflowAuthorityContext,
+) {
+  const chunks = splitSourceTextForStoryboard(input.sourceText);
+  if (chunks.length <= 1) throw new Error("分镜拆解超时，且原文无法安全分段。");
+  const storyboard: unknown[] = [];
+  const rawParts: unknown[] = [];
+  let model: Awaited<ReturnType<typeof callWorkflowTextModel>>["model"] | undefined;
+  console.info(`[workflow-model] fallback segmented storyboard chunks=${chunks.length} sourceLength=${input.sourceText.length}`);
+  await persistWorkflowRunProgress(project, input, {
+    phase: "segmented-storyboard",
+    message: `分镜拆解已自动分为 ${chunks.length} 段，正在准备第 1 段。`,
+    currentPart: 0,
+    totalParts: chunks.length,
+  });
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunk = chunks[index];
+    await persistWorkflowRunProgress(project, input, {
+      phase: "segmented-storyboard",
+      message: `正在拆解分段 ${index + 1}/${chunks.length}`,
+      currentPart: index + 1,
+      totalParts: chunks.length,
+    });
+    const chunkInput = {
+      ...input,
+      sourceText: chunk.text,
+      selectedEpisode: `${input.selectedEpisode} · part ${index + 1}/${chunks.length}`,
+    };
+    const result = await callWorkflowTextModel(
+      `分镜拆解分段 ${index + 1}/${chunks.length}`,
+      [
+        {
+          role: "system",
+          content:
+            "You are a storyboard breakdown agent for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. Use strict JSON: double-quoted keys, no trailing commas, no raw double quote characters inside string values.",
+        },
+        {
+          role: "user",
+          content: buildSegmentedStoryboardPrompt(project, chunkInput, assetsJson, authority, {
+            partIndex: index,
+            totalParts: chunks.length,
+            previousTail: chunks[index - 1]?.tail ?? "",
+            nextHead: chunks[index + 1]?.head ?? "",
+          }),
+        },
+      ],
+      input.aiModelId,
+    );
+    model = result.model;
+    const structured = await parseModelJsonWithRepair(`分镜拆解分段 ${index + 1}/${chunks.length}`, result.rawText, input.aiModelId, storyboardJsonShape());
+    const partStoryboard = isRecord(structured) ? arrayFrom(structured.storyboard) : [];
+    storyboard.push(...partStoryboard);
+    rawParts.push({ part: index + 1, rawText: result.rawText });
+    await persistWorkflowRunProgress(project, input, {
+      phase: "segmented-storyboard",
+      message: `已完成分段 ${index + 1}/${chunks.length}`,
+      currentPart: index + 1,
+      totalParts: chunks.length,
+      generatedShots: storyboard.length,
+    });
+  }
+
+  return {
+    rawText: JSON.stringify({ segmentedStoryboard: true, parts: rawParts }, null, 2),
+    model: model ?? await selectedWorkflowModelSummary(input.aiModelId),
+    structured: { storyboard },
+  };
+}
+
+function isWorkflowTextTimeoutError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /524|timeout|timed out|超过|网关|gateway|cloudflare|A timeout occurred/i.test(message);
+}
+
+type WorkflowModelSummary = {
+  id: string;
+  provider: string;
+  model: string;
+  displayName: string;
+};
+
+async function selectedWorkflowModelSummary(aiModelId?: string): Promise<WorkflowModelSummary> {
+  const fallback = {
+    id: aiModelId || "",
+    provider: "",
+    model: "",
+    displayName: aiModelId || "未选择模型",
+  };
+  try {
+    const model = aiModelId
+      ? await prisma.aiModel.findFirst({
+          where: { id: aiModelId, isActive: true },
+          include: { providerConfig: true },
+        })
+      : (await prisma.aiModel.findMany({
+          where: {
+            isActive: true,
+            providerConfigId: { not: null },
+            providerConfig: { isActive: true },
+          },
+          include: { providerConfig: true },
+          orderBy: [{ updatedAt: "desc" }],
+        })).find(isWorkflowTextModelSummaryCandidate);
+
+    if (!model) return fallback;
+    return {
+      id: model.id,
+      provider: model.providerConfig?.providerType || model.provider,
+      model: model.model,
+      displayName: model.displayName,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function isWorkflowTextModelSummaryCandidate(model: { modality: string; capabilities: unknown }): boolean {
+  const modality = model.modality.toLowerCase();
+  if (modality.includes("text") || modality.includes("chat")) return true;
+  const capabilities = Array.isArray(model.capabilities)
+    ? model.capabilities.map((item) => String(item).toLowerCase())
+    : typeof model.capabilities === "string"
+      ? [model.capabilities.toLowerCase()]
+      : isRecord(model.capabilities)
+        ? Object.entries(model.capabilities)
+            .filter(([, value]) => Boolean(value))
+            .map(([key]) => key.toLowerCase())
+        : [];
+  return capabilities.some((item) => item.includes("text") || item.includes("chat"));
+}
+
 async function callWorkflowTextModel(
   stageLabel: string,
   messages: Array<{ role: "system" | "user"; content: string }>,
@@ -2071,6 +2361,7 @@ function defaultWorkflowState(selectedEpisode = "第 1 集") {
     activeStage: "source",
     breakdownScenes: [],
     clips: [],
+    sceneVisualBibles: [],
     assets: defaultAssets(),
     stageStatuses: defaultStageStatuses(),
     updatedAt: undefined,
@@ -2080,8 +2371,11 @@ function defaultWorkflowState(selectedEpisode = "第 1 集") {
 
 function normalizeWorkflowStateRecord(value: unknown, fallbackEpisode = "第 1 集") {
   const record = isRecord(value) ? value : {};
+  const sceneVisualBibles = Array.isArray(record.sceneVisualBibles)
+    ? record.sceneVisualBibles.filter((item): item is SceneVisualBible => isRecord(item))
+    : [];
   const breakdownScenes = Array.isArray(record.breakdownScenes)
-    ? record.breakdownScenes.map((scene, index) => enrichWorkflowScene(scene, index))
+    ? record.breakdownScenes.map((scene, index) => enrichWorkflowScene(scene, index, sceneVisualBibles))
     : [];
   const clips = Array.isArray(record.clips)
     ? record.clips.map((clip, index) => normalizeWorkflowClip(clip, index))
@@ -2093,7 +2387,8 @@ function normalizeWorkflowStateRecord(value: unknown, fallbackEpisode = "第 1 �
     activeStage: stringFrom(record.activeStage, "source"),
     breakdownScenes,
     clips: normalizeStoryboardPromptClips(clips),
-    assets: isRecord(record.assets) ? record.assets : defaultAssets(),
+    sceneVisualBibles,
+    assets: applySceneVisualLocksToWorkflowAssets(isRecord(record.assets) ? record.assets : defaultAssets(), sceneVisualBibles),
     stageStatuses: isRecord(record.stageStatuses) ? record.stageStatuses : defaultStageStatuses(),
     updatedAt: stringFrom(record.updatedAt, undefined),
     lastRun: isRecord(record.lastRun) ? record.lastRun : undefined,
@@ -2169,19 +2464,27 @@ function writeWorkflowEpisode(
 ): Record<string, unknown> {
   const id = episodeId || workflowEpisodeIdForTitle(workflow.selectedEpisode, "episode-001");
   const episodes = getWorkflowEpisodes(metadata);
+  const workflowWithSceneLocks = applySceneVisualLocksToWorkflowRecord(workflow);
   return {
     ...metadata,
-    workflowCenter: workflow,
-    ...(makeActive ? { activeEpisodeId: id } : {}),
+    workflowCenter: workflowWithSceneLocks,
+    ...(makeActive
+      ? {
+          activeEpisodeId: id,
+          currentEpisodeId: id,
+          selectedEpisodeId: id,
+          activeCanvasSceneId: workflowEpisodeCanvasSceneId(id),
+        }
+      : {}),
     episodes: {
       ...episodes,
       [id]: {
         ...(episodes[id] ?? {}),
         id,
-        title: workflow.selectedEpisode || stringFrom(episodes[id]?.title, "第 1 集"),
+        title: workflowWithSceneLocks.selectedEpisode || stringFrom(episodes[id]?.title, "第 1 集"),
         canvasSceneId: workflowEpisodeCanvasSceneId(id),
-        workflowCenter: workflow,
-        updatedAt: workflow.updatedAt ?? new Date().toISOString(),
+        workflowCenter: workflowWithSceneLocks,
+        updatedAt: workflowWithSceneLocks.updatedAt ?? new Date().toISOString(),
       },
     },
   };
@@ -2198,10 +2501,13 @@ function getWorkflowEpisodeList(metadata: unknown): { activeEpisodeId: string; e
     .sort((a, b) => episodeSortKey(a, b));
   const legacy = legacyWorkflowState(record);
   const legacyId = workflowEpisodeIdForTitle(legacy.selectedEpisode, "episode-001");
-  if (summaries.length === 0 || !summaries.some((item) => item.id === legacyId)) {
+  if (summaries.length === 0) {
     summaries.unshift(workflowEpisodeSummary(legacyId, legacy));
   }
-  const activeEpisodeId = stringFrom(record.activeEpisodeId, summaries[0]?.id ?? legacyId);
+  const requestedActiveEpisodeId = stringFrom(record.activeEpisodeId, summaries[0]?.id ?? legacyId);
+  const activeEpisodeId = summaries.some((item) => item.id === requestedActiveEpisodeId)
+    ? requestedActiveEpisodeId
+    : summaries[0]?.id ?? legacyId;
   return { activeEpisodeId, episodes: summaries };
 }
 
@@ -2234,6 +2540,7 @@ function resolveWorkflowEpisodeId(metadata: unknown, episodeIdOrTitle: string): 
   if (!requested) return "";
   const episodes = getWorkflowEpisodes(metadata);
   if (episodes[requested]) return requested;
+  if (/^episode(?:-|$)/i.test(requested)) return getActiveWorkflowEpisode(metadata).id;
   const requestedKey = normalizeCompareText(requested);
   for (const summary of getWorkflowEpisodeList(metadata).episodes) {
     if (
@@ -2244,7 +2551,7 @@ function resolveWorkflowEpisodeId(metadata: unknown, episodeIdOrTitle: string): 
       return summary.id;
     }
   }
-  return requested;
+  return getActiveWorkflowEpisode(metadata).id;
 }
 
 function workflowEpisodeIdForTitle(title: string, fallback: string): string {
@@ -2283,6 +2590,26 @@ function episodeSortKey(a: WorkflowEpisodeSummary, b: WorkflowEpisodeSummary): n
 }
 
 type WorkflowAssetKind = "characters" | "scenes" | "props";
+type WorkflowAssetsRecord = {
+  characters: Record<string, unknown>[];
+  locations: Record<string, unknown>[];
+  props: Record<string, unknown>[];
+};
+
+const REUSABLE_ASSET_IMAGE_KEYS = [
+  "referenceImageUrl",
+  "referenceImageAssetId",
+  "generatedImageUrl",
+  "generatedImageAssetId",
+  "visualAuthority",
+  "referenceAnalysisStatus",
+  "imageAnalysis",
+  "generatedImagePrompt",
+  "generatedImageRevisedPrompt",
+  "generatedImageAt",
+  "generationId",
+  "imageGenerationModel",
+] as const;
 
 async function sanitizeWorkflowDraftAssets(
   projectId: string,
@@ -2339,7 +2666,7 @@ async function sanitizeWorkflowDraftAssets(
       }
     }
     if (!isReusableWorkflowImageUrl(stringFrom(next.referenceImageUrl, "")) && !isReusableWorkflowImageUrl(stringFrom(next.generatedImageUrl, ""))) {
-      const fallback = findWorkflowAssetImageCandidate(fallbackImageCandidates[kind], workflowAssetDisplayName(next));
+      const fallback = findWorkflowAssetImageCandidate(fallbackImageCandidates[kind], workflowAssetDisplayName(next), kind, next);
       if (fallback) {
         next.referenceImageUrl = fallback.url;
         next.referenceImageAssetId = fallback.id;
@@ -2352,7 +2679,8 @@ async function sanitizeWorkflowDraftAssets(
   };
   const keepAndHydrate = (kind: WorkflowAssetKind, item: unknown) => {
     if (!hasOnlyDeletedImageReferences(item)) return true;
-    return Boolean(isRecord(item) && findWorkflowAssetImageCandidate(fallbackImageCandidates[kind], workflowAssetDisplayName(item)));
+    if (kind === "scenes") return true;
+    return Boolean(isRecord(item) && findWorkflowAssetImageCandidate(fallbackImageCandidates[kind], workflowAssetDisplayName(item), kind, item));
   };
 
   return {
@@ -2366,6 +2694,7 @@ type WorkflowAssetImageCandidate = {
   id: string;
   name: string;
   url: string;
+  canonicalSceneId: string;
 };
 
 async function loadWorkflowAssetImageCandidates(projectId: string): Promise<Record<WorkflowAssetKind, WorkflowAssetImageCandidate[]>> {
@@ -2395,22 +2724,22 @@ async function loadWorkflowAssetImageCandidates(projectId: string): Promise<Reco
     take: 800,
   });
   const seen = new Set<string>();
-  const push = (kind: WorkflowAssetKind, name: string, id: string, url: string) => {
+  const push = (kind: WorkflowAssetKind, name: string, id: string, url: string, metadata: Record<string, unknown>) => {
     const normalizedName = normalizeCompareText(name);
     if (!normalizedName || !isReusableWorkflowImageUrl(url)) return;
     const key = `${kind}:${normalizedName}:${id}`;
     if (seen.has(key)) return;
     seen.add(key);
-    candidates[kind].push({ id, name, url });
+    candidates[kind].push({ id, name, url, canonicalSceneId: stringFrom(metadata.canonicalSceneId, "") });
   };
   for (const asset of records) {
     const metadata = isRecord(asset.metadata) ? asset.metadata : {};
     const characterName = stringFrom(metadata.characterName, stringFrom(asset.character?.name, ""));
-    if (characterName) push("characters", characterName, asset.id, asset.url);
+    if (characterName) push("characters", characterName, asset.id, asset.url, metadata);
 
     const workflowKind = parseWorkflowAssetKind(metadata.workflowAssetKind);
     const assetName = stringFrom(metadata.assetName, "");
-    if (workflowKind && assetName) push(workflowKind, assetName, asset.id, asset.url);
+    if (workflowKind && assetName) push(workflowKind, assetName, asset.id, asset.url, metadata);
   }
   return candidates;
 }
@@ -2423,14 +2752,52 @@ function workflowAssetDisplayName(item: Record<string, unknown>): string {
   return stringFrom(item.name ?? item.title, "");
 }
 
-function findWorkflowAssetImageCandidate(candidates: WorkflowAssetImageCandidate[], name: string): WorkflowAssetImageCandidate | undefined {
+function findWorkflowAssetImageCandidate(
+  candidates: WorkflowAssetImageCandidate[],
+  name: string,
+  kind: WorkflowAssetKind,
+  targetItem?: Record<string, unknown>,
+): WorkflowAssetImageCandidate | undefined {
   const target = normalizeCompareText(name);
   if (!target) return undefined;
-  return candidates.find((candidate) => normalizeCompareText(candidate.name) === target)
-    ?? candidates.find((candidate) => {
+  const compatibleCandidates = candidates.filter((candidate) => workflowAssetImageCandidateCompatible(candidate, kind, targetItem));
+  return compatibleCandidates.find((candidate) => normalizeCompareText(candidate.name) === target)
+    ?? compatibleCandidates.find((candidate) => workflowAssetNamesMatch(kind, candidate.name, name))
+    ?? compatibleCandidates.find((candidate) => {
       const candidateName = normalizeCompareText(candidate.name);
       return Boolean(candidateName && (candidateName.includes(target) || target.includes(candidateName)));
     });
+}
+
+function workflowAssetImageCandidateCompatible(
+  candidate: WorkflowAssetImageCandidate,
+  kind: WorkflowAssetKind,
+  targetItem?: Record<string, unknown>,
+): boolean {
+  if (kind !== "scenes") return true;
+  const targetCanonicalSceneId = stringFrom(targetItem?.canonicalSceneId, "");
+  if (!targetCanonicalSceneId) return false;
+  return candidate.canonicalSceneId === targetCanonicalSceneId;
+}
+
+function workflowSceneImageMetadata(asset: Record<string, unknown> | undefined): Record<string, unknown> {
+  const canonicalSceneId = stringFrom(asset?.canonicalSceneId, "");
+  const canonicalSceneName = stringFrom(asset?.canonicalSceneName, stringFrom(asset?.name ?? asset?.title, ""));
+  const sceneVisualLock = stringFrom(asset?.sceneVisualLock, "");
+  const sceneZone = stringFrom(asset?.sceneZone, "");
+  return {
+    ...(canonicalSceneId ? { canonicalSceneId } : {}),
+    ...(canonicalSceneName ? { canonicalSceneName } : {}),
+    ...(sceneVisualLock ? { sceneVisualLock } : {}),
+    ...(sceneZone ? { sceneZone } : {}),
+  };
+}
+
+function workflowSceneImageCompatible(asset: Record<string, unknown> | undefined, imageMetadata: Record<string, unknown>): boolean {
+  const targetCanonicalSceneId = stringFrom(asset?.canonicalSceneId, "");
+  const imageCanonicalSceneId = stringFrom(imageMetadata.canonicalSceneId, "");
+  if (!targetCanonicalSceneId || !imageCanonicalSceneId) return true;
+  return targetCanonicalSceneId === imageCanonicalSceneId;
 }
 
 function isReusableWorkflowImageUrl(value: unknown): value is string {
@@ -2557,12 +2924,19 @@ async function syncWorkflowAssetReference(
 
     const targetEpisodeId = episodeId || workflowEpisodeIdForWorkflow(metadata, nextWorkflow);
     const nextMetadata = writeWorkflowEpisode(metadata, targetEpisodeId, nextWorkflow, true);
+    const currentImageUrl = stringFrom(nextItem.referenceImageUrl, "");
+    const canvasImageUrl = canvasSyncableImageUrl(currentImageUrl);
+    let finalMetadata = nextMetadata;
+    if (canvasImageUrl) {
+      const filledMetadata = fillMissingAssetImageAcrossEpisodes(nextMetadata, { assetKind, assetName, field: "referenceImageUrl", imageUrl: currentImageUrl, imageAssetId: asset.id }).metadata;
+      finalMetadata = applyWorkflowAssetImageToCanvasScenes(filledMetadata, { assetKind, assetName, imageUrl: canvasImageUrl, imageAssetId: asset.id, episodeId: targetEpisodeId }, nextWorkflow.updatedAt).metadata;
+    }
     await tx.project.update({
       where: { id: project.id },
-      data: { metadata: nextMetadata as Prisma.InputJsonValue },
+      data: { metadata: finalMetadata as Prisma.InputJsonValue },
     });
 
-    return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(nextMetadata) };
+    return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
   });
 }
 
@@ -2576,6 +2950,7 @@ async function syncWorkflowGeneratedAssetImage(
     generationId: string;
     model: Record<string, unknown>;
     revisedPrompt?: string;
+    visualConflictWarning?: string;
   },
   episodeId?: string,
 ) {
@@ -2605,6 +2980,7 @@ async function syncWorkflowGeneratedAssetImage(
       generatedImageAssetId: asset.id,
       generatedImagePrompt: generation.prompt,
       generatedImageRevisedPrompt: generation.revisedPrompt,
+      ...(assetKind === "scenes" ? { visualConflictWarning: generation.visualConflictWarning ?? "" } : {}),
       generatedImageAt: new Date().toISOString(),
       generationId: generation.generationId,
       imageGenerationModel: generation.model,
@@ -2633,12 +3009,19 @@ async function syncWorkflowGeneratedAssetImage(
 
     const targetEpisodeId = episodeId || workflowEpisodeIdForWorkflow(metadata, nextWorkflow);
     const nextMetadata = writeWorkflowEpisode(metadata, targetEpisodeId, nextWorkflow, true);
+    const currentImageUrl = stringFrom(nextItem.referenceImageUrl, "") || stringFrom(nextItem.generatedImageUrl, "");
+    const canvasImageUrl = canvasSyncableImageUrl(currentImageUrl);
+    let finalMetadata = nextMetadata;
+    if (canvasImageUrl) {
+      const filledMetadata = fillMissingAssetImageAcrossEpisodes(nextMetadata, { assetKind, assetName, field: "generatedImageUrl", imageUrl: currentImageUrl, imageAssetId: asset.id }).metadata;
+      finalMetadata = applyWorkflowAssetImageToCanvasScenes(filledMetadata, { assetKind, assetName, imageUrl: canvasImageUrl, imageAssetId: asset.id, episodeId: targetEpisodeId }, nextWorkflow.updatedAt).metadata;
+    }
     await tx.project.update({
       where: { id: project.id },
-      data: { metadata: nextMetadata as Prisma.InputJsonValue },
+      data: { metadata: finalMetadata as Prisma.InputJsonValue },
     });
 
-    return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(nextMetadata) };
+    return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
   });
 }
 
@@ -2694,12 +3077,19 @@ async function syncWorkflowSelectedAssetImage(
 
   const targetEpisodeId = episodeId || workflowEpisodeIdForWorkflow(metadata, nextWorkflow);
   const nextMetadata = writeWorkflowEpisode(metadata, targetEpisodeId, nextWorkflow, true);
+  const currentImageUrl = stringFrom(nextItem.referenceImageUrl, "") || stringFrom(nextItem.generatedImageUrl, "");
+  const canvasImageUrl = canvasSyncableImageUrl(currentImageUrl);
+  let finalMetadata = nextMetadata;
+  if (canvasImageUrl) {
+    const filledMetadata = fillMissingAssetImageAcrossEpisodes(nextMetadata, { assetKind, assetName, field: "generatedImageUrl", imageUrl: currentImageUrl, imageAssetId: asset.id }).metadata;
+    finalMetadata = applyWorkflowAssetImageToCanvasScenes(filledMetadata, { assetKind, assetName, imageUrl: canvasImageUrl, imageAssetId: asset.id, episodeId: targetEpisodeId }, nextWorkflow.updatedAt).metadata;
+  }
   await prisma.project.update({
     where: { id: project.id },
-    data: { metadata: nextMetadata },
+    data: { metadata: finalMetadata },
   });
 
-  return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(nextMetadata) };
+  return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
 }
 
 async function clearWorkflowAssetCurrentImage(
@@ -2759,36 +3149,35 @@ async function clearWorkflowAssetCurrentImage(
     };
     const targetEpisodeId = episodeId || workflowEpisodeIdForWorkflow(metadata, nextWorkflow);
     const nextMetadata = writeWorkflowEpisode(metadata, targetEpisodeId, nextWorkflow, true);
+    const finalMetadata = applyWorkflowAssetImageToCanvasScenes(nextMetadata, { assetKind, assetName, imageUrl: "", imageAssetId: "", episodeId: targetEpisodeId }, nextWorkflow.updatedAt).metadata;
     if (cleared) {
       await tx.project.update({
         where: { id: project.id },
-        data: { metadata: nextMetadata as Prisma.InputJsonValue },
+        data: { metadata: finalMetadata as Prisma.InputJsonValue },
       });
     }
-    return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(cleared ? nextMetadata : metadata) };
+    return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(cleared ? finalMetadata : metadata) };
   });
 }
 
 function findWorkflowAssetItem(assets: unknown, assetKind: "characters" | "scenes" | "props", assetName: string): Record<string, unknown> | undefined {
   const record = isRecord(assets) ? assets : {};
   const items = Array.isArray(record[assetKind]) ? record[assetKind] : [];
-  const key = normalizeCompareText(assetName);
   return items.find((item): item is Record<string, unknown> => {
     if (!isRecord(item)) return false;
-    return normalizeCompareText(stringFrom(item.name ?? item.title, "")) === key;
+    return workflowAssetItemMatchesName(item, assetKind, assetName);
   });
 }
 
 function matchesWorkflowAssetImage(asset: any, assetKind: "characters" | "scenes" | "props", assetName: string): boolean {
   const metadata = isRecord(asset.metadata) ? asset.metadata : {};
-  const key = normalizeCompareText(assetName);
   if (assetKind === "characters") {
     const characterName = stringFrom(metadata.characterName, "");
-    if (characterName && normalizeCompareText(characterName) === key) return true;
+    if (characterName && workflowAssetNamesMatch(assetKind, characterName, assetName)) return true;
   }
   const workflowKind = stringFrom(metadata.workflowAssetKind, "");
   const metadataName = stringFrom(metadata.assetName, "");
-  return workflowKind === assetKind && Boolean(metadataName) && normalizeCompareText(metadataName) === key;
+  return workflowKind === assetKind && Boolean(metadataName) && workflowAssetNamesMatch(assetKind, metadataName, assetName);
 }
 
 function workflowAssetImageHistoryItem(asset: any, currentAssetIds: Set<string>, currentUrls: Set<string>) {
@@ -2850,6 +3239,47 @@ function collectWorkflowAssetReferenceUrls(
       return true;
     })
     .slice(0, 16);
+}
+
+function workflowAssetHasUsableImage(asset: unknown): boolean {
+  if (!isRecord(asset)) return false;
+  return isReusableWorkflowImageUrl(stringFrom(asset.referenceImageUrl, "")) || isReusableWorkflowImageUrl(stringFrom(asset.generatedImageUrl, ""));
+}
+
+function workflowAssetDisplayNameForReadiness(asset: unknown): string {
+  if (!isRecord(asset)) return "未命名资产";
+  return stringFrom(asset.name, stringFrom(asset.title, "未命名资产"));
+}
+
+function workflowAssetImageReadinessForServer(assets: unknown): {
+  ready: boolean;
+  total: number;
+  withImage: number;
+  missing: string[];
+} {
+  const record = isRecord(assets) ? assets : {};
+  const missing: string[] = [];
+  let total = 0;
+  let withImage = 0;
+  for (const kind of ["characters", "scenes", "props"] as const) {
+    for (const asset of arrayFrom(record[kind])) {
+      const name = workflowAssetDisplayNameForReadiness(asset);
+      if (!name) continue;
+      total += 1;
+      if (workflowAssetHasUsableImage(asset)) {
+        withImage += 1;
+      } else {
+        missing.push(name);
+      }
+    }
+  }
+  return { ready: total > 0 && missing.length === 0, total, withImage, missing };
+}
+
+function ensureWorkflowAssetsExtractedForStoryboard(assets: unknown): void {
+  const readiness = workflowAssetImageReadinessForServer(assets);
+  if (readiness.total > 0) return;
+  badRequest("请先提取角色、场景、道具资产后再拆分镜。资产图可以按需要补充，不是拆分镜硬门槛。");
 }
 
 function inferConcreteFruitIdentity(assetName: string, asset: Record<string, unknown> | undefined): string {
@@ -2918,7 +3348,28 @@ function looksLikeWorkflowAssetFinalPrompt(value: unknown): boolean {
 }
 
 function hasNestedWorkflowAssetFinalPrompt(value: string): boolean {
-  return /User\/asset prompt to preserve:\s*Project authority:/i.test(value) || value.split("Project authority:").length > 2;
+  return /User\/asset prompt to preserve:\s*(Project authority:|Asset kind:|Style:)/i.test(value) || value.split("Project authority:").length > 2;
+}
+
+function hasLegacyWorkflowAssetPromptScaffold(value: unknown): boolean {
+  const text = typeof value === "string" ? value : "";
+  return /Project authority:|Scene visual authority:|Character identity rules:|Project global settings authority:|Script rules:|Scene visual style:|Style notes:|Negative constraints:/i.test(text);
+}
+
+function stripLegacyWorkflowAssetPromptScaffold(value: unknown): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return "";
+  if (!hasLegacyWorkflowAssetPromptScaffold(text)) return stripRedundantWorkflowAssetPromptLines(text);
+  return "";
+}
+
+function stripRedundantWorkflowAssetPromptLines(value: string): string {
+  return value
+    .split("\n")
+    .filter((line) => !/^(Style details|Style notes|Scene visual authority|Project title|Scene visual style|Negative constraints)\s*:/i.test(line.trim()))
+    .filter((line) => !/Keep the project visual style consistent with the scene visual authority above/i.test(line.trim()))
+    .join("\n")
+    .trim();
 }
 
 function cleanWorkflowAssetPromptSeed(value: unknown): string {
@@ -2935,7 +3386,7 @@ function ensureWorkflowAssetPromptAuthority(
   finalPrompt: string,
   referenceImageCount = 0,
 ): string {
-  const prompt = finalPrompt.trim();
+  const prompt = stripLegacyWorkflowAssetPromptScaffold(finalPrompt) || finalPrompt.trim();
   if (!prompt) return prompt;
   if (hasNestedWorkflowAssetFinalPrompt(prompt)) {
     return buildWorkflowAssetImagePrompt(project, assetKind, assetName, asset, undefined, referenceImageCount);
@@ -2953,27 +3404,36 @@ function ensureWorkflowAssetPromptAuthority(
     assetKind === "characters" &&
     (Boolean(explicitFruitIdentity) || projectRequiresFruit);
   const fruitIdentity = fruitRequired ? inferConcreteFruitIdentity(assetName, asset) : "";
-  const promptHasAuthority = prompt.includes("Project authority:");
   const promptHasRequiredFruitContext = !fruitRequired || promptHasConcreteFruitIdentity(prompt, fruitIdentity);
-  if (promptHasAuthority && promptHasRequiredFruitContext) return prompt;
+  if (promptHasRequiredFruitContext && !hasLegacyWorkflowAssetPromptScaffold(prompt)) return prompt;
   const mixedFruitGroup = isMixedRandomFruitIdentity(fruitIdentity);
-  const authorityLines = [
-    "Project authority:",
-    `Project title: ${project.name}`,
-    project.description ? `Project description: ${project.description}` : "",
-    globalPrompt ? `Project global prompt: ${globalPrompt}` : "",
-    characterIdentityRules ? `Character identity rules: ${characterIdentityRules}` : "",
+  const stylePrompt = sceneStylePromptFromGlobalPrompt(globalPrompt).replace(/^(base style|global prompt|visual style|style|look|render|lighting|cinematic|quality)\s*:\s*/gim, "").trim();
+  const promptWithoutLegacyScaffold = prompt
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => !/^(Project authority|Scene visual authority|Project title|Project description|Project global prompt|Project visual style|Scene visual style|Style notes|Character identity rules|Project global settings authority|Script rules|Negative constraints)\s*:/i.test(line))
+    .filter((line) => !/Keep the project visual style consistent with the scene visual authority above/i.test(line))
+    .join("\n")
+    .trim();
+  const imagePromptLines = [
+    stylePrompt ? `Style: ${stylePrompt}` : "",
     fruitRequired
       ? mixedFruitGroup
-        ? "Group fruit identity policy: mixed random fruit crowd. This is a group/background asset, so do not lock every individual to one fixed fruit. Randomly mix several fruit species across individuals based on the story tone while keeping all members anthropomorphic fruit."
-        : `Locked fruit identity: ${fruitIdentity}. Keep this as an unmistakable anthropomorphic ${fruitIdentity} character, not a normal human, animal, generic zombie, or non-fruit monster. Make the ${fruitIdentity} identity readable in the silhouette, surface texture, color palette, and printed labels.`
+        ? "Visual identity: all visible characters are anthropomorphic fruit; use a varied mixed fruit crowd with clear fruit anatomy/material cues."
+        : `Visual identity: unmistakable anthropomorphic ${fruitIdentity}; not a normal human, animal, generic zombie, or non-fruit monster. Make the ${fruitIdentity} identity readable in the silhouette, surface texture, and color palette.`
       : "",
     referenceImageCount > 0 ? `Reference images supplied to the image model: ${referenceImageCount}. Use them as visual continuity references and do not contradict them.` : "",
     "",
-    "User final prompt:",
-    prompt,
+    promptWithoutLegacyScaffold || prompt,
   ].filter(Boolean);
-  return authorityLines.join("\n");
+  return imagePromptLines.join("\n");
+}
+
+function sceneVisualConflictWarning(bible: SceneVisualBible | undefined, candidatePrompt: string): string {
+  if (!bible) return "";
+  const conflict = detectSceneVisualConflict(bible, candidatePrompt);
+  if (conflict.pass) return "";
+  return `视觉连续性风险：当前提示词可能偏离 ${bible.canonicalName} 的场景视觉身份；${conflict.reasons.join("；")}。请保持同一时间、色调、建筑类型、材质语言和固定地标。`;
 }
 
 function buildWorkflowAssetImagePrompt(
@@ -2988,6 +3448,7 @@ function buildWorkflowAssetImagePrompt(
   const setupSettings = isRecord(settings.setupSettings) ? settings.setupSettings : {};
   const userPrompt = cleanWorkflowAssetPromptSeed(promptOverride);
   const globalPrompt = stringFrom(settings.globalPrompt, stringFrom(setupSettings.globalPrompt, "")) ?? "";
+  const sceneStylePrompt = sceneStylePromptFromGlobalPrompt(globalPrompt);
   const characterIdentityRules = stringFrom(
     setupSettings.characterIdentityRules,
     firstLineAfterLabel(globalPrompt, "Character identity rules:") ?? "",
@@ -2999,7 +3460,15 @@ function buildWorkflowAssetImagePrompt(
     (Boolean(explicitFruitIdentity) || projectRequiresFruit);
   const fruitIdentity = fruitRequired ? inferConcreteFruitIdentity(assetName, asset) : "";
   const mixedFruitGroup = isMixedRandomFruitIdentity(fruitIdentity);
-  const assetFacts = asset ? JSON.stringify({
+  const assetFacts = asset ? JSON.stringify(assetKind === "scenes" ? {
+    name: asset.name ?? asset.title,
+    description: asset.description,
+    visualPrompt: cleanWorkflowAssetPromptSeed(asset.visualPrompt),
+    timeOfDay: asset.timeOfDay,
+    sceneZone: asset.sceneZone,
+    sceneAnchors: asset.sceneAnchors,
+    referencePolicy: asset.referencePolicy,
+  } : {
     name: asset.name ?? asset.title,
     role: asset.role,
     description: asset.description,
@@ -3019,6 +3488,7 @@ function buildWorkflowAssetImagePrompt(
     timeOfDay: asset.timeOfDay,
     function: asset.function,
   }) : "";
+  const sceneVisualLock = assetKind === "scenes" ? cleanWorkflowPublicText(stringFrom(asset?.sceneVisualLock, "")) : "";
   const characterVariant = /Character image variant:\s*with signature carried props/i.test(userPrompt) ? "with-props" : "clean";
   const hasManualBoundProps = Boolean(asset && Array.isArray(asset.boundPropNames));
   const manualBoundProps = asset ? boundPropNamesFromRecord(asset) : [];
@@ -3064,15 +3534,20 @@ function buildWorkflowAssetImagePrompt(
             : "If no alternate state is known, use the lower strip for expression poses, hand gestures without props, posture habits, and key silhouette details.",
           "Keep the exact same character identity, outfit, material, proportions, colors, and silhouette across all views.",
           "Use a pure clean neutral blank background, evenly lit studio reference lighting, no environment, no decorative scene. Do not let text or info boxes cover the character drawings.",
-          "Preserve the asset facts and project rules; do not add unconfirmed appearance details.",
+          "Preserve the asset facts; do not add unconfirmed appearance details.",
           fruitRequired
             ? mixedFruitGroup
-              ? "Group fruit identity policy: mixed random fruit crowd. This is a group/background asset, so do not lock every individual to one fixed fruit. Randomly mix several fruit species across individuals based on the story tone while keeping all members anthropomorphic fruit."
-              : `Locked fruit identity: ${fruitIdentity}. The character must remain an unmistakable anthropomorphic ${fruitIdentity} character, not a normal human, animal, generic zombie, or non-fruit monster. Make the ${fruitIdentity} identity readable in the silhouette, surface texture, color palette, and printed labels.`
+              ? "Visual identity: all visible characters are anthropomorphic fruit; use a varied mixed fruit crowd with clear fruit anatomy/material cues."
+              : `Visual identity: unmistakable anthropomorphic ${fruitIdentity}; not a normal human, animal, generic zombie, or non-fruit monster. Make the ${fruitIdentity} identity readable in the silhouette, surface texture, and color palette.`
             : "",
         ].join("\n")
       : assetKind === "scenes"
-        ? "Create a clean scene/location production reference image. Prioritize readable layout, geography, lighting, and atmosphere."
+        ? [
+            "Create a clean empty scene/location production reference image. Prioritize readable layout, geography, lighting, and atmosphere.",
+            "This is an environment plate only: no characters, no people, no creatures, no visible actors, no dialogue, no performance beat.",
+            "If a Scene visual continuity lock is provided, inherit it exactly. The image may show a local zone, anchor, or detail, but it must remain inside the same canonical visual world.",
+            "For local zones and anchors, show enough of the parent canonical scene materials and landmarks to make the relationship clear.",
+          ].join("\n")
         : "Create a clean prop production reference image. Prioritize shape, material, scale, and practical use.";
   const outputRule =
     assetKind === "characters"
@@ -3080,17 +3555,14 @@ function buildWorkflowAssetImagePrompt(
         ? "Single image only. Clean printed text is allowed only for compact character sheet labels: name, personality, height, expressions, actions, variants, wearable outfit/gear, personal prop, and color palette. No UI chrome, no watermark, no random captions, no messy handwritten annotations."
         : "Single image only. Clean printed text is allowed only for compact character sheet labels: name, personality, height, expressions, actions, variants, wearable outfit/gear, and color palette. No UI chrome, no watermark, no random captions, no messy handwritten annotations. Do not include standalone props in this clean base reference."
       : "Single image only. No captions, no UI, no watermark, no labels, no title text, no diagram annotations unless explicitly required by the asset facts.";
+  const stylePrompt = sceneStylePrompt.replace(/^(base style|global prompt|visual style|style|look|render|lighting|cinematic|quality)\s*:\s*/gim, "").trim();
   return [
-    `Project title: ${project.name}`,
-    `Project description: ${project.description ?? ""}`,
-    globalPrompt ? `Project visual style: ${globalPrompt}` : "",
-    stringFrom(setupSettings.customStyleName, "") || stringFrom(setupSettings.customStylePrompt, "")
-      ? `Style notes: ${[stringFrom(setupSettings.customStyleName, ""), stringFrom(setupSettings.customStylePrompt, "")].filter(Boolean).join(" / ")}`
-      : "",
-    stringFrom(setupSettings.projectTone, "") ? `Tone: ${stringFrom(setupSettings.projectTone, "")}` : "",
-    assetKind === "characters" && characterIdentityRules ? `Character identity rules: ${characterIdentityRules}` : "",
+    stylePrompt ? `Style: ${stylePrompt}` : "",
     `Asset kind: ${assetKind}`,
     `Asset name: ${assetName}`,
+    sceneVisualLock ? `Scene visual continuity lock: ${sceneVisualLock}` : "",
+    sceneVisualLock ? "This scene asset may be a canonical scene zone/anchor, not a separate new visual world. Do not reinterpret this child zone as a separate warehouse, different time of day, different color palette, or unrelated building." : "",
+    sceneVisualLock ? "Preserve the same time of day, color palette, building type, material language, lighting family, and fixed landmarks from the scene visual authority." : "",
     fruitIdentity ? mixedFruitGroup ? "Fruit species policy: mixed random fruit crowd. Choose a varied mix such as apple, orange, lemon, pear, grape, peach, banana, melon, kiwi, or strawberry individuals; do not make all members the same fruit." : `Fruit species to draw and label clearly: ${fruitIdentity}` : "",
     assetFacts ? `Asset facts: ${assetFacts}` : "",
     carriedPropText ? `Personal prop continuity to include in character sheet: ${carriedPropText}` : "",
@@ -3098,6 +3570,7 @@ function buildWorkflowAssetImagePrompt(
     referenceImageCount > 0 ? `Reference images supplied to the image model: ${referenceImageCount}. Use them as visual continuity references and do not contradict them.` : "",
     "",
     kindRule,
+    assetKind === "scenes" ? "Do not add characters. Do not turn this into a poster or title card." : "",
     outputRule,
     "Make it useful as a reusable AI video/image reference asset.",
   ]
@@ -3105,7 +3578,20 @@ function buildWorkflowAssetImagePrompt(
     .join("\n");
 }
 
-function enrichWorkflowScene(value: unknown, index: number) {
+function sceneStylePromptFromGlobalPrompt(value: string): string {
+  const lines = value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const allowed = lines.filter((line) => (
+    /^(base style|global prompt|visual style|style|look|render|lighting|cinematic|quality)\s*:/i.test(line) ||
+    /masterpiece|best quality|highly detailed|cinematic lighting|cartoon|3d|render|lighting/i.test(line)
+  ));
+  const blockedPattern = /character identity rules|script rules|core rules|核心规则|所有主要角色|叙述中|肢体|社会与职业|黑色幽默应围绕|人物与气质|叙事与世界观|镜头与节奏|边界与禁用元素|default generation strategy|project tone|director guidance/i;
+  return allowed.filter((line) => !blockedPattern.test(line)).join("\n");
+}
+
+function enrichWorkflowScene(value: unknown, index: number, sceneVisualBibles: SceneVisualBible[] = []) {
   const record = isRecord(value) ? value : {};
   const title = stringFrom(record.title, `镜头 ${String(index + 1).padStart(2, "0")}`);
   const description = cleanWorkflowPublicText(stringFrom(record.description, ""));
@@ -3116,6 +3602,17 @@ function enrichWorkflowScene(value: unknown, index: number) {
   const setting = stringFrom(record.setting, "");
   const references = cleanWorkflowPublicText(stringFrom(record.references, ""));
   const visualPrompt = cleanWorkflowPublicText(stringFrom(record.visualPrompt, stringFrom(record.prompt, "")));
+  const existingCanonicalSceneId = stringFrom(record.canonicalSceneId, "");
+  const existingSceneVisualLock = cleanWorkflowPublicText(stringFrom(record.sceneVisualLock, ""));
+  const existingSceneZone = stringFrom(record.sceneZone, "");
+  const existingSceneAnchors = arrayFrom(record.sceneAnchors).map((name) => String(name)).slice(0, 12);
+  const resolvedVisualLock = !existingSceneVisualLock
+    ? resolveSceneVisualLockForSetting(setting || title || description || visualPrompt, sceneVisualBibles)
+    : null;
+  const canonicalSceneId = existingCanonicalSceneId || resolvedVisualLock?.canonicalSceneId || "";
+  const sceneVisualLock = existingSceneVisualLock || resolvedVisualLock?.sceneVisualLock || "";
+  const sceneZone = existingSceneZone || resolvedVisualLock?.sceneZone || "";
+  const sceneAnchors = existingSceneAnchors.length > 0 ? existingSceneAnchors : resolvedVisualLock?.sceneAnchors ?? [];
   const professional = inferProfessionalShotFields(
     {
       title,
@@ -3152,9 +3649,52 @@ function enrichWorkflowScene(value: unknown, index: number) {
     characters,
     setting,
     references,
+    canonicalSceneId,
+    sceneVisualLock,
+    sceneZone,
+    sceneAnchors,
     visualPrompt,
     directorBoardPrompt: cleanWorkflowPromptText(stringFrom(record.directorBoardPrompt ?? record.boardPrompt, professional.directorBoardPrompt)),
     status: stringFrom(record.status, index < 2 ? "ready" : "draft"),
+  };
+}
+
+function applySceneVisualLocksToWorkflowAssets(assets: Record<string, unknown>, sceneVisualBibles: SceneVisualBible[]): Record<string, unknown> {
+  if (sceneVisualBibles.length === 0) return assets;
+  const scenes = Array.isArray(assets.scenes)
+    ? assets.scenes.map((item) => {
+        if (!isRecord(item)) return item;
+        const existingLock = cleanWorkflowPublicText(stringFrom(item.sceneVisualLock, ""));
+        if (existingLock) return item;
+        const name = stringFrom(item.name ?? item.title, "");
+        const description = cleanWorkflowPublicText(stringFrom(item.description, ""));
+        const visualPrompt = cleanWorkflowPublicText(stringFrom(item.visualPrompt ?? item.prompt, ""));
+        const lock = resolveSceneVisualLockForSetting([name, description, visualPrompt].filter(Boolean).join(" "), sceneVisualBibles);
+        if (!lock) return item;
+        return {
+          ...item,
+          canonicalSceneId: stringFrom(item.canonicalSceneId, lock.canonicalSceneId),
+          sceneVisualLock: lock.sceneVisualLock,
+          sceneZone: stringFrom(item.sceneZone, lock.sceneZone),
+          sceneAnchors: arrayFrom(item.sceneAnchors).length > 0 ? item.sceneAnchors : lock.sceneAnchors,
+        };
+      })
+    : assets.scenes;
+  return { ...assets, scenes };
+}
+
+function applySceneVisualLocksToWorkflowRecord(workflow: any): any {
+  if (!isRecord(workflow)) return workflow;
+  const sceneVisualBibles = Array.isArray(workflow.sceneVisualBibles)
+    ? workflow.sceneVisualBibles.filter((item): item is SceneVisualBible => isRecord(item))
+    : [];
+  if (sceneVisualBibles.length === 0) return workflow;
+  return {
+    ...workflow,
+    breakdownScenes: Array.isArray(workflow.breakdownScenes)
+      ? workflow.breakdownScenes.map((scene, index) => enrichWorkflowScene(scene, index, sceneVisualBibles))
+      : workflow.breakdownScenes,
+    assets: applySceneVisualLocksToWorkflowAssets(isRecord(workflow.assets) ? workflow.assets : defaultAssets(), sceneVisualBibles),
   };
 }
 
@@ -3163,6 +3703,8 @@ function buildAssetExtractionPrompt(
   input: z.infer<typeof runWorkflowSchema>,
   authority: WorkflowAuthorityContext,
 ): string {
+  const projectAssetMemory = collectProjectAssetMemory(project.metadata, input.episodeId);
+  const projectAssetMemoryPrompt = summarizeProjectAssetMemoryForPrompt(projectAssetMemory);
   return [
     `Project title: ${project.name}`,
     `Project description: ${project.description ?? ""}`,
@@ -3174,6 +3716,9 @@ function buildAssetExtractionPrompt(
     projectAuthorityPromptBlock(authority),
     authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
     authority.existingCharacters.length ? summarizeAuthorityCharacters(authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(authority),
+    projectAssetMemoryPrompt ? "Existing project asset memory is authoritative for reusable assets across episodes:" : "",
+    projectAssetMemoryPrompt,
     `Episode: ${input.selectedEpisode}`,
     `Source name: ${input.sourceName ?? "manual input"}`,
     "",
@@ -3191,7 +3736,7 @@ function buildAssetExtractionPrompt(
     {"name": "location or scene asset", "description": "visual setting", "timeOfDay": "day/night/interior/etc"}
   ],
   "props": [
-    {"name": "prop name", "description": "story function"}
+    {"name": "prop name", "description": "story function", "aliases": ["variant wording from this episode if any"]}
   ]
 }`,
     "",
@@ -3200,9 +3745,16 @@ function buildAssetExtractionPrompt(
     "- Inside string values, do not use raw English double quote characters. For dialogue, write speaker labels like Chloe: text / Leo: text and omit surrounding quote marks.",
     "- Keep all string values on one line. Do not put raw newline characters inside JSON strings.",
     "- Extract this episode only. Do not include other episodes.",
+    "- Reuse existing project asset names exactly when the episode refers to the same durable character, location, or prop under a synonym. Put the new wording in aliases instead of creating a renamed duplicate.",
+    "- For props, Cast Iron Pan, Cast Iron Frying Pan, Iron Pan, and Skillet are the same reusable prop unless the source explicitly introduces a different pan.",
+    "- Do not extract character-worn gear as standalone props when it is part of a character's current form or historical character image. Gas masks, helmets, wristbands, badges, lanyards, monocles, tactical vests, face coverings, and attached costume gear belong in character primaryLook/variantNotes/signatureProps.",
+    "- Do not extract scene fixtures as standalone props unless the object is removed, carried, used independently, or must stay visually identical across scenes. Doors, walls, stages, counters, shelves, consoles, elevators, vents, pipes, signs, billboards, server racks, and embedded set pieces belong in locations.sceneAnchors/description.",
+    "- For each recurring character form, record named visual variants in variantNotes, such as Bob with gas mask, Chloe holding shotgun, Leo holding cast iron pan, or no-gear state. Later prompts should select the matching character form reference instead of inventing a separate wearable prop image.",
     "- Character facts must be stronger than prose: fill fruitIdentity, lockedVisualIdentity, and referencePolicy when applicable.",
     "- For every character, infer concise personality, relative height, primaryLook, expressionNotes, habitualActions, and variantNotes when the source or visual authority supports it.",
     "- If a character has mask/gear on and off states, put the long-term or dominant story state in primaryLook and the alternate state in variantNotes.",
+    "- Do not extract character-worn gear as standalone props when it is part of a character's current form or historical character image. Put gas masks, helmets, wristbands, badges, lanyards, monocles, tactical vests, face coverings, and attached costume gear in character primaryLook/variantNotes/signatureProps.",
+    "- Do not extract scene fixtures as standalone props unless the object is removed, carried, used independently, or must stay visually identical across scenes. Put doors, walls, stages, counters, shelves, consoles, elevators, vents, pipes, signs, billboards, server racks, and embedded set pieces in location sceneAnchors/description.",
     "- Treat project globalPrompt, setupSettings, and Existing Character records as authority. Do not override known character identity, prompt, bio, or trait facts.",
     authority.characterIdentityRules
       ? "- Follow Character identity rules exactly. If the rules say all characters share a species/type/theme, apply that to every extracted character."
@@ -3213,7 +3765,7 @@ function buildAssetExtractionPrompt(
     "- Keep character visual descriptions short; do not invent detailed clothing or unconfirmed appearance.",
     "- If source prose describes an action that conflicts with a locked asset identity, keep the story intention but rewrite later visual use toward a valid equivalent gesture.",
     "- Keep visualPrompt concise and concrete.",
-    "- Use the detected source language for names and story text.",
+    "- Use the detected source language for story text, but keep existing canonical asset names exactly when an existing asset is referenced.",
     "",
     "Source text:",
     input.sourceText,
@@ -3226,6 +3778,7 @@ function buildStoryboardOnlyPrompt(
   assetsJson: unknown,
   authority: WorkflowAuthorityContext,
 ): string {
+  const sourceDialogueLock = sourceDialogueLockLines(input.sourceText);
   return [
     `Project title: ${project.name}`,
     `Project description: ${project.description ?? ""}`,
@@ -3237,13 +3790,20 @@ function buildStoryboardOnlyPrompt(
     projectAuthorityPromptBlock(authority),
     authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
     authority.existingCharacters.length ? summarizeAuthorityCharactersForStoryboard(authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(authority),
     `Episode: ${input.selectedEpisode}`,
     "",
     languageRules(input.sourceText),
     "",
+    sceneVisualBiblePromptRules(),
+    "",
     "Create a compact sequential storyboard beat list for this one episode.",
     "Use these extracted assets as continuity references:",
     summarizeAssetsForStoryboardPrompt(assetsJson),
+    "Use the supplied Scene Visual Bible from existing assets when present. If a setting is a sub-area, set sceneZone to that sub-area and keep canonicalSceneId pointed at the parent canonical scene.",
+    "",
+    sourceDialogueLock.length ? "Source dialogue lock. Each item is one complete spoken turn and must stay indivisible:" : "",
+    sourceDialogueLock.length ? sourceDialogueLock.map((line, index) => `D${index + 1}: ${line}`).join("\n") : "",
     "",
     "Return a JSON object with this exact shape:",
     `{
@@ -3256,6 +3816,10 @@ function buildStoryboardOnlyPrompt(
       "durationSeconds": 3,
       "characters": ["names"],
       "setting": "location",
+      "canonicalSceneId": "parent canonical scene id when known",
+      "sceneZone": "sub-area inside the canonical scene, or empty",
+      "sceneAnchors": ["fixed local landmarks or anchor objects"],
+      "sceneVisualLock": "compact canonical visual authority lock",
       "references": "assets or continuity notes",
       "visualPrompt": "concise image/video prompt"
     }
@@ -3267,18 +3831,28 @@ function buildStoryboardOnlyPrompt(
     "- Inside string values, do not use raw English double quote characters. For dialogue, write speaker labels like Chloe: text / Leo: text and omit surrounding quote marks.",
     "- Keep all string values on one line. Do not put raw newline characters inside JSON strings.",
     "- Split this one episode only. Do not include other episodes.",
-    "- Return 8-12 compact story beats, not a full director bible. The backend will expand dense dialogue into 2-4 second shots.",
-    "- Keep every string field short. Aim under 18 words for title, description, action, setting, references, and visualPrompt.",
+    "- Return compact story beats, not a full director bible. The backend can add silent reaction/cutaway beats for pacing.",
+    ...STORYBOARD_BREAKDOWN_QUALITY_RULES,
+    "- Keep non-dialogue string fields short. Aim under 18 words for title, description, action, setting, references, and visualPrompt. This length limit does NOT apply to dialogue.",
     "- Put only the dialogue that belongs to that beat. Preserve dialogue words when practical, but remove the source's surrounding quotation marks.",
-    "- Prefer 2-4 seconds per beat. Dense dialogue can be longer in text; backend will split it.",
+    "- Every dialogue value MUST begin with the speaker's name and a colon, like Flora: text. When the source attributes a line narratively (such as: Murder! ... Flora shrieked), convert it to the Flora: label. Never output unattributed dialogue.",
+    "- Carry EVERY quoted dialogue line from the source text, in order, word-for-word. Do not drop, merge, summarize, or paraphrase any dialogue line.",
+    "- A single speaker turn must be atomic: never split one sentence, clause, or Source dialogue lock item across multiple storyboard entries, shots, clips, or dialogue fields.",
+    "- If a long spoken turn needs reaction/cutaway coverage, keep the full exact dialogue in the starting beat and make later reaction/cutaway beats silent with empty dialogue.",
+    "- Prefer 1-2 seconds per beat. Use 3 seconds only for dense dialogue or complex physical action; do not output all beats as 3 seconds. Do not shorten or split dialogue to satisfy duration.",
+    "- A 13-15 second continuous scene should usually contain 7-10 beats with mixed 1s/2s/3s durations.",
     "- The characters array means all characters physically present in the shot, not only speakers or foreground action. If the source says a team/group/guests move together, keep the implied silent members present until the text clearly separates them.",
     "- For close-ups or reaction cuts, keep silent team members in characters and mention in references/visualPrompt when they are background, edge-of-frame, or offscreen continuity.",
     "- If a later beat relies on a carried personal prop, establish that prop as continuity when its owner is already present in the same sequence.",
     "- Honor Character personal prop continuity exactly: when a listed owner appears in a beat, include their linked prop in references/visualPrompt/action whenever the prop is relevant, carried, aimed, held, used, or needed for continuity.",
     "- Do not leave signature weapons or carried props generic. Write owner + prop together, such as Chloe's Shotgun, Leo's Magic Pan, Bob's Heavy Gun, or Eugene's Anime Pillow when those bindings exist.",
+    "- Use canonical existing character names in characters arrays and dialogue speaker labels, even when the source text is Chinese. Keep dialogue text itself in the source language.",
     "- Do not repeat character clothing or appearance details for characters with reference images. Use the character name and state that the supplied/linked character image is the visual reference.",
     "- Treat project globalPrompt, setupSettings, extracted assets, and Existing Character records as authority.",
     "- Treat uploaded/generated asset reference images and locked asset facts as stronger than source prose for visual continuity.",
+    "- Use any supplied Scene Visual Bible / canonical scene ids from existing assets when present; preserve canonicalSceneId instead of inventing a new one.",
+    "- If a storyboard setting is a sub-area of an existing scene, set sceneZone to the sub-area and keep canonicalSceneId pointed at the parent canonical scene.",
+    "- Put stable local landmarks in sceneAnchors and keep sceneVisualLock aligned to the parent Scene Visual Bible.",
     "- If source prose describes an impossible or conflicting detail under the locked asset identity, preserve the story beat but translate it into a valid visual action. Example: a hairless fruit character cannot have hair blowing; use leaf, stem, body tilt, facial expression, prop, or costume movement instead.",
     "- Use character primaryLook and variantNotes to decide mask/gear on or off; do not randomly remove or add gear.",
     authority.characterIdentityRules
@@ -3292,7 +3866,121 @@ function buildStoryboardOnlyPrompt(
     "",
     "Source text:",
     input.sourceText,
-  ].join("\n");
+	  ].filter(Boolean).join("\n");
+}
+
+function buildSegmentedStoryboardPrompt(
+  project: any,
+  input: z.infer<typeof runWorkflowSchema>,
+  assetsJson: unknown,
+  authority: WorkflowAuthorityContext,
+  segment: { partIndex: number; totalParts: number; previousTail: string; nextHead: string },
+): string {
+  const sourceDialogueLock = sourceDialogueLockLines(input.sourceText);
+  return [
+    `Project title: ${project.name}`,
+    `Project description: ${project.description ?? ""}`,
+    `Aspect ratio: ${project.aspectRatio}`,
+    `Project global prompt: ${authority.globalPrompt}`,
+    authority.characterIdentityRules ? `Character identity rules: ${authority.characterIdentityRules}` : "",
+    projectAuthorityPromptBlock(authority),
+    authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
+    authority.existingCharacters.length ? summarizeAuthorityCharactersForStoryboard(authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(authority),
+    `Episode: ${input.selectedEpisode}`,
+    `Segment: ${segment.partIndex + 1}/${segment.totalParts}`,
+    "",
+    languageRules(input.sourceText),
+    "",
+    sceneVisualBiblePromptRules(),
+    "",
+    "Use these extracted assets as continuity references:",
+    summarizeAssetsForStoryboardPrompt(assetsJson),
+    "",
+    segment.previousTail ? `Previous segment tail for continuity only, do not re-break down it:\n${segment.previousTail}` : "",
+    segment.nextHead ? `Next segment head for continuity only, do not break down it:\n${segment.nextHead}` : "",
+    "",
+    sourceDialogueLock.length ? "Source dialogue lock inside this segment. Each item is one complete spoken turn and must stay indivisible:" : "",
+    sourceDialogueLock.length ? sourceDialogueLock.map((line, index) => `D${index + 1}: ${line}`).join("\n") : "",
+    "",
+    "Create storyboard beats ONLY for the current segment source text. Do not include previous or next segment context as beats.",
+    "Return a JSON object with this exact shape:",
+    `{
+  "storyboard": [
+    {
+      "title": "shot or beat title",
+      "description": "what happens on screen",
+      "action": "main physical action",
+      "dialogue": "dialogue if any",
+      "durationSeconds": 2,
+      "characters": ["names"],
+      "setting": "location",
+      "canonicalSceneId": "parent canonical scene id when known",
+      "sceneZone": "sub-area inside the canonical scene, or empty",
+      "sceneAnchors": ["fixed local landmarks or anchor objects"],
+      "sceneVisualLock": "compact canonical visual authority lock",
+      "references": "assets or continuity notes",
+      "visualPrompt": "concise image/video prompt"
+    }
+  ]
+}`,
+    "",
+    "Rules:",
+    "- Strict JSON only. Do not use markdown fences, comments, trailing commas, or prose outside the JSON object.",
+    "- Inside string values, do not use raw English double quote characters. For dialogue, write speaker labels like Chloe: text / Leo: text and omit surrounding quote marks.",
+    "- Keep all string values on one line. Do not put raw newline characters inside JSON strings.",
+    "- Keep output compact. Use about 10-24 storyboard beats for this segment depending on story density.",
+    "- Preserve story order and all quoted dialogue in this segment. Do not summarize dialogue.",
+    "- A single speaker turn must be atomic: never split one sentence, clause, or Source dialogue lock item across multiple storyboard entries, shots, clips, or dialogue fields.",
+    "- Prefer 1-2 seconds per beat. Use 3 seconds only for dense dialogue or complex physical action.",
+    "- Keep one continuous setting/event together where practical, but split when the source changes event or location.",
+    "- The characters array means characters physically present in the shot, not the entire episode cast.",
+    "- Use existing asset names exactly. Do not invent renamed duplicates for characters, scenes, or props.",
+    "- Use canonical existing character names in characters arrays and dialogue speaker labels, even when the source text is Chinese. Keep dialogue text itself in the source language.",
+    "- Keep visualPrompt concise: setting + characters + action + camera cue.",
+    "",
+    "Current segment source text:",
+    input.sourceText,
+  ].filter(Boolean).join("\n");
+}
+
+function splitSourceTextForStoryboard(sourceText: string): Array<{ text: string; head: string; tail: string }> {
+  const maxChunkChars = 2600;
+  const minChunkChars = 1200;
+  const paragraphs = sourceText
+    .split(/\n\s*\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (paragraphs.length <= 1) {
+    const chunks: string[] = [];
+    for (let start = 0; start < sourceText.length; start += maxChunkChars) {
+      chunks.push(sourceText.slice(start, start + maxChunkChars).trim());
+    }
+    return chunks.filter(Boolean).map((text) => ({
+      text,
+      head: text.slice(0, 500),
+      tail: text.slice(-500),
+    }));
+  }
+
+  const chunks: string[] = [];
+  let current = "";
+  for (const paragraph of paragraphs) {
+    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (candidate.length > maxChunkChars && current.length >= minChunkChars) {
+      chunks.push(current);
+      current = paragraph;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  return chunks.map((text) => ({
+    text,
+    head: text.slice(0, 500),
+    tail: text.slice(-500),
+  }));
 }
 
 function buildClipOptimizationPrompt(
@@ -3341,6 +4029,7 @@ function buildClipOptimizationPrompt(
     projectAuthorityPromptBlock(authority),
     authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
     authority.existingCharacters.length ? summarizeAuthorityCharactersForStoryboard(authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(authority),
     "",
     languageRules(workflow.sourceText),
     "",
@@ -3355,11 +4044,13 @@ function buildClipOptimizationPrompt(
     "- Strict JSON only. Do not use markdown fences, comments, trailing commas, or prose outside the JSON object.",
     "- Preserve the same plot coverage, same characters, same setting, and same story beat as the current Clip.",
     "- Fix the listed preflight risks by adjusting shot count, shot duration, and dialogue distribution.",
-    "- Prefer fuller 13-15 second Clips when the shots belong to the same setting, same conversation, or same continuous action beat.",
+    "- Prefer fuller Clips only when the shots belong to the same setting, same conversation, or same continuous action beat; do not force short story beats up to 13 seconds.",
     "- Preserve key story beats first: do not pad with empty action just to reach 15 seconds, and split when a hard story turn or setting change would become unclear.",
     "- Total Clip duration must never exceed 15 seconds.",
-    "- Prefer 2-4 seconds per shot. Use reaction shots, cutaways, hands, props, or reverse shots while the same speaker continues off-screen when useful.",
+    "- Prefer 1-2 seconds per shot. Use reaction shots, cutaways, hands, props, or reverse shots while the same speaker continues off-screen when useful.",
+    "- Do not make every shot 3 seconds. Longer/full Clips should usually contain 7-10 shots with mixed 1s/2s/3s durations.",
     "- Preserve dialogue wording and source language whenever practical. Do not translate dialogue.",
+    "- Use canonical existing character names in characters arrays and dialogue speaker labels, even when the source text is Chinese. Keep dialogue text itself in the source language.",
     "- Do not split dialogue in the middle of a natural clause when a cleaner sentence or punctuation break is available.",
     "- Do not write internal instructions such as Fast reaction/cutaway continuation, Dialogue beat, Continue the exchange, keep same geography, or similar process notes into output fields.",
     "- Keep visualPrompt concise: setting + character names + action + camera cue.",
@@ -3445,7 +4136,7 @@ function buildClipStoryboardPlanPrompt(
   const panelInstruction =
     input.panelMode === "manual" && input.panelCount
       ? `Use exactly ${input.panelCount} panels.`
-      : "First infer the best panel count for this Clip from the story, dialogue density, action complexity, and readability. Use 5-12 panels. Prefer building each storyboard around a full 15-second Clip when the dialogue can be spoken within 15 seconds at fast American animation pacing. Prefer 8-10 panels for 10-12 second Clips and 10-12 panels for 13-15 second Clips. Do not fill panels mechanically; key story beats, exact dialogue, and readable continuity are more important than maximizing panel count.";
+      : "First infer the best panel count for this Clip from the story, dialogue density, action complexity, and readability. Use 5-12 panels. Keep Clip duration within 4-15 seconds and follow the actual story beat length. Prefer 8-10 panels for 10-12 second Clips and 10-12 panels only for longer 13-15 second Clips. Do not fill panels mechanically; key story beats, exact dialogue, and readable continuity are more important than maximizing panel count.";
   const dialogueLock = clipStoryboardDialogueLockLines(shots);
 
   return [
@@ -3459,6 +4150,7 @@ function buildClipStoryboardPlanPrompt(
     projectAuthorityPromptBlock(authority),
     authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
     authority.existingCharacters.length ? summarizeAuthorityCharactersForStoryboard(authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(authority),
     "",
     languageRules(workflow.sourceText),
     "",
@@ -3481,9 +4173,9 @@ function buildClipStoryboardPlanPrompt(
     "",
     "Rules for storyboardPrompt:",
     "- Write the final image-generation prompt directly. Do not describe your reasoning outside JSON.",
-    "- Ask for one 16:9 multi-panel comic storyboard image.",
+    `- Ask for one ${project.aspectRatio || "16:9"} multi-panel comic storyboard image.`,
     "- Visual style must be polished 3D American animated dark-comedy comic storyboard: saturated colors, clean 3D render, exaggerated acting, cinematic rim light, fast comic-panel pacing.",
-    `- ${clipStoryboardBoardLayoutStrategy()}`,
+    `- ${clipStoryboardBoardLayoutStrategy(undefined, project.aspectRatio || "16:9")}`,
     `- ${clipStoryboardFramingStrategy()}`,
     "- Visible text in the image should be limited to small panel number labels like P1/P2/P3 and intentional speech-bubble dialogue.",
     "- Write numbered panel beats in order inside storyboardPrompt, using clear labels like Panel 1:, Panel 2:, Panel 3:. These ordered labels are used later to generate the video prompt.",
@@ -3492,7 +4184,7 @@ function buildClipStoryboardPlanPrompt(
     "- If Current Clip includes continuityCharacters, storyboardPrompt must include every continuity character exactly by name in a Required continuity characters line.",
     "- Include the inferred panel count and require clear panel continuity.",
     "- Preserve dialogue language. Do not translate, paraphrase, expand, shorten, or invent dialogue.",
-    "- storyboardPrompt must include a Dialogue lock section that copies the exact dialogue lines below.",
+    "- storyboardPrompt must include a Dialogue lock section that copies the spoken lines below.",
     "- If a panel has dialogue, its speech bubble must use the exact line from the Dialogue lock. Do not replace dialogue with summaries, IDs, abbreviations, or paraphrases.",
     "- Include action and dialogue beats from all shots in the Clip.",
     "- For characters with reference images, do not describe their clothing or appearance. Use character names and say the linked character images are the visual references.",
@@ -3502,10 +4194,11 @@ function buildClipStoryboardPlanPrompt(
     "- Do not show the same named character twice in a single panel. One panel equals one moment, not repeated animation poses.",
     "- Character reference images are complete visual authority. If a selected character image already includes a carried prop, keep it with that character, but do not ask for separate prop reference images.",
     "- Do not add independent prop assets to the storyboardPrompt unless the story action explicitly requires a non-character object.",
+    "- If a connected character reference already shows a worn item or carried form, use that character form as visual authority instead of asking for a separate wearable prop reference.",
     "- Do not invent clothing, hair, fruit identity, props, or scene details that conflict with project assets.",
     "- Keep non-dialogue visible text minimal: panel numbers and speech bubbles are enough. Avoid UI chrome, watermarks, random non-dialogue text, and long paragraphs.",
     "",
-    "Exact dialogue lock:",
+    "Dialogue lock:",
     dialogueLock.length ? dialogueLock.join("\n") : "No dialogue.",
     "",
     "Current Clip:",
@@ -3522,6 +4215,7 @@ function buildClipStoryboardPlanPrompt(
 }
 
 function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSchema>, authority: WorkflowAuthorityContext): string {
+  const sourceDialogueLock = sourceDialogueLockLines(input.sourceText);
   return [
     `Project title: ${project.name}`,
     `Project description: ${project.description ?? ""}`,
@@ -3533,10 +4227,16 @@ function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSch
     projectAuthorityPromptBlock(authority),
     authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
     authority.existingCharacters.length ? summarizeAuthorityCharacters(authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(authority),
     `Episode: ${input.selectedEpisode}`,
     `Source name: ${input.sourceName ?? "manual input"}`,
     "",
     languageRules(input.sourceText),
+    "",
+    sceneVisualBiblePromptRules(),
+    "",
+    sourceDialogueLock.length ? "Source dialogue lock. Each item is one complete spoken turn and must stay indivisible:" : "",
+    sourceDialogueLock.length ? sourceDialogueLock.map((line, index) => `D${index + 1}: ${line}`).join("\n") : "",
     "",
     "Return a JSON object with this exact shape:",
     `{
@@ -3545,7 +4245,7 @@ function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSch
     {"name": "character name", "role": "PROTAGONIST|SUPPORTING|BACKGROUND", "description": "story role", "visualPrompt": "short visual identity", "fruitIdentity": "specific fruit species or empty", "personality": "short personality", "height": "relative/estimated height", "primaryLook": "dominant story look", "expressionNotes": "useful expressions", "habitualActions": "signature gestures/actions", "variantNotes": "mask/no-mask, gear on/off, or other state variants", "signatureProps": "signature outfit/props", "colorPalette": "compact palette", "lockedVisualIdentity": "short immutable visual identity", "referencePolicy": "how later prompts may reference this character"}
   ],
   "locations": [
-    {"name": "location or scene asset", "description": "visual setting", "timeOfDay": "day/night/interior/etc"}
+    {"name": "canonical scene or scene asset", "description": "visual setting", "timeOfDay": "day/night/interior/etc", "canonicalSceneId": "stable canonical scene id if inferred", "sceneZone": "sub-area or empty", "sceneAnchors": ["fixed landmarks"], "sceneVisualLock": "compact canonical visual authority lock"}
   ],
   "props": [
     {"name": "prop name", "description": "story function"}
@@ -3559,6 +4259,10 @@ function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSch
       "durationSeconds": 2,
       "characters": ["names"],
       "setting": "location",
+      "canonicalSceneId": "parent canonical scene id when known",
+      "sceneZone": "sub-area inside the canonical scene, or empty",
+      "sceneAnchors": ["fixed local landmarks or anchor objects"],
+      "sceneVisualLock": "compact canonical visual authority lock",
       "references": "assets or continuity notes",
       "visualPrompt": "concise image/video prompt"
     }
@@ -3570,9 +4274,15 @@ function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSch
     "- Inside string values, do not use raw English double quote characters. For dialogue, write speaker labels like Chloe: text / Leo: text and omit surrounding quote marks.",
     "- Keep all string values on one line. Do not put raw newline characters inside JSON strings.",
     "- Split this one episode only. Do not include other episodes.",
-    "- Prefer 2-4 seconds per shot for fast short-drama pacing unless a beat truly needs longer.",
+    ...STORYBOARD_BREAKDOWN_QUALITY_RULES,
+    "- Prefer 1-2 seconds per shot for fast short-drama pacing; use 3 seconds only for dense dialogue or complex physical action.",
+    "- Do not make every shot 3 seconds. A 13-15 second continuous scene should usually contain 7-10 shots with mixed 1s/2s/3s durations.",
+    "- Every dialogue value MUST begin with the speaker's name and a colon, like Flora: text. When the source attributes a line narratively (such as: Murder! ... Flora shrieked), convert it to the Flora: label. Never output unattributed dialogue.",
+    "- Use canonical existing character names in characters arrays and dialogue speaker labels, even when the source text is Chinese. Keep dialogue text itself in the source language.",
+    "- Carry EVERY quoted dialogue line from the source text, in order, word-for-word. Do not drop, merge, summarize, or paraphrase any dialogue line.",
+    "- A single speaker turn must be atomic: never split one sentence, clause, or Source dialogue lock item across multiple storyboard entries, shots, clips, or dialogue fields.",
     "- Keep dialogue density realistic for fast American animated comedy: target 2.8-3.4 English words per second, never above 3.6 words per second.",
-    "- If a dialogue exchange is longer than about 12 English words, split it across multiple reaction/cutaway/action shots instead of making one dense shot.",
+    "- If a spoken turn is longer than about 9 English words, keep the full exact dialogue in one dialogue field and add silent reaction/cutaway/action shots around it with empty dialogue. Do not split the words of that spoken turn.",
     "- The characters array means all characters physically present in the shot, not only speakers or foreground action. If the source says a team/group/guests move together, keep the implied silent members present until the text clearly separates them.",
     "- For close-ups or reaction cuts, keep silent team members in characters and mention in references/visualPrompt when they are background, edge-of-frame, or offscreen continuity.",
     "- If a later beat relies on a carried personal prop, establish that prop as continuity when its owner is already present in the same sequence.",
@@ -3580,6 +4290,8 @@ function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSch
     "- Character facts must include fruitIdentity, lockedVisualIdentity, and referencePolicy when applicable.",
     "- Character facts should also include personality, height, primaryLook, expressionNotes, habitualActions, variantNotes, signatureProps, and colorPalette when supported by the source or visual authority.",
     "- If a character has mask/gear on and off states, put the long-term or dominant story state in primaryLook and the alternate state in variantNotes.",
+    "- Do not extract character-worn gear as standalone props when it is part of a character's current form or historical character image. Put gas masks, helmets, wristbands, badges, lanyards, monocles, tactical vests, face coverings, and attached costume gear in character primaryLook/variantNotes/signatureProps.",
+    "- Do not extract scene fixtures as standalone props unless the object is removed, carried, used independently, or must stay visually identical across scenes. Put doors, walls, stages, counters, shelves, consoles, elevators, vents, pipes, signs, billboards, server racks, and embedded set pieces in location sceneAnchors/description.",
     authority.characterIdentityRules
       ? "- Follow Character identity rules exactly. If the rules define all characters as a specific species/type/theme, extract and lock that identity for every character."
       : "",
@@ -3595,7 +4307,7 @@ function buildBreakdownPrompt(project: any, input: z.infer<typeof runWorkflowSch
     "",
     "Source text:",
     input.sourceText,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function mergeBreakdownJson(assetsJson: unknown, storyboardJson: unknown): Record<string, unknown> {
@@ -3607,6 +4319,17 @@ function mergeBreakdownJson(assetsJson: unknown, storyboardJson: unknown): Recor
     locations: assets.locations ?? assets.scenes ?? [],
     props: assets.props ?? [],
     storyboard: storyboard.storyboard ?? storyboard.shots ?? storyboard.beats ?? [],
+  };
+}
+
+function workflowAssetsWithSceneVisualBiblesForStoryboard(workflow: unknown): unknown {
+  if (!isRecord(workflow)) return workflow;
+  const assets: Record<string, unknown> = isRecord(workflow.assets) ? workflow.assets : defaultAssets();
+  const workflowSceneVisualBibles = arrayFrom(workflow.sceneVisualBibles);
+  if (workflowSceneVisualBibles.length === 0 || arrayFrom(assets.sceneVisualBibles).length > 0) return assets;
+  return {
+    ...assets,
+    sceneVisualBibles: workflowSceneVisualBibles,
   };
 }
 
@@ -3645,6 +4368,32 @@ function summarizeAssetsForPrompt(value: unknown): string {
           description: stringFrom(record.description, ""),
         };
       }),
+    sceneVisualBibles: arrayFrom(value.sceneVisualBibles)
+      .slice(0, 30)
+      .map((item) => {
+        const record = isRecord(item) ? item : {};
+        const visualIdentity = isRecord(record.visualIdentity) ? record.visualIdentity : {};
+        return {
+          canonicalSceneId: stringFrom(record.canonicalSceneId, ""),
+          canonicalName: stringFrom(record.canonicalName, ""),
+          timeOfDay: stringFrom(visualIdentity.timeOfDay, ""),
+          lighting: stringFrom(visualIdentity.lighting, ""),
+          colorPalette: stringFrom(visualIdentity.colorPalette, ""),
+          buildingType: stringFrom(visualIdentity.buildingType, ""),
+          materialLanguage: stringFrom(visualIdentity.materialLanguage, ""),
+          fixedLandmarks: arrayFrom(visualIdentity.fixedLandmarks).map((name) => String(name)).slice(0, 8),
+          childZones: arrayFrom(record.childZones).map((zone) => {
+            const zoneRecord = isRecord(zone) ? zone : {};
+            return {
+              id: stringFrom(zoneRecord.id, ""),
+              name: stringFrom(zoneRecord.name, ""),
+              role: stringFrom(zoneRecord.role, ""),
+            };
+          }).slice(0, 12),
+          aliases: arrayFrom(record.aliases).map((name) => String(name)).slice(0, 12),
+          continuityLock: stringFrom(record.continuityLock, ""),
+        };
+      }),
     props: arrayFrom(value.props)
       .slice(0, 50)
       .map((item) => {
@@ -3672,6 +4421,32 @@ function summarizeAssetsForStoryboardPrompt(value: unknown): string {
           name: stringFrom(record.name ?? record.title, ""),
           timeOfDay: stringFrom(record.timeOfDay, ""),
           description: stringFrom(record.description, ""),
+        };
+      }),
+    sceneVisualBibles: arrayFrom(value.sceneVisualBibles)
+      .slice(0, 30)
+      .map((item) => {
+        const record = isRecord(item) ? item : {};
+        const visualIdentity = isRecord(record.visualIdentity) ? record.visualIdentity : {};
+        return {
+          canonicalSceneId: stringFrom(record.canonicalSceneId, ""),
+          canonicalName: stringFrom(record.canonicalName, ""),
+          timeOfDay: stringFrom(visualIdentity.timeOfDay, ""),
+          lighting: stringFrom(visualIdentity.lighting, ""),
+          colorPalette: stringFrom(visualIdentity.colorPalette, ""),
+          buildingType: stringFrom(visualIdentity.buildingType, ""),
+          materialLanguage: stringFrom(visualIdentity.materialLanguage, ""),
+          fixedLandmarks: arrayFrom(visualIdentity.fixedLandmarks).map((name) => String(name)).slice(0, 8),
+          childZones: arrayFrom(record.childZones).map((zone) => {
+            const zoneRecord = isRecord(zone) ? zone : {};
+            return {
+              id: stringFrom(zoneRecord.id, ""),
+              name: stringFrom(zoneRecord.name, ""),
+              role: stringFrom(zoneRecord.role, ""),
+            };
+          }).slice(0, 12),
+          aliases: arrayFrom(record.aliases).map((name) => String(name)).slice(0, 12),
+          continuityLock: stringFrom(record.continuityLock, ""),
         };
       }),
     props: arrayFrom(value.props)
@@ -3732,11 +4507,18 @@ function clipStoryboardContinuityContext(
     clip.storyboardNotes,
     ...shots.flatMap((shot) => [shot.title, shot.description, shot.action, shot.dialogue, shot.references, shot.visualPrompt, shot.directorBoardPrompt]),
   ].join("\n"));
-  const likelyTeamScene = /\bteam\b|teammate|group|guests|主角团|小队/.test(teamHints) || explicitCharacters.length >= 2;
+  const likelyTeamScene = TEAM_SCENE_PATTERN.test(teamHints) || explicitCharacters.length >= 2;
   const continuityTeam = likelyTeamScene
     ? characterAssets.filter(assetLooksLikeContinuityTeamMember).map(workflowAssetNameFromRecord)
     : [];
-  const continuityCharacters = uniqueStrings([...explicitCharacters, ...sameSettingCharacters, ...continuityTeam])
+  const allCandidates = uniqueStrings([...explicitCharacters, ...sameSettingCharacters, ...continuityTeam]);
+  const droppedForMissingAsset = assetNames.size > 0
+    ? allCandidates.filter((name) => !assetNames.has(normalizeCompareText(name)))
+    : [];
+  if (droppedForMissingAsset.length > 0) {
+    console.warn(`[storyboard-continuity] Clip "${clip.id}": dropped characters without assets: ${droppedForMissingAsset.join(", ")}`);
+  }
+  const continuityCharacters = allCandidates
     .filter((name) => assetNames.size === 0 || assetNames.has(normalizeCompareText(name)))
     .slice(0, 12);
   const missing = continuityCharacters.filter((name) => !explicitCharacters.some((explicit) => normalizeCompareText(explicit) === normalizeCompareText(name)));
@@ -3791,9 +4573,20 @@ function boundPropNamesFromRecord(record: Record<string, unknown>): string[] {
   return mergeBoundPropNames(arrayFrom(record.boundPropNames).map((item) => stringFrom(item, ""))).slice(0, 8);
 }
 
-function personalPropContinuityText(value: unknown, characterFilter: string[] = []): string {
+function personalPropContinuityText(
+  value: unknown,
+  characterFilter: string[] = [],
+  textLanguage: WorkflowClipContext["textLanguage"] = "Mixed",
+): string {
   const bindings = inferCharacterPropBindings(value, characterFilter);
   if (bindings.length === 0) return "";
+  if (textLanguage === "Chinese") {
+    return [
+      "角色个人道具连续性：",
+      ...bindings.map((binding) => `- ${binding.character}: ${binding.props.join(", ")}`),
+      "规则：这些道具属于列出的角色。除非原文明确移除或转移，否则在参考、视觉提示、故事板标签、站位图和动作节拍中保持“角色+道具”绑定。",
+    ].join("\n");
+  }
   return [
     "Character personal prop continuity:",
     ...bindings.map((binding) => `- ${binding.character}: ${binding.props.join(", ")}`),
@@ -3852,10 +4645,14 @@ function propAliasCandidates(name: string, description = ""): string[] {
   const base = normalizeCompareText(name);
   const aliases = new Set<string>([base]);
   if (base.includes("shotgun")) aliases.add("shotgun");
-  if (base.includes("magic pan") || base.includes("iron pan")) {
+  const ironPanSignature = propCanonicalSignature(base);
+  if (base.includes("magic pan") || base.includes("iron pan") || base.includes("frying pan") || base.includes("skillet") || ironPanSignature === "prop:iron-pan") {
     aliases.add("magic pan");
     aliases.add("iron magic pan");
     aliases.add("iron pan");
+    aliases.add("cast iron pan");
+    aliases.add("cast iron frying pan");
+    aliases.add("frying pan");
     aliases.add("skillet");
   }
   if (base.includes("heavy gun")) aliases.add("heavy gun");
@@ -4007,9 +4804,10 @@ function languageRules(sourceText: string): string {
     return [
       "Detected source language: Chinese.",
       "Language lock:",
-      "- Every human-readable story field you output must be Chinese.",
+      "- Human-readable story prose may be Chinese for review.",
       "- Do not translate dialogue into English unless the source itself uses English.",
       "- Copy dialogue words from the source whenever possible, but omit surrounding quotation marks inside JSON strings.",
+      "- Asset names are the exception: if an existing character/prop/scene asset is referenced, keep its canonical asset name exactly instead of translating or transliterating it.",
     ].join("\n");
   }
   return [
@@ -4021,12 +4819,103 @@ function languageRules(sourceText: string): string {
   ].join("\n");
 }
 
+function buildCharacterCanonicalizer(authority?: WorkflowAuthorityContext): CharacterCanonicalizer {
+  const aliasToName = new Map<string, string>();
+  const addAlias = (alias: string, canonical: string) => {
+    const key = normalizeCompareText(alias);
+    if (!key || !canonical || aliasToName.has(key)) return;
+    aliasToName.set(key, canonical);
+  };
+  const hasCanonical = (name: string) =>
+    (authority?.existingCharacters ?? []).some((character) => normalizeCompareText(character.name) === normalizeCompareText(name));
+
+  for (const character of authority?.existingCharacters ?? []) {
+    const canonical = character.name;
+    addAlias(canonical, canonical);
+    for (const alias of characterAliasCandidates(character)) addAlias(alias, canonical);
+  }
+
+  for (const [canonical, aliases] of Object.entries(COMMON_CHINESE_CHARACTER_NAME_ALIASES)) {
+    if (!hasCanonical(canonical)) continue;
+    for (const alias of aliases) addAlias(alias, canonical);
+  }
+
+  const canonicalizeName = (name: string): string => {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return "";
+    return aliasToName.get(normalizeCompareText(trimmed)) ?? trimmed;
+  };
+  const canonicalizeList = (names: string[]): string[] => uniqueStrings(names.map(canonicalizeName).filter(Boolean));
+  const canonicalizeText = (text: string): string => {
+    let next = String(text || "");
+    for (const [aliasKey, canonical] of Array.from(aliasToName.entries()).sort((a, b) => b[0].length - a[0].length)) {
+      if (!/[\u3400-\u9fff]/.test(aliasKey)) continue;
+      next = next.replace(new RegExp(escapeRegExp(aliasKey), "g"), canonical);
+    }
+    return next;
+  };
+  return { canonicalizeName, canonicalizeList, canonicalizeText };
+}
+
+const COMMON_CHINESE_CHARACTER_NAME_ALIASES: Record<string, string[]> = {
+  Chloe: ["克洛伊", "克洛依", "克萝伊", "蔻依", "克洛艾"],
+  Flora: ["弗洛拉", "芙洛拉", "佛洛拉", "弗罗拉", "芙萝拉"],
+  Bob: ["鲍勃", "鲍伯"],
+  Leo: ["里奥", "利奥", "莱奥"],
+  Tiffany: ["蒂芙尼", "蒂凡尼"],
+  Eugene: ["尤金"],
+  Cultist: ["邪教徒", "教徒", "蔬菜教徒", "果蔬教徒"],
+  Cultists: ["邪教徒", "教徒", "蔬菜教徒", "果蔬教徒"],
+  Zombie: ["丧尸", "僵尸", "感染体"],
+  Zombies: ["丧尸", "僵尸", "感染体"],
+};
+
+function characterAliasCandidates(character: WorkflowAuthorityCharacter): string[] {
+  const traits = isRecord(character.traits) ? character.traits : {};
+  const directAliases = [
+    ...arrayFrom(traits.aliases),
+    ...arrayFrom(traits.alias),
+    ...arrayFrom(traits.chineseAliases),
+    ...arrayFrom(traits.localizedNames),
+    ...arrayFrom(traits.nameAliases),
+  ].map((item) => stringFrom(item, ""));
+  const textAliases = [
+    stringFrom(traits.chineseName, ""),
+    stringFrom(traits.localizedName, ""),
+    stringFrom(traits.originalName, ""),
+    stringFrom(traits.displayName, ""),
+  ];
+  return uniqueStrings([...directAliases, ...textAliases]).filter(Boolean);
+}
+
+function canonicalizeSpeakerLabelText(text: string, canonicalizer: CharacterCanonicalizer): string {
+  const speakerMatch = String(text || "").match(/^([^:：]{1,40})\s*[:：]\s*([\s\S]+)$/);
+  if (!speakerMatch) return canonicalizer.canonicalizeText(text);
+  const speaker = canonicalizer.canonicalizeName((speakerMatch[1] ?? "").trim());
+  const line = speakerMatch[2] ?? "";
+  return `${speaker}: ${line}`.trim();
+}
+
 function detectSourceLanguage(sourceText: string): "English" | "Chinese" | "Mixed" {
   const cjkCount = (sourceText.match(/[\u3400-\u9fff]/g) ?? []).length;
   const latinCount = (sourceText.match(/[A-Za-z]/g) ?? []).length;
   if (latinCount > Math.max(80, cjkCount * 4)) return "English";
   if (cjkCount > Math.max(40, latinCount)) return "Chinese";
   return "Mixed";
+}
+
+function sceneVisualBiblePromptRules(): string {
+  return [
+    "Scene Visual Bible / canonical scene identity rules:",
+    "- Before extracting final scene assets or storyboard beats, infer canonical scenes by visual identity, not by every local object, wall, camera angle, aisle, door, altar, or corner.",
+    "- A canonical scene means the same time of day, color palette, building type, material language, lighting family, and fixed landmarks.",
+    "- Local altar, wall, aisle, door, corner, shelf, counter, freezer case, hallway segment, or other sub-area details should become sceneZone or sceneAnchors inside the parent canonical scene unless the source explicitly moves to a visually different location.",
+    "- Do not split a local altar, wall, aisle, door, or corner into a new visual world when it is still inside the same location.",
+    "- Preserve canonical identity when characters move within the same location; only change canonicalSceneId when the source clearly changes time, palette, building type, material language, lighting family, or fixed landmark set.",
+    "- When the JSON shape allows it, output and preserve canonicalSceneId, sceneZone, sceneAnchors, and sceneVisualLock.",
+    "- sceneVisualLock should compactly describe the fixed visual authority: canonical scene name, time of day, palette, building type, material language, lighting family, fixed landmarks, and what must not change.",
+    "- Do not force perfection. The backend normalizer remains final authority, but your best-effort canonicalSceneId/sceneZone/sceneAnchors/sceneVisualLock helps preserve continuity.",
+  ].join("\n");
 }
 
 function hasSourceLanguageMismatch(sourceText: string, value: unknown): boolean {
@@ -4147,7 +5036,7 @@ function assetJsonShape(): string {
 }
 
 function storyboardJsonShape(): string {
-  return `{"storyboard":[{"title":"beat title","description":"screen action","action":"main physical action","dialogue":"Speaker: dialogue text","durationSeconds":3,"characters":["names"],"setting":"location","references":"continuity notes","visualPrompt":"concise image/video prompt"}]}`;
+  return `{"storyboard":[{"title":"beat title","description":"screen action","action":"main physical action","dialogue":"Speaker: dialogue text","durationSeconds":3,"characters":["names"],"setting":"location","canonicalSceneId":"scene-1-sanctuary-superstore-center","sceneZone":"Pallet Altar","sceneAnchors":["Pallet Altar","green fabric strips"],"sceneVisualLock":"Scene visual authority: Sanctuary Superstore Center...","references":"continuity notes","visualPrompt":"concise image/video prompt"}]}`;
 }
 
 function clipStoryboardPlanJsonShape(): string {
@@ -4155,7 +5044,7 @@ function clipStoryboardPlanJsonShape(): string {
 }
 
 function workflowJsonShape(): string {
-  return `{"summary":"short summary","characters":[],"locations":[],"props":[],"storyboard":[]}`;
+  return `{"summary":"short summary","characters":[],"locations":[{"name":"location","description":"visual setting","timeOfDay":"day/night/interior/etc","canonicalSceneId":"scene-1-sanctuary-superstore-center","sceneZone":"Pallet Altar","sceneAnchors":["Pallet Altar","green fabric strips"],"sceneVisualLock":"Scene visual authority: Sanctuary Superstore Center..."}],"props":[],"storyboard":[{"title":"beat title","description":"screen action","action":"main physical action","dialogue":"Speaker: dialogue text","durationSeconds":3,"characters":["names"],"setting":"location","canonicalSceneId":"scene-1-sanctuary-superstore-center","sceneZone":"Pallet Altar","sceneAnchors":["Pallet Altar","green fabric strips"],"sceneVisualLock":"Scene visual authority: Sanctuary Superstore Center...","references":"continuity notes","visualPrompt":"concise image/video prompt"}]}`;
 }
 
 function normalizeClipStoryboardPlan(
@@ -4163,6 +5052,9 @@ function normalizeClipStoryboardPlan(
   clip: NormalizedWorkflowClip,
   shots: NormalizedStoryboardShot[],
   input: z.infer<typeof clipStoryboardPlanSchema>,
+  aspectRatio = "16:9",
+  workflow?: ReturnType<typeof getWorkflowState>,
+  authority?: WorkflowAuthorityContext,
 ): { panelCount: number; prompt: string; notes: string } {
   const record = isRecord(value) ? value : {};
   const manualPanelCount = input.panelMode === "manual" ? input.panelCount : undefined;
@@ -4178,15 +5070,15 @@ function normalizeClipStoryboardPlan(
   const prompt = cleanWorkflowPromptText(
     stringFrom(
       record.storyboardPrompt ?? record.prompt ?? record.imagePrompt,
-      buildFallbackClipStoryboardPrompt(clip, shots, panelCount),
+      buildFallbackClipStoryboardPrompt(clip, shots, panelCount, aspectRatio, workflow, authority),
     ),
   );
   const usablePrompt = extractStoryboardPanelVideoBeats(prompt).length > 0
     ? prompt
-    : buildFallbackClipStoryboardPrompt(clip, shots, panelCount);
+    : buildFallbackClipStoryboardPrompt(clip, shots, panelCount, aspectRatio, workflow, authority);
   return {
     panelCount,
-    prompt: finalizeClipStoryboardImagePrompt(usablePrompt || buildFallbackClipStoryboardPrompt(clip, shots, panelCount), panelCount),
+    prompt: finalizeClipStoryboardImagePrompt(usablePrompt || buildFallbackClipStoryboardPrompt(clip, shots, panelCount, aspectRatio, workflow, authority), panelCount, aspectRatio),
     notes: cleanWorkflowPublicText(stringFrom(record.notes ?? record.reason ?? record.reasoning, "")),
   };
 }
@@ -4212,8 +5104,21 @@ function enforceClipStoryboardContinuityPrompt(
 }
 
 function clipStoryboardDialogueLockLines(shots: NormalizedStoryboardShot[]): string[] {
-  return uniqueStrings(shots.map((shot) => cleanWorkflowPublicText(shot.dialogue)).filter(Boolean))
-    .map((dialogue, index) => `D${index + 1}: ${dialogue}`);
+  const seen = new Map<string, number>();
+  const lines: string[] = [];
+  for (const shot of shots) {
+    const dialogue = typeof shot.dialogue === "string" ? cleanWorkflowPublicText(shot.dialogue) : "";
+    if (!dialogue) continue;
+    const key = normalizeCompareText(dialogue);
+    const firstIndex = seen.get(key);
+    if (firstIndex !== undefined) {
+      lines.push(`D${lines.length + 1}: ${dialogue} (same as D${firstIndex})`);
+    } else {
+      seen.set(key, lines.length + 1);
+      lines.push(`D${lines.length + 1}: ${dialogue}`);
+    }
+  }
+  return lines;
 }
 
 function enforceClipStoryboardDialoguePrompt(prompt: string, shots: NormalizedStoryboardShot[]): string {
@@ -4275,11 +5180,18 @@ function storyboardPanelFramingForShot(shot: NormalizedStoryboardShot, index: nu
   return "medium close-up or tight medium shot";
 }
 
-function buildFallbackClipStoryboardPrompt(clip: NormalizedWorkflowClip, shots: NormalizedStoryboardShot[], panelCount: number): string {
+function buildFallbackClipStoryboardPrompt(
+  clip: NormalizedWorkflowClip,
+  shots: NormalizedStoryboardShot[],
+  panelCount: number,
+  aspectRatio = "16:9",
+  workflow?: ReturnType<typeof getWorkflowState>,
+  authority?: WorkflowAuthorityContext,
+): string {
   const shotLines = shots
     .map((shot, index) => {
       return [
-        `Story beat ${String(index + 1).padStart(2, "0")} (${shot.durationSeconds}s): ${shot.title}`,
+        `Story beat ${String(index + 1).padStart(2, "0")} (${clampShotDuration(shot.durationSeconds)}s): ${shot.title}`,
         `show ${shot.action || shot.description}`,
         shot.dialogue ? `speech bubble when visible: ${shot.dialogue}` : "no speech bubble",
         shot.visualPrompt ? `visual cue: ${shot.visualPrompt}` : "",
@@ -4291,9 +5203,9 @@ function buildFallbackClipStoryboardPrompt(clip: NormalizedWorkflowClip, shots: 
   const panelLines = buildFallbackClipStoryboardPanelLines(clip, shots, panelCount);
 
   return finalizeClipStoryboardImagePrompt([
-    `Create one 16:9 multi-panel 3D American comic storyboard image with ${panelCount} large panels.`,
+    `Create one ${aspectRatio} multi-panel 3D American comic storyboard image with ${panelCount} large panels.`,
     "This storyboard represents the whole Clip, not one isolated shot.",
-    clipStoryboardBoardLayoutStrategy(panelCount),
+    clipStoryboardBoardLayoutStrategy(panelCount, aspectRatio),
     clipStoryboardFramingStrategy(),
     `Clip title: ${clip.title}`,
     `Clip duration target: ${clip.estimatedDuration}s, never longer than 15s.`,
@@ -4303,6 +5215,11 @@ function buildFallbackClipStoryboardPrompt(clip: NormalizedWorkflowClip, shots: 
     `Start state: ${clip.startState}`,
     `End state: ${clip.endState}`,
     clip.layoutMemory ? `Spatial continuity:\n${clip.layoutMemory}` : "",
+    workflow?.assets ? `Current extracted assets:\n${summarizeAssetsForStoryboardPrompt(workflow.assets)}` : "",
+    authority?.existingCharacters?.length ? `Existing Character records:\n${summarizeAuthorityCharactersForStoryboard(authority.existingCharacters)}` : "",
+    authority?.characterIdentityRules ? `Character identity rules: ${authority.characterIdentityRules}` : "",
+    authority?.globalPrompt ? `Global prompt: ${authority.globalPrompt}` : "",
+    authority?.negativePrompt ? `Negative prompt: ${authority.negativePrompt}` : "",
     "Story beats to show across the comic panels:",
     shotLines,
     "Comic panels in reading order:",
@@ -4315,7 +5232,7 @@ function buildFallbackClipStoryboardPrompt(clip: NormalizedWorkflowClip, shots: 
     "Avoid: decorative explanation paragraphs, UI chrome, watermarks, random non-dialogue text, inconsistent character identity, and isolated single-shot treatment.",
   ]
     .filter(Boolean)
-    .join("\n"), panelCount);
+    .join("\n"), panelCount, aspectRatio);
 }
 
 function buildFallbackClipStoryboardPanelLines(clip: NormalizedWorkflowClip, shots: NormalizedStoryboardShot[], panelCount: number): string {
@@ -4386,6 +5303,12 @@ function normalizeOptimizedClipShots(value: unknown, fallbackShots: NormalizedSt
         : fallback?.characters ?? [];
     const setting = stringFrom(record.setting, fallback?.setting ?? "");
     const references = cleanWorkflowPublicText(stringFrom(record.references, fallback?.references ?? ""));
+    const canonicalSceneId = stringFrom(record.canonicalSceneId, fallback?.canonicalSceneId ?? "");
+    const sceneVisualLock = cleanWorkflowPublicText(stringFrom(record.sceneVisualLock, fallback?.sceneVisualLock ?? ""));
+    const sceneZone = stringFrom(record.sceneZone, fallback?.sceneZone ?? "");
+    const sceneAnchors = arrayFrom(record.sceneAnchors).length > 0
+      ? arrayFrom(record.sceneAnchors).map((name) => String(name)).slice(0, 12)
+      : fallback?.sceneAnchors ?? [];
     const visualPrompt = cleanWorkflowPublicText(stringFrom(record.visualPrompt, stringFrom(record.prompt, fallback?.visualPrompt ?? "")));
     const professional = inferProfessionalShotFields(
       {
@@ -4423,6 +5346,10 @@ function normalizeOptimizedClipShots(value: unknown, fallbackShots: NormalizedSt
       characters,
       setting,
       references,
+      canonicalSceneId,
+      sceneVisualLock,
+      sceneZone,
+      sceneAnchors,
       visualPrompt,
       directorBoardPrompt: cleanWorkflowPromptText(
         stringFrom(record.directorBoardPrompt ?? record.boardPrompt, fallback?.directorBoardPrompt ?? professional.directorBoardPrompt),
@@ -4439,12 +5366,16 @@ function normalizeBreakdown(
   authority?: WorkflowAuthorityContext,
 ) {
   if (!isRecord(value)) badRequest("Text model JSON must be an object.");
-  const characterAuthority = new Map(
-    (authority?.existingCharacters ?? []).map((character) => [normalizeCompareText(character.name), character]),
-  );
+  const characterCanonicalizer = buildCharacterCanonicalizer(authority);
+  const characterAuthority = new Map<string, WorkflowAuthorityCharacter>();
+  for (const character of authority?.existingCharacters ?? []) {
+    const key = normalizeCompareText(character.name);
+    if (key && !characterAuthority.has(key)) characterAuthority.set(key, character);
+  }
   const characters = arrayFrom(value.characters).slice(0, 80).map((item, index) => {
     const record = isRecord(item) ? item : {};
-    const name = stringFrom(record.name, `角色 ${index + 1}`).slice(0, 120);
+    const rawName = stringFrom(record.name, `角色 ${index + 1}`).slice(0, 120);
+    const name = characterCanonicalizer.canonicalizeName(rawName).slice(0, 120);
     const existing = characterAuthority.get(normalizeCompareText(name));
     const fruitIdentity = stringFrom(existing?.traits.fruitIdentity, stringFrom(record.fruitIdentity, ""));
     const lockedVisualIdentity = buildLockedVisualIdentity(name, record, existing, authority?.requiresSpecificFruitIdentity ?? false);
@@ -4460,9 +5391,10 @@ function normalizeBreakdown(
     return {
       id: slugId("char", name, index),
       name,
+      aliases: rawName && normalizeCompareText(rawName) !== normalizeCompareText(name) ? [rawName] : [],
       role: normalizeRole(stringFrom(record.role, stringFrom(existing?.role, "SUPPORTING"))),
-      description: stringFrom(record.description, stringFrom(existing?.bio, "")),
-      visualPrompt: stringFrom(existing?.prompt, stringFrom(record.visualPrompt, stringFrom(record.prompt, ""))),
+      description: characterCanonicalizer.canonicalizeText(stringFrom(record.description, stringFrom(existing?.bio, ""))),
+    visualPrompt: stringFrom(existing?.prompt, stringFrom(record.visualPrompt, stringFrom(record.prompt, ""))),
       fruitIdentity,
       personality: stringFrom(existing?.traits.personality, stringFrom(record.personality, "")),
       height: stringFrom(existing?.traits.height, stringFrom(record.height, "")),
@@ -4487,6 +5419,7 @@ function normalizeBreakdown(
       timeOfDay: stringFrom(record.timeOfDay, ""),
     };
   });
+  const sceneVisualBibles: SceneVisualBible[] = buildSceneVisualBible(locations);
 
   const props = arrayFrom(value.props).slice(0, 120).map((item, index) => {
     const record = isRecord(item) ? item : {};
@@ -4500,15 +5433,19 @@ function normalizeBreakdown(
 
   const storyboardDraft: NormalizedStoryboardShot[] = arrayFrom(value.storyboard ?? value.shots ?? value.beats).slice(0, 120).map((item, index) => {
     const record = isRecord(item) ? item : {};
-    const title = stringFrom(record.title, `镜头 ${String(index + 1).padStart(2, "0")}`).slice(0, 180);
-    const description = cleanWorkflowPublicText(stringFrom(record.description, stringFrom(record.summary, "")));
-    const action = cleanWorkflowPublicText(stringFrom(record.action, ""));
-    const dialogue = cleanWorkflowPublicText(stringFrom(record.dialogue, ""));
+    const title = characterCanonicalizer.canonicalizeText(stringFrom(record.title, `镜头 ${String(index + 1).padStart(2, "0")}`)).slice(0, 180);
+    const description = cleanWorkflowPublicText(characterCanonicalizer.canonicalizeText(stringFrom(record.description, stringFrom(record.summary, ""))));
+    const action = cleanWorkflowPublicText(characterCanonicalizer.canonicalizeText(stringFrom(record.action, "")));
+    const dialogue = cleanWorkflowPublicText(canonicalizeSpeakerLabelText(stringFrom(record.dialogue, ""), characterCanonicalizer));
     const durationSeconds = numberFrom(record.durationSeconds, 3);
-    const characters = arrayFrom(record.characters).map((name) => String(name)).slice(0, 12);
+    const characters = characterCanonicalizer.canonicalizeList([
+      ...arrayFrom(record.characters).map((name) => String(name)),
+      ...extractAllocatedDialogueSpeakerNames(dialogue),
+    ]).slice(0, 12);
     const setting = stringFrom(record.setting, "");
-    const references = cleanWorkflowPublicText(stringFrom(record.references, ""));
-    const visualPrompt = cleanWorkflowPublicText(stringFrom(record.visualPrompt, stringFrom(record.prompt, "")));
+    const references = cleanWorkflowPublicText(characterCanonicalizer.canonicalizeText(stringFrom(record.references, "")));
+    const visualPrompt = cleanWorkflowPublicText(characterCanonicalizer.canonicalizeText(stringFrom(record.visualPrompt, stringFrom(record.prompt, ""))));
+    const visualLock = resolveSceneVisualLockForSetting(setting || title || description, sceneVisualBibles);
     const professional = inferProfessionalShotFields(
       {
         title,
@@ -4544,14 +5481,26 @@ function normalizeBreakdown(
       characters,
       setting,
       references,
+      canonicalSceneId: visualLock?.canonicalSceneId ?? "",
+      sceneVisualLock: visualLock?.sceneVisualLock ?? "",
+      sceneZone: visualLock?.sceneZone ?? "",
+      sceneAnchors: visualLock?.sceneAnchors ?? [],
       visualPrompt,
       directorBoardPrompt: cleanWorkflowPromptText(stringFrom(record.directorBoardPrompt ?? record.boardPrompt, professional.directorBoardPrompt)),
       status: index < 2 ? "ready" : "draft",
     };
   });
-  const storyboard = rebalanceStoryboardPacing(storyboardDraft);
+  const sourceDialogueLocks = sourceDialogueLockLines(input.sourceText)
+    .map((lock) => canonicalizeSpeakerLabelText(lock, characterCanonicalizer));
+  const sourceDialogueRepairedStoryboard = repairStoryboardDialogueFromSourceLocks(
+    storyboardDraft,
+    sourceDialogueLocks,
+  );
+  const storyboard = rebalanceStoryboardPacing(
+    normalizeFragmentedStoryboardDialogue(sourceDialogueRepairedStoryboard, sourceDialogueLocks),
+  );
 
-  if (storyboard.length === 0) {
+  if (storyboard.length === 0 && input.stage !== "assets") {
     badRequest("Text model JSON did not include storyboard items.");
   }
 
@@ -4561,22 +5510,340 @@ function normalizeBreakdown(
     sourceName: input.sourceName ?? "",
     characters,
     locations,
+    sceneVisualBibles,
     props,
     storyboard,
-    clips: deriveWorkflowClipsFromShots(storyboard, workflowClipContext(project, characters, { characters, locations, props })),
+    clips: deriveWorkflowClipsFromShots(storyboard, workflowClipContext(project, characters, { characters, locations, props }, input.sourceText)),
   };
+}
+
+function canonicalizeWorkflowAssetsWithAuthority(
+  assets: WorkflowAssetsRecord,
+  authority?: WorkflowAuthorityContext,
+): WorkflowAssetsRecord {
+  const canonicalizer = buildCharacterCanonicalizer(authority);
+  return {
+    ...assets,
+    characters: assets.characters.map((item, index) => {
+      const name = canonicalizer.canonicalizeName(workflowAssetNameFromRecord(item));
+      if (!name || normalizeCompareText(name) === normalizeCompareText(workflowAssetNameFromRecord(item))) return item;
+      return mergeWorkflowAssetRecords(
+        "characters",
+        { ...item, name, title: name },
+        {
+          ...item,
+          aliases: uniqueStrings([...workflowAssetAliasValues(item), workflowAssetNameFromRecord(item)]),
+        },
+        index,
+      );
+    }),
+  };
+}
+
+function canonicalizeStoryboardShots(
+  shots: NormalizedStoryboardShot[],
+  authority?: WorkflowAuthorityContext,
+): NormalizedStoryboardShot[] {
+  const canonicalizer = buildCharacterCanonicalizer(authority);
+  return shots.map((shot) => ({
+    ...shot,
+    title: canonicalizer.canonicalizeText(shot.title),
+    description: canonicalizer.canonicalizeText(shot.description),
+    action: canonicalizer.canonicalizeText(shot.action),
+    dialogue: canonicalizeSpeakerLabelText(shot.dialogue, canonicalizer),
+    subtitle: canonicalizeSpeakerLabelText(shot.subtitle || shot.dialogue, canonicalizer),
+    characters: canonicalizer.canonicalizeList(shot.characters),
+    references: canonicalizer.canonicalizeText(shot.references),
+    visualPrompt: canonicalizer.canonicalizeText(shot.visualPrompt),
+    directorBoardPrompt: canonicalizer.canonicalizeText(shot.directorBoardPrompt),
+  }));
+}
+
+function canonicalizeWorkflowClipCharacters(
+  clip: NormalizedWorkflowClip,
+  authority?: WorkflowAuthorityContext,
+): NormalizedWorkflowClip {
+  const canonicalizer = buildCharacterCanonicalizer(authority);
+  return {
+    ...clip,
+    characters: canonicalizer.canonicalizeList(clip.characters),
+    title: canonicalizer.canonicalizeText(clip.title),
+    plotGoal: canonicalizer.canonicalizeText(clip.plotGoal),
+    startState: canonicalizer.canonicalizeText(clip.startState),
+    endState: canonicalizer.canonicalizeText(clip.endState),
+    emotionArc: canonicalizer.canonicalizeText(clip.emotionArc),
+    layoutMemory: canonicalizer.canonicalizeText(clip.layoutMemory),
+    directorFreedom: canonicalizer.canonicalizeText(clip.directorFreedom),
+    seedancePrompt: canonicalizer.canonicalizeText(clip.seedancePrompt),
+    storyboardPrompt: canonicalizer.canonicalizeText(clip.storyboardPrompt),
+    storyboardNotes: canonicalizer.canonicalizeText(clip.storyboardNotes),
+  };
+}
+
+function isWorkflowAssetsRecord(value: unknown): value is WorkflowAssetsRecord {
+  return isRecord(value) && Array.isArray(value.characters) && Array.isArray(value.locations) && Array.isArray(value.props);
 }
 
 const TARGET_DIALOGUE_WORDS_PER_SECOND = 3.2;
 const MAX_DIALOGUE_WORDS_PER_SECOND = 3.6;
-const MAX_DIALOGUE_WORDS_PER_SHOT = 12;
+const MAX_DIALOGUE_WORDS_PER_SHOT = 9;
 const MAX_REBALANCED_STORYBOARD_SHOTS = 120;
 const TARGET_CLIP_DURATION_SECONDS = 15;
-const MIN_CLIP_TARGET_SECONDS = 13;
+const MIN_CLIP_TARGET_SECONDS = 4;
 const MAX_CLIP_TARGET_SECONDS = 15;
 const MAX_CLIP_DURATION_SECONDS = 15;
+const MIN_REASONABLE_CLIP_DURATION_SECONDS = 5;
+const SHORT_CLIP_MERGE_OVERFLOW_SECONDS = 2;
 const MAX_CLIP_DIALOGUE_SECONDS = 15;
 const CLIP_DIALOGUE_WORD_BUDGET = Math.floor(TARGET_DIALOGUE_WORDS_PER_SECOND * MAX_CLIP_DIALOGUE_SECONDS);
+const TARGET_SECONDS_PER_STORYBOARD_BEAT = 2;
+const MIN_CLIP_SHOTS_AT_FULL_DURATION = 7;
+
+function sourceDialogueLockLines(sourceText: string): string[] {
+  const source = String(sourceText || "");
+  const quotedMatches = sourceQuoteMatches(source);
+  const quotedRanges = quotedMatches.map((match) => ({
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + (match[0]?.length ?? 0),
+  }));
+  const quoted = quotedMatches
+    .filter((match) => isQuotedSourceDialogue(source, match[1] ?? "", match.index ?? 0, (match.index ?? 0) + (match[0]?.length ?? 0)))
+    .map((match) => match[1] ?? "")
+    .map((line) => cleanWorkflowPublicText(line))
+    .filter((line) => line && !sourceDialogueLockLooksLikeNoise(line));
+  const labelled = Array.from(source.matchAll(/(^|\n|\s)([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：]\s*([^。！？.!?\n]{2,320}[。！？.!?]?)/g))
+    .filter((match) => {
+      const labelStart = (match.index ?? 0) + (match[1]?.length ?? 0);
+      if (quotedRanges.some((range) => labelStart > range.start && labelStart < range.end)) return false;
+      return !sourceDialogueLabelLooksLikeMetadata(match[2] ?? "", match[3] ?? "");
+    })
+    .map((match) => {
+      const speaker = cleanWorkflowPublicText(match[2] ?? "");
+      const line = cleanWorkflowPublicText(match[3] ?? "");
+      return speaker && line ? `${speaker}: ${line}` : line;
+    })
+    .filter((line) => line && !sourceDialogueLockLooksLikeNoise(line));
+  return uniqueStrings([...quoted, ...labelled]).slice(0, 40);
+}
+
+function sourceQuoteMatches(source: string): RegExpMatchArray[] {
+  return [
+    ...Array.from(source.matchAll(/"([^"\n]{2,500})"/g)),
+    ...Array.from(source.matchAll(/“([^”\n]{2,500})”/g)),
+    ...Array.from(source.matchAll(/[「『]([^」』\n]{2,500})[」』]/g)),
+  ].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+}
+
+function sourceDialogueLockLooksLikeNoise(line: string): boolean {
+  const cleaned = cleanWorkflowPublicText(line);
+  if (!cleaned) return true;
+  if (/^[.\s…]+$/.test(cleaned)) return true;
+  return false;
+}
+
+function sourceDialogueLabelLooksLikeMetadata(speaker: string, line: string): boolean {
+  const speakerKey = normalizeCompareText(cleanWorkflowPublicText(speaker));
+  const lineKey = normalizeCompareText(cleanWorkflowPublicText(line));
+  if (!speakerKey || !lineKey) return true;
+  if (/^(?:rate|status|index|temp|room temp|target temp|countdown|patch|cancel formatting|warning|critical warning|system alert)$/i.test(speakerKey)) {
+    return true;
+  }
+  if (/^(?:heart rate|emotional fluctuation index|pain index|room temp|target temp)$/i.test(speakerKey)) {
+    return true;
+  }
+  return false;
+}
+
+function isQuotedSourceDialogue(source: string, quote: string, startIndex: number, endIndex: number): boolean {
+  const line = cleanWorkflowPublicText(quote);
+  if (!line || sourceDialogueLockLooksLikeNoise(line)) return false;
+  if (dialogueSpeakerName(line)) return true;
+  const before = source.slice(Math.max(0, startIndex - 180), startIndex);
+  const after = source.slice(endIndex, Math.min(source.length, endIndex + 180));
+  const linePrefix = source.slice(source.lastIndexOf("\n", Math.max(0, startIndex - 1)) + 1, startIndex);
+  const startsLine = linePrefix.trim().length === 0;
+  const hasSentenceEnd = /[.!?。！？…]["'”’」』)]*$/.test(line);
+  const wordCount = line.split(/\s+/).filter(Boolean).length;
+  const speechVerb =
+    "(?:said|asked|rasped|cursed|added|adding|replied|answered|called|shouted|yelled|screamed|shrieked|cried|muttered|whispered|growled|hissed|ordered|declared|warned|begged|pleaded|roared|laughed|continued|retorted)";
+  const speakerAttribution =
+    String.raw`(?:[A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12}|he|she|they|the\s+\w+(?:\s+\w+){0,3})`;
+  const afterAttribution = new RegExp(String.raw`^\s*(?:[,，]\s*)?${speakerAttribution}\s+${speechVerb}\b`, "i").test(after);
+  const beforeAttribution = new RegExp(String.raw`(?:${speechVerb}|:)\s*$`, "i").test(before);
+  if (afterAttribution || beforeAttribution) return true;
+  if (startsLine && (hasSentenceEnd || /[,，]$/.test(line) || wordCount > 2)) return true;
+  if (wordCount <= 3 && !/[!?！？]/.test(line)) return false;
+  return hasSentenceEnd && wordCount > 1;
+}
+
+function repairStoryboardDialogueFromSourceLocks(
+  storyboard: NormalizedStoryboardShot[],
+  sourceLocks: string[],
+): NormalizedStoryboardShot[] {
+  if (storyboard.length === 0 || sourceLocks.length === 0) return storyboard;
+  const output = storyboard.map((shot) => ({ ...shot }));
+  const consumed = new Set<number>();
+  const locks = sourceLocks
+    .map((lock) => ({
+      raw: cleanVideoDialogue(lock),
+      speaker: dialogueSpeakerName(lock),
+      key: normalizeDialogueFragmentKey(stripDialogueSpeakerPrefix(lock)),
+      wordCount: countEnglishWords(stripDialogueSpeakerPrefix(lock)),
+    }))
+    .filter((lock) => lock.raw && lock.key.length >= 12);
+
+  for (const lock of locks) {
+    for (let start = 0; start < output.length; start += 1) {
+      if (consumed.has(start)) continue;
+      const firstDialogue = cleanVideoDialogue(output[start].dialogue || "");
+      if (!firstDialogue) continue;
+      const firstSpeaker = dialogueSpeakerName(firstDialogue);
+      if (lock.speaker && firstSpeaker && normalizeCompareText(lock.speaker) !== normalizeCompareText(firstSpeaker)) continue;
+      const firstKey = normalizeDialogueFragmentKey(stripDialogueSpeakerPrefix(firstDialogue));
+      if (!firstKey || !lock.key.startsWith(firstKey)) continue;
+      if (firstKey === lock.key || lock.key.startsWith(firstKey)) {
+        const match = findSourceDialogueLockMatch(output, start, lock.key, consumed);
+        if (!match) continue;
+        const speaker = firstSpeaker || lock.speaker;
+        output[start] = {
+          ...output[start],
+          dialogue: formatLockedSourceDialogue(lock.raw, speaker),
+          subtitle: formatLockedSourceDialogue(lock.raw, speaker),
+          durationSeconds: Math.max(output[start].durationSeconds, clampShotDuration(Math.ceil(Math.max(lock.wordCount, 1) / TARGET_DIALOGUE_WORDS_PER_SECOND))),
+        };
+        for (const index of match.coveredIndexes.slice(1)) {
+          output[index] = { ...output[index], dialogue: "", subtitle: "" };
+          consumed.add(index);
+        }
+        consumed.add(start);
+        break;
+      }
+    }
+  }
+
+  return output.map((shot, index) => refreshShotProfessionalFields(shot, index));
+}
+
+function findSourceDialogueLockMatch(
+  storyboard: NormalizedStoryboardShot[],
+  start: number,
+  lockKey: string,
+  consumed: Set<number>,
+): { coveredIndexes: number[] } | null {
+  let combined = "";
+  const coveredIndexes: number[] = [];
+  for (let index = start; index < Math.min(storyboard.length, start + 8); index += 1) {
+    if (consumed.has(index) && index !== start) break;
+    const dialogue = cleanVideoDialogue(storyboard[index].dialogue || "");
+    if (!dialogue) {
+      if (coveredIndexes.length > 0) continue;
+      break;
+    }
+    const key = normalizeDialogueFragmentKey(stripDialogueSpeakerPrefix(dialogue));
+    if (!key) continue;
+    combined = normalizeDialogueFragmentKey(`${combined} ${key}`);
+    if (!lockKey.startsWith(combined)) return null;
+    coveredIndexes.push(index);
+    if (combined === lockKey) return { coveredIndexes };
+  }
+  return isLongPrefixOfSourceLock(combined, lockKey) && coveredIndexes.length > 0 ? { coveredIndexes } : null;
+}
+
+function isLongPrefixOfSourceLock(fragmentKey: string, lockKey: string): boolean {
+  if (!fragmentKey || !lockKey.startsWith(fragmentKey) || fragmentKey === lockKey) return false;
+  const fragmentWords = fragmentKey.split(" ").filter(Boolean).length;
+  const lockWords = lockKey.split(" ").filter(Boolean).length;
+  return fragmentWords >= 6 && fragmentWords >= Math.min(lockWords - 1, Math.ceil(lockWords * 0.45));
+}
+
+function normalizeDialogueFragmentKey(value: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/["'“”‘’「」『』]/g, "")
+    .replace(/[^a-z0-9\u3400-\u9fff]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripDialogueSpeakerPrefix(value: string): string {
+  return cleanVideoDialogue(value).replace(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：]\s*/, "").trim();
+}
+
+function formatLockedSourceDialogue(lock: string, speaker: string): string {
+  const cleaned = cleanVideoDialogue(lock);
+  if (!speaker || dialogueSpeakerName(cleaned)) return cleaned;
+  return `${speaker}: ${cleaned}`;
+}
+
+function normalizeFragmentedStoryboardDialogue(storyboard: NormalizedStoryboardShot[], sourceLocks: string[] = []): NormalizedStoryboardShot[] {
+  if (storyboard.length <= 1) return storyboard;
+  const output = storyboard.map((shot) => ({ ...shot }));
+  const sourceLockKeys = new Set(
+    sourceLocks
+      .map((lock) => normalizeDialogueFragmentKey(stripDialogueSpeakerPrefix(cleanVideoDialogue(lock))))
+      .filter(Boolean),
+  );
+  let index = 0;
+  while (index < output.length) {
+    const current = output[index];
+    const currentDialogue = cleanVideoDialogue(current.dialogue || "");
+    const currentDialogueKey = normalizeDialogueFragmentKey(stripDialogueSpeakerPrefix(currentDialogue));
+    if (!currentDialogue || dialogueHasTerminalPunctuation(currentDialogue) || sourceLockKeys.has(currentDialogueKey)) {
+      index += 1;
+      continue;
+    }
+
+    const speaker = dialogueSpeakerName(currentDialogue);
+    let mergedDialogue = currentDialogue;
+    let lastMergedIndex = index;
+    for (let nextIndex = index + 1; nextIndex < output.length; nextIndex += 1) {
+      const next = output[nextIndex];
+      const nextDialogue = cleanVideoDialogue(next.dialogue || "");
+      if (!nextDialogue) {
+        if (lastMergedIndex === index) break;
+        continue;
+      }
+      const nextSpeaker = dialogueSpeakerName(nextDialogue);
+      if (nextSpeaker && speaker && normalizeCompareText(nextSpeaker) !== normalizeCompareText(speaker)) break;
+      if (nextSpeaker && !speaker) break;
+      mergedDialogue = mergeDialogueFragments(mergedDialogue, nextDialogue);
+      output[nextIndex] = {
+        ...next,
+        dialogue: "",
+        subtitle: "",
+      };
+      lastMergedIndex = nextIndex;
+      if (dialogueHasTerminalPunctuation(mergedDialogue)) break;
+    }
+
+    if (lastMergedIndex > index) {
+      output[index] = {
+        ...current,
+        dialogue: mergedDialogue,
+        subtitle: mergedDialogue,
+        durationSeconds: Math.max(current.durationSeconds, clampShotDuration(Math.ceil(countEnglishWords(mergedDialogue) / TARGET_DIALOGUE_WORDS_PER_SECOND))),
+      };
+      index = lastMergedIndex + 1;
+      continue;
+    }
+    index += 1;
+  }
+
+  return output.map((shot, shotIndex) => refreshShotProfessionalFields(shot, shotIndex));
+}
+
+function mergeDialogueFragments(previous: string, next: string): string {
+  const previousSpeaker = dialogueSpeakerName(previous);
+  const nextSpeaker = dialogueSpeakerName(next);
+  const nextText = nextSpeaker ? next.replace(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：]\s*/, "").trim() : next;
+  const prefix = previousSpeaker ? `${previousSpeaker}: ` : "";
+  const previousText = previousSpeaker ? previous.replace(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：]\s*/, "").trim() : previous;
+  return cleanVideoDialogue(`${prefix}${previousText} ${nextText}`);
+}
+
+function dialogueHasTerminalPunctuation(dialogue: string): boolean {
+  return /[.!?。！？…]["'”’」』)]*$/.test(cleanVideoDialogue(dialogue));
+}
 
 function rebalanceStoryboardPacing(storyboard: NormalizedStoryboardShot[]): NormalizedStoryboardShot[] {
   const rebalanced: NormalizedStoryboardShot[] = [];
@@ -4587,7 +5854,7 @@ function rebalanceStoryboardPacing(storyboard: NormalizedStoryboardShot[]): Norm
     const requiredDuration = words > 0 ? Math.ceil(words / TARGET_DIALOGUE_WORDS_PER_SECOND) : normalizedDuration;
     const isTooDense = words > 0 && words / Math.max(1, normalizedDuration) > MAX_DIALOGUE_WORDS_PER_SECOND;
 
-    if (!isTooDense || (words <= MAX_DIALOGUE_WORDS_PER_SHOT && requiredDuration <= 4)) {
+    if (!isTooDense || shouldKeepDialogueInSingleShot(shot.dialogue) || (words <= MAX_DIALOGUE_WORDS_PER_SHOT && requiredDuration <= 3)) {
       rebalanced.push(
         refreshShotProfessionalFields(
           {
@@ -4598,41 +5865,39 @@ function rebalanceStoryboardPacing(storyboard: NormalizedStoryboardShot[]): Norm
         ),
       );
     } else {
-      const chunks = splitDialogueIntoWordChunks(shot.dialogue, MAX_DIALOGUE_WORDS_PER_SHOT);
-      for (const [chunkIndex, dialogue] of chunks.entries()) {
-        if (rebalanced.length >= MAX_REBALANCED_STORYBOARD_SHOTS) break;
-        const chunkWords = countEnglishWords(dialogue);
-        const chunkDuration = clampShotDuration(Math.ceil(chunkWords / TARGET_DIALOGUE_WORDS_PER_SECOND));
-        const action =
-          chunkIndex === 0
-            ? shot.action
-            : [
-                shot.action || shot.description,
-                "Hold the same scene geography and shift to a natural reaction or angle change.",
-              ]
-                .filter(Boolean)
-                .join(" ");
-        const visualPrompt = [
-          shot.visualPrompt || shot.description,
-          "Same setting and character blocking, natural reaction or angle change.",
-        ]
-          .filter(Boolean)
-          .join(" ");
+      const fullDialogue = cleanVideoDialogue(shot.dialogue || "");
+      const speechDuration = Math.max(1, Math.ceil(words / TARGET_DIALOGUE_WORDS_PER_SECOND));
+      const primaryDuration = clampShotDuration(Math.min(3, speechDuration));
+      rebalanced.push(
+        refreshShotProfessionalFields(
+          {
+            ...shot,
+            dialogue: fullDialogue,
+            subtitle: fullDialogue,
+            durationSeconds: primaryDuration,
+          },
+          rebalanced.length,
+        ),
+      );
 
+      const silentCoverageCount = Math.min(4, Math.max(1, Math.ceil(speechDuration / 2) - 1));
+      for (let coverageIndex = 0; coverageIndex < silentCoverageCount; coverageIndex += 1) {
+        if (rebalanced.length >= MAX_REBALANCED_STORYBOARD_SHOTS) break;
         rebalanced.push(
           refreshShotProfessionalFields(
             {
               ...shot,
-              title: chunks.length > 1 ? `${shot.title} (${chunkIndex + 1}/${chunks.length})` : shot.title,
-              description:
-                chunkIndex === 0
-                  ? shot.description
-                  : `${shot.description} Continue the exchange with a clean reaction beat.`,
-              action,
-              dialogue,
-              durationSeconds: chunkDuration,
-              subtitle: dialogue,
-              visualPrompt,
+              title: `${shot.title} dialogue coverage ${coverageIndex + 1}`,
+              description: `${shot.description || shot.action || shot.title} Silent visual coverage while the same dialogue continues.`,
+              action: followupShotAction({ ...shot, dialogue: fullDialogue }),
+              dialogue: "",
+              subtitle: "",
+              durationSeconds: 1,
+              visualPrompt: followupShotVisualPrompt(shot),
+              references: [
+                shot.references,
+                "Same dialogue turn continues over this silent reaction/cutaway shot.",
+              ].filter(Boolean).join(" "),
             },
             rebalanced.length,
           ),
@@ -4643,11 +5908,44 @@ function rebalanceStoryboardPacing(storyboard: NormalizedStoryboardShot[]): Norm
     if (rebalanced.length >= MAX_REBALANCED_STORYBOARD_SHOTS) break;
   }
 
-  return rebalanced.map((shot, index) => ({
+  const paced = expandSparseStoryboardGroups(rebalanced);
+  return paced.map((shot, index) => ({
     ...shot,
     id: `shot-${String(index + 1).padStart(3, "0")}`,
     status: index < 2 ? "ready" : "draft",
   }));
+}
+
+function expandSparseStoryboardGroups(storyboard: NormalizedStoryboardShot[]): NormalizedStoryboardShot[] {
+  const output: NormalizedStoryboardShot[] = [];
+  let group: NormalizedStoryboardShot[] = [];
+  const flush = () => {
+    if (group.length > 0) output.push(...expandSparseClipGroup(group));
+    group = [];
+  };
+
+  for (const shot of storyboard) {
+    if (group.length > 0) {
+      const previous = group[group.length - 1];
+      const currentDuration = group.reduce((sum, item) => sum + clampShotDuration(item.durationSeconds), 0);
+      const nextDuration = currentDuration + clampShotDuration(shot.durationSeconds);
+      const settingChanged =
+        Boolean(group[0].setting) &&
+        Boolean(shot.setting) &&
+        normalizeCompareText(group[0].setting) !== normalizeCompareText(shot.setting);
+      const dialogueContinuation = isDialogueContinuationAcrossShotBoundary(previous, shot);
+      const shouldSplit =
+        !dialogueContinuation &&
+        (group.length >= MAX_CLIP_STORYBOARD_PANEL_COUNT ||
+          nextDuration > MAX_CLIP_DURATION_SECONDS ||
+          (currentDuration >= 8 && settingChanged) ||
+          (currentDuration >= 12 && nextDuration > MAX_CLIP_TARGET_SECONDS));
+      if (shouldSplit) flush();
+    }
+    group.push(shot);
+  }
+  flush();
+  return output;
 }
 
 function refreshShotProfessionalFields(shot: NormalizedStoryboardShot, index: number): NormalizedStoryboardShot {
@@ -4687,8 +5985,15 @@ function countEnglishWords(text: string): number {
 }
 
 function clampShotDuration(value: number): number {
-  if (!Number.isFinite(value)) return 3;
-  return Math.max(2, Math.min(4, Math.round(value)));
+  if (!Number.isFinite(value)) return 2;
+  return Math.max(1, Math.min(3, Math.round(value)));
+}
+
+function shouldKeepDialogueInSingleShot(dialogue: string): boolean {
+  const cleaned = cleanVideoDialogue(dialogue || "");
+  if (!cleaned) return true;
+  if (extractAllocatedDialogueSpeakerNames(cleaned).length > 1) return true;
+  return splitDialogueIntoNaturalUnits(cleaned).length <= 1 && /[.!?。！？…]["'”’」』)]*$/.test(cleaned);
 }
 
 function splitDialogueIntoWordChunks(dialogue: string, maxWords: number): string[] {
@@ -4731,7 +6036,7 @@ function splitDialogueIntoWordChunks(dialogue: string, maxWords: number): string
 }
 
 function dialogueSpeakerPrefix(dialogue: string): string {
-  return dialogue.trim().match(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s*[:：]\s*/)?.[0] ?? "";
+  return dialogue.trim().match(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：]\s*/)?.[0] ?? "";
 }
 
 function ensureDialogueSpeakerPrefix(dialogue: string, speakerPrefix: string): string {
@@ -4772,9 +6077,15 @@ type WorkflowClipContext = {
   visualStyle: string;
   characterIdentities: Record<string, string>;
   assets: unknown;
+  textLanguage: "English" | "Chinese" | "Mixed";
 };
 
-function workflowClipContext(project?: any, characters: Array<{ name: string; lockedVisualIdentity?: string; fruitIdentity?: string }> = [], assets: unknown = {}): WorkflowClipContext {
+function workflowClipContext(
+  project?: any,
+  characters: Array<{ name: string; lockedVisualIdentity?: string; fruitIdentity?: string }> = [],
+  assets: unknown = {},
+  sourceText = "",
+): WorkflowClipContext {
   const settings = isRecord(project?.settings) ? project.settings : {};
   const setupSettings = isRecord(settings.setupSettings) ? settings.setupSettings : {};
   const videoStyle = [
@@ -4797,6 +6108,7 @@ function workflowClipContext(project?: any, characters: Array<{ name: string; lo
     visualStyle: videoStyle || "cinematic 3D animated short-drama, fast pacing",
     characterIdentities,
     assets,
+    textLanguage: detectSourceLanguage(sourceText),
   };
 }
 
@@ -4884,9 +6196,14 @@ function deriveWorkflowClipsFromShots(shots: NormalizedStoryboardShot[], context
       Boolean(current[0].setting) &&
       Boolean(shot.setting) &&
       normalizeCompareText(current[0].setting) !== normalizeCompareText(shot.setting);
+    const sceneEventChanged = current.length > 0 && shouldSplitClipForSceneEventBoundary(current, shot);
+    const dialogueContinuation = current.length > 0 && isDialogueContinuationAcrossShotBoundary(current[current.length - 1], shot);
     const shouldSplit =
       current.length > 0 &&
-      (nextDuration > MAX_CLIP_DURATION_SECONDS ||
+      !dialogueContinuation &&
+      (sceneEventChanged ||
+        current.length >= MAX_CLIP_STORYBOARD_PANEL_COUNT ||
+        nextDuration > MAX_CLIP_DURATION_SECONDS ||
         (currentDuration >= 8 && settingChanged) ||
         (currentDuration >= 10 && nextWords > CLIP_DIALOGUE_WORD_BUDGET) ||
         (currentDuration >= 12 && nextDuration > MAX_CLIP_TARGET_SECONDS));
@@ -4904,7 +6221,228 @@ function deriveWorkflowClipsFromShots(shots: NormalizedStoryboardShot[], context
   }
 
   if (current.length > 0) groups.push(current);
-  return groups.map((group, index) => buildWorkflowClip(group, index, context));
+  return mergeShortWorkflowClipGroups(groups).map((group, index) => buildWorkflowClip(group, index, context));
+}
+
+function mergeShortWorkflowClipGroups(groups: NormalizedStoryboardShot[][]): NormalizedStoryboardShot[][] {
+  const output: NormalizedStoryboardShot[][] = [];
+  for (const sourceGroup of groups) {
+    let group = [...sourceGroup];
+    if (isShortWorkflowClipGroup(group) && output.length > 0) {
+      const previous = output[output.length - 1];
+      if (canMergeAdjacentWorkflowClipGroups(previous, group)) {
+        output[output.length - 1] = compactWorkflowClipGroupDuration([...previous, ...group]);
+        continue;
+      }
+    }
+    output.push(compactWorkflowClipGroupDuration(group));
+  }
+
+  for (let index = 0; index < output.length; index += 1) {
+    if (!isShortWorkflowClipGroup(output[index])) continue;
+    const next = output[index + 1];
+    if (!next || !canMergeAdjacentWorkflowClipGroups(output[index], next)) continue;
+    output[index] = compactWorkflowClipGroupDuration([...output[index], ...next]);
+    output.splice(index + 1, 1);
+    index = Math.max(-1, index - 2);
+  }
+
+  return output;
+}
+
+function isShortWorkflowClipGroup(group: NormalizedStoryboardShot[]): boolean {
+  return workflowClipGroupDuration(group) > 0 && workflowClipGroupDuration(group) < MIN_REASONABLE_CLIP_DURATION_SECONDS;
+}
+
+function workflowClipGroupDuration(group: NormalizedStoryboardShot[]): number {
+  return group.reduce((sum, shot) => sum + clampShotDuration(shot.durationSeconds), 0);
+}
+
+function canMergeAdjacentWorkflowClipGroups(left: NormalizedStoryboardShot[], right: NormalizedStoryboardShot[]): boolean {
+  if (left.length === 0 || right.length === 0) return false;
+  if (left.length + right.length > MAX_CLIP_STORYBOARD_PANEL_COUNT) return false;
+  const combinedDuration = workflowClipGroupDuration(left) + workflowClipGroupDuration(right);
+  if (combinedDuration > MAX_CLIP_DURATION_SECONDS + SHORT_CLIP_MERGE_OVERFLOW_SECONDS) return false;
+  if (workflowClipGroupsShareSceneAuthority(left, right)) return true;
+  return isTransitionWorkflowClipGroup(left) && isTransitionWorkflowClipGroup(right);
+}
+
+function workflowClipGroupsShareSceneAuthority(left: NormalizedStoryboardShot[], right: NormalizedStoryboardShot[]): boolean {
+  const leftKeys = workflowClipGroupSceneAuthorityKeys(left);
+  const rightKeys = workflowClipGroupSceneAuthorityKeys(right);
+  return leftKeys.some((key) => rightKeys.includes(key));
+}
+
+function workflowClipGroupSceneAuthorityKeys(group: NormalizedStoryboardShot[]): string[] {
+  return uniqueStrings(
+    group.flatMap((shot) => [
+      shot.canonicalSceneId,
+      shot.setting,
+    ].map((value) => normalizeCompareText(value)).filter(Boolean)),
+  );
+}
+
+function isTransitionWorkflowClipGroup(group: NormalizedStoryboardShot[]): boolean {
+  const text = normalizeCompareText(
+    group
+      .map((shot) => [shot.title, shot.description, shot.action, shot.setting, shot.sceneZone, shot.visualPrompt].filter(Boolean).join(" "))
+      .join(" "),
+  );
+  return /(escape|exit|air vent|duct|grate|surface|fresh air|bunker|climb|crawl|storm drain|skyline|travel|road|highway|ring road|motorcycle|motorbike|vehicle|drive|ride|speeds? through|weaves? through|逃|出口|通风|管道|爬|地表|新鲜空气|路上|道路|公路|高速|环线|城市环线|废车|废弃车辆|摩托|机车|车辆|行驶|驶入|驶出|驶向|冲出|冲向|穿梭|飞驰|疾驰|赶路)/.test(text);
+}
+
+function compactWorkflowClipGroupDuration(group: NormalizedStoryboardShot[]): NormalizedStoryboardShot[] {
+  let overflow = workflowClipGroupDuration(group) - MAX_CLIP_DURATION_SECONDS;
+  while (overflow > 0) {
+    const candidate =
+      group.find((shot) => !cleanVideoDialogue(shot.dialogue) && clampShotDuration(shot.durationSeconds) > 1) ??
+      group.find((shot) => clampShotDuration(shot.durationSeconds) > 1);
+    if (!candidate) break;
+    candidate.durationSeconds = clampShotDuration(candidate.durationSeconds) - 1;
+    overflow -= 1;
+  }
+  return group;
+}
+
+function shouldSplitClipForSceneEventBoundary(current: NormalizedStoryboardShot[], next: NormalizedStoryboardShot): boolean {
+  const first = current[0];
+  const previous = current[current.length - 1];
+  if (!first || !previous) return false;
+  const firstScene = normalizeSceneBoundaryKey(first);
+  const nextScene = normalizeSceneBoundaryKey(next);
+  if (firstScene && nextScene && firstScene !== nextScene) return true;
+  const previousEvent = inferStoryboardEventBoundaryKey(previous);
+  const nextEvent = inferStoryboardEventBoundaryKey(next);
+  return Boolean(previousEvent && nextEvent && previousEvent !== nextEvent);
+}
+
+function normalizeSceneBoundaryKey(shot: NormalizedStoryboardShot): string {
+  return [
+    shot.canonicalSceneId || shot.setting,
+    shot.sceneZone,
+  ].map((part) => normalizeCompareText(String(part || ""))).filter(Boolean).join("|");
+}
+
+function inferStoryboardEventBoundaryKey(shot: NormalizedStoryboardShot): string {
+  const text = normalizeCompareText([shot.title, shot.description, shot.action, shot.visualPrompt, shot.references].filter(Boolean).join(" "));
+  if (!text) return "";
+  if (/(trial|judgment|judge|审判|裁决)/.test(text)) return "trial";
+  if (/(ritual|harvest|announce|announcement|pa speaker|sermon|仪式|广播|宣告|布道)/.test(text)) return "ritual-announcement";
+  if (/(freezer|frozen meat|fungus|wall whisper|冷冻|冻肉|真菌|墙)/.test(text)) return "freezer-discovery";
+  if (/(escape|run away|chase|pursuit|逃|追逐)/.test(text)) return "escape";
+  if (/(door gap|shutter|gunshot|shotgun|zombie|门缝|卷帘门|枪响|霰弹|丧尸)/.test(text)) return "door-gunshot";
+  return "";
+}
+
+function expandSparseClipGroup(group: NormalizedStoryboardShot[]): NormalizedStoryboardShot[] {
+  const duration = group.reduce((sum, shot) => sum + clampShotDuration(shot.durationSeconds), 0);
+  const targetCount = Math.min(
+    MAX_CLIP_STORYBOARD_PANEL_COUNT,
+    Math.max(
+      duration >= MAX_CLIP_TARGET_SECONDS ? MIN_CLIP_SHOTS_AT_FULL_DURATION : 0,
+      Math.ceil(duration / TARGET_SECONDS_PER_STORYBOARD_BEAT),
+      group.length,
+    ),
+  );
+  if (group.length >= targetCount || group.length === 0) return group;
+
+  const output = group.map((shot) => ({ ...shot, durationSeconds: clampShotDuration(shot.durationSeconds) }));
+  let cursor = 0;
+  while (output.length < targetCount) {
+    const candidates = output
+      .map((shot, index) => ({ shot, index }))
+      .filter(({ shot }) => clampShotDuration(shot.durationSeconds) >= 3);
+    const candidate = candidates[cursor % Math.max(1, candidates.length)];
+    if (!candidate) break;
+    cursor += 1;
+    const first = {
+      ...candidate.shot,
+      durationSeconds: 2,
+      title: `${candidate.shot.title} setup`,
+      action: candidate.shot.action || candidate.shot.description || candidate.shot.visualPrompt,
+    };
+    const second = refreshShotProfessionalFields({
+              ...candidate.shot,
+              durationSeconds: 1,
+              title: `${candidate.shot.title} reaction`,
+              description: `${shotReactionSubject(candidate.shot)} reacts to the previous moment with a visible change in expression or posture.`,
+              action: followupShotAction(candidate.shot),
+              dialogue: "",
+              subtitle: "",
+      visualPrompt: followupShotVisualPrompt(candidate.shot),
+    }, candidate.index + 1);
+    output.splice(candidate.index, 1, first, second);
+  }
+
+  return output.map((shot, index) => refreshShotProfessionalFields({
+    ...shot,
+    durationSeconds: clampShotDuration(shot.durationSeconds),
+    status: index < 2 ? "ready" : "draft",
+  }, index));
+}
+
+function followupShotAction(shot: NormalizedStoryboardShot): string {
+  const text = normalizeCompareText(`${shot.title} ${shot.description} ${shot.action}`);
+  if (/(fire|shoot|shotgun|gun|射|枪|开火|霰弹)/.test(text)) return `${shot.action || shot.description} Show the impact, recoil, smoke, or target reaction.`;
+  if (/(dialogue|argue|say|speak|shout|对话|对白|说|喊)/.test(text) || shot.dialogue) {
+    return dialogueCoverageShotAction(shot);
+  }
+  return `${shotReactionSubject(shot)} continues the motion through a tighter expression, hand, prop, or posture detail.`;
+}
+
+function dialogueCoverageShotAction(shot: NormalizedStoryboardShot): string {
+  const speakers = extractAllocatedDialogueSpeakerNames(shot.dialogue || "");
+  const visible = uniqueStrings(shot.characters || []);
+  const listeners = visible.filter((name) => !speakers.some((speaker) => normalizeCompareText(speaker) === normalizeCompareText(name)));
+  const subject = listeners[0] || visible[0] || "Visible subject";
+  const baseAction = compactPromptText(shot.action || shot.description || shot.visualPrompt);
+  const lower = normalizeCompareText(`${shot.title} ${shot.description} ${shot.action} ${shot.dialogue}`);
+  if (/(needle|tubing|fluid|tendril|vine|restraint|bone|针|管|藤|束缚|液体)/.test(lower)) {
+    return `${subject} reacts through the existing restraint setup; hold on the vine pressure, tubing, hands, eyes, or breath while the same dialogue turn continues.`;
+  }
+  if (/(lecture|sermon|ritual|announce|trial|judgment|仪式|宣告|审判|布道)/.test(lower)) {
+    return `${subject} holds a tense listening reaction while the speaker's ritual authority dominates the room.`;
+  }
+  if (/(insult|mock|sarcastic|joke|wisecrack|讽刺|吐槽|冷笑)/.test(lower)) {
+    return `${subject} lands the comedy beat with a dry look, small recoil, or restrained glare while the line finishes.`;
+  }
+  return baseAction
+    ? `${subject} shows a specific reaction to the preceding action: ${baseAction}`
+    : `${subject} gives a concise reaction cutaway tied to the previous spoken beat.`;
+}
+
+function followupShotVisualPrompt(shot: NormalizedStoryboardShot): string {
+  return [
+    shot.visualPrompt || shot.description || shot.action,
+    `${shotReactionSubject(shot)} keeps the established blocking while changing gaze, posture, hand position, or prop contact`,
+  ].filter(Boolean).join("; ");
+}
+
+function shotReactionSubject(shot: NormalizedStoryboardShot): string {
+  const characters = (shot.characters || []).filter(Boolean);
+  if (characters.length === 0) return "Visible subject";
+  if (characters.length === 1) return characters[0];
+  return characters.slice(0, 2).join(" and ");
+}
+
+function isDialogueContinuationAcrossShotBoundary(previous: NormalizedStoryboardShot | undefined, next: NormalizedStoryboardShot): boolean {
+  const previousDialogue = cleanVideoDialogue(previous?.dialogue || "");
+  const nextDialogue = cleanVideoDialogue(next.dialogue || "");
+  if (!previousDialogue || !nextDialogue) return false;
+  if (/[.!?。！？…]["'”’」』)]*$/.test(previousDialogue)) return false;
+  const previousSpeaker = dialogueSpeakerName(previousDialogue);
+  const nextSpeaker = dialogueSpeakerName(nextDialogue);
+  if (nextSpeaker && previousSpeaker && normalizeCompareText(nextSpeaker) !== normalizeCompareText(previousSpeaker)) return false;
+  if (nextSpeaker && previousSpeaker) return true;
+  if (!nextSpeaker && previousSpeaker) return true;
+  if (!nextSpeaker && !previousSpeaker && previous?.characters.length === 1 && next.characters.length === 1) {
+    return normalizeCompareText(previous.characters[0]) === normalizeCompareText(next.characters[0]);
+  }
+  return false;
+}
+
+function dialogueSpeakerName(dialogue: string): string {
+  return extractAllocatedDialogueSpeakerNames(dialogue)[0] ?? "";
 }
 
 function buildWorkflowClip(group: NormalizedStoryboardShot[], index: number, context: WorkflowClipContext): NormalizedWorkflowClip {
@@ -4920,14 +6458,14 @@ function buildWorkflowClip(group: NormalizedStoryboardShot[], index: number, con
   const storyboardType = chooseStoryboardType(storyboardControlLevel, sceneType);
   const panelCount = choosePanelCount(storyboardType, group.length);
   const title = `Clip ${String(index + 1).padStart(2, "0")} · ${group[0].title}`;
-  const startState = describeClipEndpoint(group[0], "start");
-  const endState = describeClipEndpoint(group[group.length - 1], "end");
+  const startState = describeClipEndpoint(group[0], "start", context.textLanguage);
+  const endState = describeClipEndpoint(group[group.length - 1], "end", context.textLanguage);
   const emotionArc = inferClipEmotionArc(group);
   const plotGoal = inferClipPlotGoal(group);
   const shotIds = group.map((shot) => shot.id);
   const dialogueDensity = normalizeDialogueDensity(undefined, dialogueWordsPerSecond);
-  const characterPropContinuity = personalPropContinuityText(context.assets, characters);
-  const layoutMemory = composeLayoutMemory(group, startState, endState, setting, characters, characterPropContinuity);
+  const characterPropContinuity = personalPropContinuityText(context.assets, characters, context.textLanguage);
+  const layoutMemory = composeLayoutMemory(group, startState, endState, setting, characters, characterPropContinuity, context.textLanguage);
   const directorFreedom = composeDirectorFreedom(storyboardControlLevel, sceneType);
   const preflight = buildClipPreflight({
     estimatedDuration,
@@ -4939,25 +6477,6 @@ function buildWorkflowClip(group: NormalizedStoryboardShot[], index: number, con
     panelCount,
     hasStartState: Boolean(startState),
     hasEndState: Boolean(endState),
-  });
-  const seedancePrompt = composeSeedancePrompt({
-    estimatedDuration,
-    aspectRatio: context.aspectRatio,
-    visualStyle: context.visualStyle,
-    characterIdentities: context.characterIdentities,
-    setting,
-    characters,
-    plotGoal,
-    startState,
-    endState,
-    actions: group.map((shot) => shot.action || shot.description).filter(Boolean),
-    dialogue: group.map((shot) => shot.dialogue).filter(Boolean),
-    storyboardBeats: buildShotOrderVideoBeats(group),
-    layoutMemory,
-    characterPropContinuity,
-    storyboardControlLevel,
-    storyboardType,
-    directorFreedom,
   });
 
   return {
@@ -4981,7 +6500,7 @@ function buildWorkflowClip(group: NormalizedStoryboardShot[], index: number, con
     shotIds,
     layoutMemory,
     directorFreedom,
-    seedancePrompt,
+    seedancePrompt: "",
     storyboardPrompt: "",
     storyboardPanelCount: panelCount,
     storyboardNotes: "",
@@ -5022,18 +6541,19 @@ function regenerateWorkflowClipSeedancePrompt(
   const dialogueWordCount = group.reduce((sum, shot) => sum + countEnglishWords(shot.dialogue), 0);
   const dialogueWordsPerSecond = estimatedDuration > 0 ? roundOne(dialogueWordCount / estimatedDuration) : 0;
   const characters = uniqueStrings([...(clip.characters ?? []), ...group.flatMap((shot) => shot.characters)]).slice(0, 12);
-  const setting = clip.setting || mostCommonString(group.map((shot) => shot.setting).filter(Boolean));
+  const setting = chooseClipPromptSetting(clip, group);
+  const sceneVisualLock = chooseClipSceneVisualLock(group, setting);
   const sceneType = clip.sceneType || classifyClipSceneType(group, dialogueWordCount, estimatedDuration);
   const storyboardControlLevel = normalizeControlLevel(clip.storyboardControlLevel);
   const storyboardType = normalizeStoryboardType(clip.storyboardType || chooseStoryboardType(storyboardControlLevel, sceneType));
   const panelCount = clip.panelCount || choosePanelCount(storyboardType, group.length);
-  const startState = clip.startState || describeClipEndpoint(group[0], "start");
-  const endState = clip.endState || describeClipEndpoint(group[group.length - 1], "end");
+  const context = workflowClipContext(project, workflowAssetCharacters(workflow.assets), workflow.assets, workflow.sourceText);
+  const startState = clipEndpointState(clip.startState || "", group[0], "start", context.textLanguage);
+  const endState = clipEndpointState(clip.endState || "", group[group.length - 1], "end", context.textLanguage);
   const emotionArc = clip.emotionArc || inferClipEmotionArc(group);
   const plotGoal = clip.plotGoal || inferClipPlotGoal(group);
-  const context = workflowClipContext(project, workflowAssetCharacters(workflow.assets), workflow.assets);
-  const characterPropContinuity = personalPropContinuityText(context.assets, characters);
-  const layoutMemory = composeLayoutMemory(group, startState, endState, setting, characters, characterPropContinuity);
+  const characterPropContinuity = personalPropContinuityText(context.assets, characters, context.textLanguage);
+  const layoutMemory = composeLayoutMemory(group, startState, endState, setting, characters, characterPropContinuity, context.textLanguage);
   const directorFreedom = composeDirectorFreedom(storyboardControlLevel, sceneType);
   const preflight = buildClipPreflight({
     estimatedDuration,
@@ -5046,13 +6566,15 @@ function regenerateWorkflowClipSeedancePrompt(
     hasStartState: Boolean(startState),
     hasEndState: Boolean(endState),
   });
-  const storyboardBeats = buildClipVideoStoryboardBeats(clip, group);
+  const storyboardBeats = buildClipVideoStoryboardBeats(clip, group, workflow);
   const seedancePrompt = composeSeedancePrompt({
     estimatedDuration,
+    targetDuration,
     aspectRatio: context.aspectRatio,
     visualStyle: context.visualStyle,
     characterIdentities: context.characterIdentities,
     setting,
+    sceneVisualLock,
     characters,
     plotGoal,
     startState,
@@ -5090,6 +6612,44 @@ function regenerateWorkflowClipSeedancePrompt(
   };
 }
 
+function chooseClipPromptSetting(clip: NormalizedWorkflowClip, group: NormalizedStoryboardShot[]): string {
+  const settings = group.map((shot) => cleanWorkflowPublicText(shot.setting)).filter(Boolean);
+  if (settings.length === 0) return cleanWorkflowPublicText(clip.setting || "");
+  const first = settings[0];
+  const last = [...settings].reverse().find(Boolean) || first;
+  const uniqueSettings = uniqueStrings(settings);
+  if (uniqueSettings.length <= 1) return first;
+
+  const clipSettingKey = normalizeCompareText(clip.setting || "");
+  const firstKey = normalizeCompareText(first);
+  const lastKey = normalizeCompareText(last);
+  const lastCount = settings.filter((item) => normalizeCompareText(item) === lastKey).length;
+  const transitionText = normalizeCompareText(
+    group.map((shot) => `${shot.title} ${shot.description} ${shot.action} ${shot.references} ${shot.visualPrompt}`).join(" "),
+  );
+  const hasExplicitTransition =
+    /(drag|pulled|pulls?|toward|into|through|escape|climb|enter|exit|move|shove|carry|fall|drop|duct|door|wall|drywall|drain|拖|拉|拽|推|进入|离开|逃|墙|通风管|下水道)/.test(
+      transitionText,
+    );
+
+  if (lastKey && lastKey !== firstKey && (lastCount >= 2 || hasExplicitTransition || clipSettingKey === firstKey)) {
+    return last;
+  }
+
+  return mostCommonString(settings) || first;
+}
+
+function chooseClipSceneVisualLock(group: NormalizedStoryboardShot[], setting: string): string {
+  const settingKey = normalizeCompareText(setting);
+  if (settingKey) {
+    const matching = [...group]
+      .reverse()
+      .find((shot) => normalizeCompareText(shot.setting) === settingKey && cleanWorkflowPublicText(shot.sceneVisualLock || ""));
+    if (matching?.sceneVisualLock) return matching.sceneVisualLock;
+  }
+  return mostCommonString(group.map((shot) => shot.sceneVisualLock).filter(Boolean));
+}
+
 async function refineWorkflowClipSeedancePrompt(input: {
   project: any;
   workflow: ReturnType<typeof getWorkflowState>;
@@ -5105,7 +6665,7 @@ async function refineWorkflowClipSeedancePrompt(input: {
       {
         role: "system",
         content:
-          "You refine clip-level AI video prompts. Return only the final prompt text. No markdown, no JSON, no explanation.",
+          "You refine clip-level AI video prompts. Return only the final prompt text. No markdown, no JSON, no arrays, no surrounding brackets or quotes, no explanation.",
       },
       {
         role: "user",
@@ -5114,13 +6674,16 @@ async function refineWorkflowClipSeedancePrompt(input: {
     ],
     input.aiModelId,
   );
-  const refined = cleanWorkflowPromptText(result.rawText)
-    .replace(/^```(?:text|markdown)?\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
+  const refined = unwrapJsonWrappedPromptText(
+    cleanWorkflowPromptText(result.rawText)
+      .replace(/^```(?:text|markdown)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim(),
+  );
   const candidate = refined || input.prompt;
   const safePrompt = preservesVideoBeatLabels(candidate, input.prompt) ? candidate : input.prompt;
-  return finalizeWorkflowVideoPrompt(safePrompt, input.prompt);
+  const cameraSafePrompt = enforceShotCameraPlansInVideoPrompt(safePrompt, input.shots);
+  return finalizeWorkflowVideoPrompt(cameraSafePrompt, enforceShotCameraPlansInVideoPrompt(input.prompt, input.shots));
 }
 
 function preservesVideoBeatLabels(candidate: string, source: string): boolean {
@@ -5130,10 +6693,71 @@ function preservesVideoBeatLabels(candidate: string, source: string): boolean {
   return sourceLabels.every((label) => candidateLabels.has(label));
 }
 
+/** 模型偶尔无视指令把提示词包成 JSON 数组/字符串/对象返回，这里解包；非 JSON 原样返回。 */
+function unwrapJsonWrappedPromptText(value: string): string {
+  const text = value.trim();
+  if (!/^[\[{"]/.test(text)) return text;
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === "string") return parsed.trim();
+    if (Array.isArray(parsed)) {
+      const strings = parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+      if (strings.length > 0) return strings.join("\n").trim();
+    }
+    if (isRecord(parsed)) {
+      const fromRecord = stringFrom(parsed.prompt ?? parsed.optimizedPrompt ?? parsed.result ?? parsed.content, "");
+      if (fromRecord) return fromRecord.trim();
+    }
+  } catch {
+    if (text.startsWith("[") && text.endsWith("]")) {
+      return text.slice(1, -1).trim().replace(/^["']|["']$/g, "").trim();
+    }
+  }
+  return text;
+}
+
 function extractVideoBeatLabels(value: string): string[] {
-  return Array.from(value.matchAll(/\bP(\d{1,2})\s*:/g))
-    .map((match) => `P${Number(match[1])}`)
+  return Array.from(value.matchAll(/\b([PS])(\d{1,2})\s*:/g))
+    .map((match) => `${match[1]}${Number(match[2])}`)
     .filter((label, index, labels) => labels.indexOf(label) === index);
+}
+
+function enforceShotCameraPlansInVideoPrompt(prompt: string, shots: NormalizedStoryboardShot[]): string {
+  if (!prompt || shots.length === 0) return prompt;
+  const cameraPlans = new Map(
+    shots
+      .slice(0, MAX_CLIP_STORYBOARD_PANEL_COUNT)
+      .map((shot, index) => [`S${index + 1}`, shotVideoCameraPlan(shot, index)]),
+  );
+  return normalizePromptTextWithoutCompression(prompt)
+    .split("\n")
+    .map((line) => {
+      const match = line.match(/^(S(\d{1,2})\s*[:：]\s*)([\s\S]*)$/i);
+      if (!match) return line;
+      const label = `S${Number(match[2])}`;
+      const cameraPlan = cameraPlans.get(label);
+      if (!cameraPlan) return line;
+      const body = match[3] ?? "";
+      if (videoBeatHasCompleteCameraPlan(body)) return line;
+      const cleanedBody = body
+        .replace(/\bcamera\s+([^;]+;\s*)?/i, "")
+        .replace(/\bCamera plan\s*[:：]\s*/i, "")
+        .replace(/\bShot\s*[:：]\s*/i, "")
+        .trim();
+      return `${match[1]}Shot: ${cameraPlan}; ${cleanedBody}`.trim();
+    })
+    .join("\n");
+}
+
+function videoBeatHasCompleteCameraPlan(value: string): boolean {
+  const normalized = normalizeCompareText(value);
+  return (
+    /shot size|shot:|wide|medium|close|景别/.test(normalized) &&
+    /angle|view|视角|机位/.test(normalized) &&
+    /movement|camera move|运镜|推|拉|摇|移|跟/.test(normalized) &&
+    /composition|blocking|block:|构图|调度|站位/.test(normalized) &&
+    /lens|focal|mm|焦段|镜头/.test(normalized)
+  );
 }
 
 async function recoverWorkflowClipStoryboardPrompt(
@@ -5168,7 +6792,8 @@ function buildClipSeedancePromptRefinementPrompt(input: {
   prompt: string;
   authority: WorkflowAuthorityContext;
 }): string {
-  const storyboardBeats = buildClipVideoStoryboardBeats(input.clip, input.shots);
+  const storyboardBeats = buildClipVideoStoryboardBeats(input.clip, input.shots, input.workflow);
+  const stateLedger = buildClipStateLedgerText(input.workflow, input.clip, input.shots);
   const shots = input.shots.map((shot, index) => ({
     index: index + 1,
     title: shot.title,
@@ -5183,16 +6808,30 @@ function buildClipSeedancePromptRefinementPrompt(input: {
     `Project: ${input.project.name}`,
     `Aspect ratio: ${input.project.aspectRatio}`,
     projectAuthorityPromptBlock(input.authority),
+    input.authority.existingCharacters.length ? "Existing Character records are authoritative:" : "",
+    input.authority.existingCharacters.length ? summarizeAuthorityCharactersForStoryboard(input.authority.existingCharacters) : "",
+    existingAssetNameLanguageRules(input.authority),
     "",
     "Task: refine the following Seedance/video-generation prompt for this exact Clip.",
-    "Keep it practical for an AI video model, but do not compress, omit, or truncate required P beats or exact dialogue.",
+    "Keep it practical for an AI video model, but do not compress, omit, or truncate required beat lines or spoken dialogue.",
     "Use connected storyboard and character reference images for visual identity.",
     "Do not describe character clothing or exact appearance when reference images exist.",
-    "Preserve every P beat in order. Do not skip, merge, or reorder P1/P2/P3 etc.",
-    "Keep dialogue lines attached to the matching P beat when present.",
+    ...VIDEO_STATE_AND_ASSET_RULES,
+    "Preserve every beat line (P1/P2... or S1/S2...) in order. Do not skip, merge, or reorder them.",
+    "Keep dialogue lines attached to the matching beat when present.",
     "If storyboard panels conflict with ordered shots, the storyboard panels are the authority.",
+    "Do not repeat the whole Clip cast in every S beat. Each S beat should name only visible speakers/actors and their carried-forward state.",
+    "Move repeated constraints into the prompt header. Do not repeat scene-continuity rules, screen-direction rules, visible-subject rules, or foreground/midground/background rules inside every S beat.",
+    "If all beats share the same scene blocking or composition, state it once as a 'Clip blocking' line before the beats, not inside every S beat.",
+    "Each S beat should contain specific professional shot design only: shot size, camera angle, camera movement, lens, visible action, spoken dialogue when present, and carried-forward state only when it affects the shot. Do not repeat clip-level blocking in every beat.",
     "Mention who is who, style, scene, and how the motion should unfold from the storyboard.",
     "Do not add subtitles, speech bubbles, UI, panel borders, watermarks, or explanatory text.",
+    "",
+    "Current asset constraints:",
+    summarizeAssetsForStoryboardPrompt(input.workflow.assets),
+    "",
+    "State ledger:",
+    stateLedger,
     "",
     "Clip:",
     JSON.stringify({
@@ -5209,7 +6848,7 @@ function buildClipSeedancePromptRefinementPrompt(input: {
     JSON.stringify(shots, null, 2),
     "",
     storyboardBeats.length ? "Storyboard panel beats to preserve:" : "",
-    storyboardBeats.length ? formatStoryboardVideoBeats(storyboardBeats).join("\n") : "",
+    storyboardBeats.length ? formatStoryboardVideoBeats(storyboardBeats).lines.join("\n") : "",
     storyboardBeats.length ? "" : "",
     input.clip.storyboardPrompt ? "Current storyboard prompt:" : "",
     input.clip.storyboardPrompt ? normalizePromptTextWithoutCompression(input.clip.storyboardPrompt) : "",
@@ -5217,6 +6856,21 @@ function buildClipSeedancePromptRefinementPrompt(input: {
     "Current prompt to refine:",
     input.prompt,
   ].join("\n");
+}
+
+function buildClipStateLedgerText(workflow: ReturnType<typeof getWorkflowState>, clip: NormalizedWorkflowClip, shots: NormalizedStoryboardShot[]): string {
+  const clipIndex = workflow.clips.findIndex((item) => item.id === clip.id);
+  const previousClips = clipIndex > 0 ? workflow.clips.slice(Math.max(0, clipIndex - 2), clipIndex) : [];
+  const previous = previousClips
+    .map((item) => `${item.title}: start=${item.startState || "unknown"}; end=${item.endState || "unknown"}; continuity=${item.layoutMemory || ""}`)
+    .join("\n");
+  const current = shots
+    .map((shot, index) => `S${index + 1}: characters=${shot.characters.join(", ") || "unknown"}; action=${shot.action || shot.description || ""}; references=${shot.references || ""}; visual=${shot.visualPrompt || ""}`)
+    .join("\n");
+  return [
+    previous ? `Previous clip state memory:\n${previous}` : "",
+    `Current ordered state evidence:\n${current || "No current shot evidence."}`,
+  ].filter(Boolean).join("\n\n");
 }
 
 function normalizeClipPreflight(value: unknown, fallback: Omit<ClipPreflight, "pass" | "status" | "warnings">): ClipPreflight {
@@ -5252,6 +6906,9 @@ function buildClipPreflight(input: Omit<ClipPreflight, "pass" | "status" | "warn
   }
   if (input.dialogueWordsPerSecond > MAX_DIALOGUE_WORDS_PER_SECOND) {
     warnings.push(`台词密度 ${input.dialogueWordsPerSecond} w/s 超过 ${MAX_DIALOGUE_WORDS_PER_SECOND} w/s`);
+  }
+  if (input.shotCount > MAX_CLIP_STORYBOARD_PANEL_COUNT) {
+    warnings.push(`镜头数 ${input.shotCount} 超过节拍上限 ${MAX_CLIP_STORYBOARD_PANEL_COUNT}，超出部分不会进入视频提示词，请拆分 Clip`);
   }
   if (input.panelCount > MAX_CLIP_STORYBOARD_PANEL_COUNT) warnings.push(`故事板超过 ${MAX_CLIP_STORYBOARD_PANEL_COUNT} 格，建议拆分或降复杂度`);
   if (!input.hasStartState) warnings.push("缺少开始状态");
@@ -5309,9 +6966,52 @@ function choosePanelCount(type: StoryboardType, shotCount: number): number {
   return 0;
 }
 
-function describeClipEndpoint(shot: NormalizedStoryboardShot, kind: "start" | "end"): string {
+function describeClipEndpoint(
+  shot: NormalizedStoryboardShot,
+  kind: "start" | "end",
+  textLanguage: WorkflowClipContext["textLanguage"] = "Mixed",
+): string {
+  if (textLanguage === "Chinese") {
+    const prefix = kind === "start" ? "开始于" : "结束于";
+    const endpoint = concreteShotEndpointText(shot);
+    return [prefix, shot.setting ? `${shot.setting}${endpoint ? "，" : ""}` : "", endpoint].filter(Boolean).join(" ");
+  }
   const prefix = kind === "start" ? "Starts with" : "Ends with";
-  return [prefix, shot.setting ? `in ${shot.setting}` : "", shot.action || shot.description || shot.title].filter(Boolean).join(" ");
+  return [prefix, shot.setting ? `in ${shot.setting}` : "", concreteShotEndpointText(shot)].filter(Boolean).join(" ");
+}
+
+function clipEndpointState(
+  value: string,
+  fallbackShot: NormalizedStoryboardShot,
+  kind: "start" | "end",
+  textLanguage: WorkflowClipContext["textLanguage"] = "Mixed",
+): string {
+  const cleaned = cleanWorkflowPublicText(cleanVideoBeat(value || ""));
+  if (!cleaned || genericReactionBoilerplateLooksDominant(cleaned)) return describeClipEndpoint(fallbackShot, kind, textLanguage);
+  if (textLanguage === "Chinese") return localizeLayoutEndpointText(cleaned, kind);
+  return cleaned;
+}
+
+function concreteShotEndpointText(shot: NormalizedStoryboardShot): string {
+  const candidates = [
+    shot.action,
+    shot.description,
+    shot.visualPrompt,
+    shot.references,
+    shot.title,
+  ].map((value) => cleanWorkflowPublicText(cleanVideoBeat(value || ""))).filter(Boolean);
+  return candidates.find((value) => !genericReactionBoilerplateLooksDominant(value)) || candidates[0] || shot.title;
+}
+
+function genericReactionBoilerplateLooksDominant(value: string): boolean {
+  const text = normalizeCompareText(value);
+  if (!text) return false;
+  return (
+    /absorbs? the spoken line with a changed expression gesture or posture/.test(text) ||
+    /holds? a concrete reaction tied to the visible action with readable expression and body language/.test(text) ||
+    /hold a specific visible reaction tied to this shot/.test(text) ||
+    /reacts? to the previous moment with a visible change in expression or posture/.test(text)
+  );
 }
 
 function inferClipPlotGoal(group: NormalizedStoryboardShot[]): string {
@@ -5336,8 +7036,28 @@ function composeLayoutMemory(
   setting: string,
   characters: string[],
   characterPropContinuity = "",
+  textLanguage: WorkflowClipContext["textLanguage"] = "Mixed",
 ): string {
-  const propsAndReferences = uniqueStrings(group.map((shot) => shot.references).filter(Boolean)).slice(0, 4);
+  const propsAndReferences = uniqueStrings(
+    group
+      .map((shot) => shot.references)
+      .filter((value): value is string => Boolean(value))
+      .map(stripTemporaryStateFromClipMemory)
+      .filter(Boolean),
+  ).slice(0, 4);
+  if (textLanguage === "Chinese") {
+    return [
+      `位置：${setting || "当前场景"}`,
+      `角色：${characters.join(", ") || "本 Clip 出现的角色"}`,
+      `开始：${localizeLayoutEndpointText(startState, "start")}`,
+      `结束：${localizeLayoutEndpointText(endState, "end")}`,
+      propsAndReferences.length ? `连续性参考：${propsAndReferences.join(" | ")}` : "",
+      characterPropContinuity,
+      "保持屏幕方向、角色所在侧、重要道具以及入场/退场位置连续到下一个 Clip。",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
   return [
     `Location: ${setting || "current scene"}`,
     `Characters: ${characters.join(", ") || "characters from this clip"}`,
@@ -5351,6 +7071,37 @@ function composeLayoutMemory(
     .join("\n");
 }
 
+function localizeLayoutEndpointText(value: string, kind: "start" | "end"): string {
+  let output = cleanWorkflowPublicText(cleanVideoBeat(value || ""));
+  if (!output) return "";
+  output = output
+    .replace(/^Starts?\s+with\s+in\s+/i, "开始于 ")
+    .replace(/^Starts?\s+with\s+/i, "开始于 ")
+    .replace(/^Ends?\s+with\s+in\s+/i, "结束于 ")
+    .replace(/^Ends?\s+with\s+/i, "结束于 ")
+    .replace(/\bin\s+([\u3400-\u9fffA-Za-z0-9][^;。!?]{0,80})\s+(?=[\u3400-\u9fffA-Za-z])/i, "在 $1，")
+    .replace(/\s+([\u3400-\u9fff])/g, "$1")
+    .replace(/([\u3400-\u9fff])\s+([\u3400-\u9fff])/g, "$1$2")
+    .trim();
+  const prefix = kind === "start" ? "开始于" : "结束于";
+  if (!new RegExp(`^${prefix}`).test(output)) output = `${prefix} ${output}`;
+  return output;
+}
+
+function stripTemporaryStateFromClipMemory(value: string): string {
+  return value
+    .split(/\s*\|\s*|(?<=\.)\s+|;\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => cleanVideoBeat(part))
+    .filter((part) => !genericReactionBoilerplateLooksDominant(part))
+    .filter((part) => !/\b(?:still wet|wet clothing|green stain|stain still|earlier .*stain|sludge still|soaked with|spill residue|splashed|splash|slime|soot|temporary wound|fresh wound)\b/i.test(part))
+    .filter((part) => !/(仍然湿|污渍|污泥仍|飞溅残留|临时伤口|刚溅上|还粘着)/i.test(part))
+    .join("; ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function composeDirectorFreedom(level: StoryboardControlLevel, sceneType: string): string {
   if (level === "hard") return "camera 0.3, blocking 0.1, action_details 0.3, dialogue_timing 0.1, visual_effects 0.2, composition 0.3";
   if (level === "medium") return "camera 0.6, blocking 0.35, action_details 0.55, dialogue_timing 0.25, visual_effects 0.5, composition 0.45";
@@ -5362,10 +7113,12 @@ function composeDirectorFreedom(level: StoryboardControlLevel, sceneType: string
 
 function composeSeedancePrompt(input: {
   estimatedDuration: number;
+  targetDuration?: number;
   aspectRatio: string;
   visualStyle: string;
   characterIdentities: Record<string, string>;
   setting: string;
+  sceneVisualLock?: string;
   characters: string[];
   plotGoal: string;
   startState: string;
@@ -5380,23 +7133,38 @@ function composeSeedancePrompt(input: {
   directorFreedom: string;
 }): string {
   const characterLine = formatClipVideoCharacters(input.characters, input.characterIdentities);
-  const orderedStoryboardBeats = input.storyboardBeats?.length ? formatStoryboardVideoBeats(input.storyboardBeats) : [];
+  const formatted = input.storyboardBeats?.length ? formatStoryboardVideoBeats(input.storyboardBeats) : { lines: [], clipBlocking: "" };
+  const orderedStoryboardBeats = formatted.lines;
+  const initialStateAndPositions = summarizeInitialCharacterStateAndPositions(input.storyboardBeats ?? [], input.startState, input.layoutMemory);
+  const panelBeatMode = (input.storyboardBeats ?? []).some((beat) => /^P\d+$/i.test(beat.label || ""));
   const beats = orderedStoryboardBeats.length ? orderedStoryboardBeats : buildClipVideoBeats(input.actions, input.dialogue);
   const beatBlock = orderedStoryboardBeats.length
-    ? `Storyboard beats, follow in this exact order:\n${orderedStoryboardBeats.join("\n")}`
+    ? `${panelBeatMode ? "Storyboard beats" : "Shot beats"}, follow in this exact order:\n${orderedStoryboardBeats.join("\n")}`
     : beats.length
       ? `Shot beats, follow in this exact order:\n${beats.join("\n")}`
       : "";
   const continuity = summarizeVideoContinuity(input.startState, input.endState);
+  const videoDuration = clampClipTarget(input.targetDuration || input.estimatedDuration || TARGET_CLIP_DURATION_SECONDS);
   const prompt = [
-    `Generate one continuous ${Math.round(input.estimatedDuration || TARGET_CLIP_DURATION_SECONDS)}s cinematic video, ${input.aspectRatio || "16:9"}.`,
+    `Generate one continuous ${videoDuration}s cinematic video, ${input.aspectRatio || "16:9"}.`,
     `Style: ${shortVideoStyle(input.visualStyle)}`,
     `Scene: ${cleanVideoLine(input.setting || "current scene")}`,
+    input.sceneVisualLock ? `Scene visual continuity lock: ${cleanVideoLine(input.sceneVisualLock)}` : "",
     characterLine ? `Characters: ${characterLine}` : "Characters: use the connected character reference images for identity.",
-    "Use the connected storyboard image as the main visual reference; turn its story beats into natural motion, not comic panels.",
+    initialStateAndPositions ? `Initial character state and positions: ${initialStateAndPositions}` : "",
+    "Global shot rules: maintain continuous scene geography, readable screen direction, visible-subject framing, and clear foreground/midground/background separation. Do not repeat these rules inside every beat.",
+    formatted.clipBlocking ? `Clip blocking: ${formatted.clipBlocking}` : "",
+    "In each beat, write only specific shot design, visible action, spoken dialogue when present, and carried-forward physical state only when it affects that shot. Do not repeat the clip blocking in every beat.",
+    panelBeatMode
+      ? "Use the connected storyboard image as the main visual reference; turn its story beats into natural motion, not comic panels."
+      : "Turn the shot beats into natural continuous motion, using the connected character and scene reference images for identity.",
     input.plotGoal ? `Story goal: ${cleanVideoLine(cleanVideoPlotGoal(input.plotGoal))}` : "",
     beatBlock,
-    orderedStoryboardBeats.length ? "Do not skip, merge, or reorder the P beats; animate P1 first, then P2, then P3, continuing through the listed storyboard panels." : "",
+    orderedStoryboardBeats.length
+      ? panelBeatMode
+        ? "Do not skip, merge, or reorder the P beats; animate P1 first, then P2, then P3, continuing through the listed storyboard panels."
+        : "Do not skip, merge, or reorder the shot beats; play S1 first, then S2, continuing in order."
+      : "",
     continuity ? `Continuity: ${continuity}` : "",
     seedanceVideoDirection(input.storyboardControlLevel),
     "Do not add subtitles, speech bubbles, UI, panel borders, panel numbers, watermarks, or explanatory text. Keep the generated motion focused on the storyboard plot.",
@@ -5407,44 +7175,121 @@ function composeSeedancePrompt(input: {
 }
 
 function finalizeWorkflowVideoPrompt(value: string, fallback = ""): string {
-  const normalized = normalizePromptTextWithoutCompression(value);
+  const normalized = normalizeWorkflowVideoBeatBlock(
+    normalizeExactDialogueQuoteStyle(
+      hoistRepeatedShotRules(normalizePromptTextWithoutCompression(value)),
+    ),
+  );
   if (normalized.length <= DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS) return normalized;
   const compact = compactWorkflowVideoPrompt(normalized);
   if (compact.length <= DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS) return compact;
   if (fallback && normalized !== fallback) {
-    const compactFallback = compactWorkflowVideoPrompt(normalizePromptTextWithoutCompression(fallback));
+    const compactFallback = compactWorkflowVideoPrompt(
+      normalizeExactDialogueQuoteStyle(hoistRepeatedShotRules(normalizePromptTextWithoutCompression(fallback))),
+    );
     if (compactFallback.length <= DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS) return compactFallback;
   }
   return trimWorkflowVideoPromptToLimit(compact, DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS);
+}
+
+function normalizeExactDialogueQuoteStyle(prompt: string): string {
+  return String(prompt || "")
+    .split("\n")
+    .map((line) => line
+      .replace(
+        /\bExact dialogue:\s*([^:：;\n]{1,40})\s*[:：]\s*([^;\n]+?)(?=;|$)/g,
+        (_match, speaker, dialogue) => `Dialogue: ${String(speaker).trim()} says “${trimDialogueQuotes(String(dialogue))}”`,
+      )
+      .replace(
+        /\bDialogue:\s*([^:：;\n]{1,40})\s*[:：]\s*([^;\n]+?)(?=;|$)/g,
+        (_match, speaker, dialogue) => `Dialogue: ${String(speaker).trim()} says “${trimDialogueQuotes(String(dialogue))}”`,
+      ))
+    .join("\n");
 }
 
 function compactWorkflowVideoPrompt(prompt: string): string {
   const sections = splitWorkflowVideoPromptSections(prompt);
   const beatLines = sections.filter((section) => section.kind === "beat").map((section) => section.text);
   const headerLines = sections.filter((section) => section.kind === "header").map((section) => section.text);
-  const compactHeader = headerLines
+  // 上限 12：composeSeedancePrompt 的 header（含场景视觉锁、初始站位、节拍后指令行）压缩后最多约 11 行，过低会截掉 Direction 行。
+  const compactHeader = compactWorkflowVideoHeaderLines(headerLines);
+  const promptFromBudget = (header: string[], minBeatChars: number) => {
+    const footerChars = COMPACT_WORKFLOW_VIDEO_FOOTER.length + 1;
+    const headerChars = joinedLineLength(header) + (header.length ? 1 : 0);
+    const beatSeparatorChars = Math.max(0, beatLines.length - 1);
+    const beatBudget = DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS - headerChars - footerChars - beatSeparatorChars;
+    const perBeatLimit = beatLines.length
+      ? Math.max(minBeatChars, Math.min(COMPACT_WORKFLOW_VIDEO_MAX_BEAT_CHARS, Math.floor(beatBudget / beatLines.length)))
+      : COMPACT_WORKFLOW_VIDEO_MAX_BEAT_CHARS;
+    const compactBeats = beatLines.map((line) => compactWorkflowVideoBeatLine(line, perBeatLimit)).filter(Boolean);
+    return normalizePromptTextWithoutCompression([
+      ...header,
+      ...compactBeats,
+      COMPACT_WORKFLOW_VIDEO_FOOTER,
+    ].join("\n"));
+  };
+
+  const firstPass = promptFromBudget(compactHeader, COMPACT_WORKFLOW_VIDEO_MIN_BEAT_CHARS);
+  if (firstPass.length <= DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS) return firstPass;
+
+  const tighterHeader = compactWorkflowVideoHeaderForBeatRetention(compactHeader);
+  const secondPass = promptFromBudget(tighterHeader, COMPACT_WORKFLOW_VIDEO_SECOND_PASS_MIN_BEAT_CHARS);
+  if (secondPass.length <= DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS) return secondPass;
+
+  return trimWorkflowVideoPromptToLimit(secondPass, DREAMINA_WEB_VIDEO_PROMPT_TARGET_CHARS);
+}
+
+function compactWorkflowVideoHeaderLines(headerLines: string[]): string[] {
+  const lines = headerLines
     .map(compactWorkflowVideoPromptLine)
     .filter(Boolean)
-    .slice(0, 8);
-  const compactBeats = beatLines.map(compactWorkflowVideoBeatLine).filter(Boolean);
-  return normalizePromptTextWithoutCompression([
-    ...compactHeader,
-    ...compactBeats,
-    "No subtitles, speech bubbles, UI, panel borders, watermarks, random text, gore, or identity drift.",
-  ].join("\n"));
+    .filter((line) => !/^In each beat, write only/i.test(line))
+    .filter((line) => !/^Global shot rules:/i.test(line));
+  const required = lines.filter((line) => /^(?:Generate |Style:|Scene:|Characters:|Initial character state and positions:|Story goal:)/i.test(line));
+  const optional = lines.filter((line) => !required.includes(line) && /^(?:Scene visual continuity lock:|Use the connected storyboard|Turn the shot beats|Follow shot beats|Follow P beats|Direction:)/i.test(line));
+  return [...required, ...optional].slice(0, 9);
+}
+
+function compactWorkflowVideoHeaderForBeatRetention(headerLines: string[]): string[] {
+  return headerLines
+    .map((line) => {
+      if (/^Scene visual continuity lock:/i.test(line)) return compactSentence(line, 120);
+      if (/^Initial character state and positions:/i.test(line)) return compactSentence(line, 180);
+      if (/^Scene:/i.test(line)) return compactSentence(line, 120);
+      if (/^Story goal:/i.test(line)) return compactSentence(line, 160);
+      if (/^Continuity:/i.test(line)) return compactSentence(line, 140);
+      if (/^For every listed beat/i.test(line)) return "Each beat must keep blocking, facing, props, clothing, and visible state when relevant.";
+      return line;
+    })
+    .filter((line) => !/^Global shot rules:/i.test(line))
+    .filter((line) => !/^In each beat, write only/i.test(line))
+    .filter(Boolean);
+}
+
+function joinedLineLength(lines: string[]): number {
+  return lines.reduce((sum, line) => sum + line.length, 0) + Math.max(0, lines.length - 1);
 }
 
 function compactWorkflowVideoPromptLine(line: string): string {
   const trimmed = cleanVideoLine(line);
   if (!trimmed) return "";
+  if (isWorkflowVideoBeatLine(trimmed)) return compactWorkflowVideoBeatLine(trimmed, 260);
   if (/^Style:/i.test(trimmed)) return "Style: saturated 3D American animated dark-comedy, cinematic lighting, exaggerated fast reactions, polished render.";
   if (/^Characters:/i.test(trimmed)) return compactVideoCharactersLine(trimmed);
+  if (/^Initial character state and positions:/i.test(trimmed)) return compactSentence(trimmed, 220);
   if (/^Use the connected storyboard/i.test(trimmed)) return "Use the connected storyboard as shot-order authority and connected character images as identity authority.";
   if (/^Direction:/i.test(trimmed)) return "Direction: follow storyboard order and scene geography; add only natural motion, acting, and controlled camera movement.";
-  if (/^Continuity:/i.test(trimmed)) return compactSentence(trimmed, 260);
-  if (/^Story goal:/i.test(trimmed)) return compactSentence(trimmed, 260);
-  if (/^Scene:/i.test(trimmed)) return compactSentence(trimmed, 320);
-  if (/^Do not skip/i.test(trimmed)) return "Follow P beats in exact order; do not skip, merge, or reorder them.";
+  if (/^Continuity:/i.test(trimmed)) return "";
+  if (/^Scene visual continuity lock:/i.test(trimmed)) return compactSentence(trimmed, 150);
+  if (/^Story goal:/i.test(trimmed)) return compactSentence(trimmed, 180);
+  if (/^Scene:/i.test(trimmed)) return compactSentence(trimmed, 140);
+  if (/^Global shot rules:/i.test(trimmed)) return "";
+  if (/^In each beat, write only/i.test(trimmed)) return "";
+  if (/^Do not skip/i.test(trimmed)) {
+    return /shot beats/i.test(trimmed)
+      ? "Follow shot beats S1, S2… in exact order; do not skip, merge, or reorder them."
+      : "Follow P beats in exact order; do not skip, merge, or reorder them.";
+  }
   if (/^Do not add/i.test(trimmed)) return "";
   if (/^(Storyboard|Shot) beats/i.test(trimmed)) return "";
   return compactSentence(trimmed, 260);
@@ -5454,23 +7299,121 @@ function compactVideoCharactersLine(line: string): string {
   const names = Array.from(line.matchAll(/\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s*=/g))
     .map((match) => match[1]?.trim() ?? "")
     .filter(Boolean);
-  return names.length
-    ? `Characters: ${uniqueStrings(names).join(", ")}. Use their connected character reference images; do not redesign.`
+  if (names.length === 0) {
+    const body = line
+      .replace(/^Characters:\s*/i, "")
+      .replace(/\.\s*Use (?:their )?connected character reference images[\s\S]*$/i, "");
+    names.push(...body.split(",").map((item) => item.trim()).filter(Boolean));
+  }
+  const compactNames = compactWorkflowCharacterNames(names);
+  return compactNames.length
+    ? `Characters: ${compactNames.join(", ")}. Use their connected character reference images; do not redesign.`
     : "Characters: use connected character reference images; do not redesign.";
 }
 
-function compactWorkflowVideoBeatLine(line: string): string {
+function compactWorkflowVideoBeatLine(line: string, maxChars = COMPACT_WORKFLOW_VIDEO_MAX_BEAT_CHARS): string {
   const labelMatch = line.match(/^((?:P|S)\d{1,2})\s*(?:\/\s*(?:P|S)?\d{1,2})?\s*(?:[:：\-—]|\s+-\s+)\s*([\s\S]*)$/i);
-  if (!labelMatch) return compactSentence(line, 420);
+  if (!labelMatch) return compactSentence(line, maxChars);
   const label = labelMatch[1].toUpperCase();
   const body = labelMatch[2] ?? "";
   const dialogue = cleanVideoDialogue(extractDialogueFromVideoBeatLine(body));
   const withoutDialogue = removeVideoDialogueFragments(body, dialogue);
-  const action = compactSentence(withoutDialogue
-    .replace(/\bcamera\s+[^;]+;\s*/i, "")
+  const dialogueSentence = formatExactVideoDialogue(dialogue);
+  const prefix = `${label}: ${dialogueSentence ? `Dialogue: ${dialogueSentence}; ` : ""}`;
+  const minimumForDialogueBeat = dialogueSentence ? prefix.length + 80 : maxChars;
+  const effectiveMaxChars = Math.max(maxChars, minimumForDialogueBeat);
+  const actionLimit = Math.max(0, effectiveMaxChars - prefix.length);
+  const action = compactSentence(compactWorkflowVideoBeatBody(withoutDialogue)
+    .replace(/\b(?:Exact dialogue|dialogue\/reaction|dialogue)\s*[:;]\s*/i, "")
+    .replace(/\bCamera plan\s*[:：]\s*/i, "")
+    .replace(/^camera\s+[^;]+;\s*/i, "")
     .replace(/\bdialogue\/reaction\s*[:;]?\s*/i, "")
-    .replace(/\bdialogue\s+[^;]+;\s*/i, ""), 520);
-  return cleanVideoLine(`${label}: ${dialogue ? `Exact dialogue: ${dialogue}. ` : ""}${action}`);
+    .replace(/\bdialogue\b\s*[^;]*;\s*/i, ""), actionLimit);
+  const compacted = cleanVideoLine(`${prefix}${action}`)
+    .replace(/\s+;/g, ";")
+    .replace(/;{2,}/g, ";")
+    .replace(/\s*;\s*$/g, "");
+  if (compacted.length <= effectiveMaxChars) return compacted;
+  if (dialogue) return cleanVideoLine(`${label}: Dialogue: ${dialogueSentence}`);
+  return cleanVideoLine(`${label}: ${compactSentence(action, Math.max(0, effectiveMaxChars - `${label}: `.length))}`);
+}
+
+function compactWorkflowVideoBeatBody(value: string): string {
+  const body = cleanVideoBeat(value);
+  if (!body) return "";
+  const rawParts = body.split(";").map((part) => cleanVideoLine(part)).filter(Boolean);
+  if (rawParts.length <= 2) return body;
+  const cameraParts: string[] = [];
+  const blockingParts: string[] = [];
+  const stateParts: string[] = [];
+  const performanceParts: string[] = [];
+  const actionParts: string[] = [];
+  let inState = false;
+  let inCamera = false;
+
+  for (const part of rawParts) {
+    const cleaned = part.replace(/\bCamera plan\s*[:：]\s*/i, "").trim();
+    if (/^(?:frame only visible subject|separate foreground|current scene layout|clear character blocking)\b/i.test(cleaned)) {
+      continue;
+    }
+    const shotMatch = cleaned.match(/^Shot\s*[:：]\s*([\s\S]+)$/i);
+    if (shotMatch) {
+      cameraParts.push(`Shot: ${shotMatch[1].trim()}`);
+      inCamera = true;
+      inState = false;
+      continue;
+    }
+    if (inCamera && isCompactCameraAtom(cleaned)) {
+      cameraParts.push(cleaned);
+      inState = false;
+      continue;
+    }
+    if (/^(shot size|angle|movement|lens)\b/i.test(cleaned)) {
+      cameraParts.push(cleaned);
+      inCamera = true;
+      inState = false;
+      continue;
+    }
+    if (/^(?:composition|blocking)\s*[:：]/i.test(cleaned)) {
+      blockingParts.push(compactSentence(cleaned, 160));
+      inCamera = false;
+      inState = false;
+      continue;
+    }
+    if (/^State\s*[:：]/i.test(cleaned)) {
+      stateParts.push(cleaned);
+      inCamera = false;
+      inState = true;
+      continue;
+    }
+    if (/^Performance\s*[:：]/i.test(cleaned)) {
+      performanceParts.push(compactSentence(cleaned, 140));
+      inCamera = false;
+      inState = false;
+      continue;
+    }
+    if (inState && /\b(hands bound|movement restricted|wearing|holding|clutching|still)\b/i.test(cleaned)) {
+      stateParts.push(cleaned);
+      continue;
+    }
+    actionParts.push(cleaned);
+    inCamera = false;
+    inState = false;
+  }
+
+  const action = actionParts.join("; ");
+  const state = stateParts.join("; ");
+  const camera = cameraParts.slice(0, 5).join("; ");
+  const performance = performanceParts.join("; ");
+  const blocking = blockingParts.join("; ");
+  return [state, camera, action, performance, blocking]
+    .filter(Boolean)
+    .join("; ")
+    .replace(/;{2,}/g, ";");
+}
+
+function isCompactCameraAtom(value: string): boolean {
+  return /^(?:wide shot|medium shot|medium close-up|close-up|extreme close-up|establishing shot|eye-level|low angle|high angle|slight low angle|over-shoulder|static hold|slow push-in|controlled push-in|small lateral slide|slow pan|handheld tracking|tracking|dolly|fast dolly-in|24mm|35mm|50mm|85mm)$/i.test(value.trim());
 }
 
 function splitWorkflowVideoPromptSections(prompt: string): Array<{ kind: "header" | "beat"; text: string }> {
@@ -5482,7 +7425,7 @@ function splitWorkflowVideoPromptSections(prompt: string): Array<{ kind: "header
       continue;
     }
     const current = sections.at(-1);
-    if (current?.kind === "beat") {
+    if (current?.kind === "beat" && !isWorkflowVideoPostBeatHeaderLine(line)) {
       current.lines.push(line);
     } else {
       sections.push({ kind: "header", lines: [line] });
@@ -5496,18 +7439,83 @@ function splitWorkflowVideoPromptSections(prompt: string): Array<{ kind: "header
     .filter((section) => section.text.trim());
 }
 
+function normalizeWorkflowVideoBeatBlock(prompt: string): string {
+  const lines = normalizePromptTextWithoutCompression(prompt).split("\n").map((line) => line.trim()).filter(Boolean);
+  const beatLines: string[] = [];
+  const preBeatLines: string[] = [];
+  const postBeatLines: string[] = [];
+  let sawBeatHeader = false;
+  let sawBeat = false;
+
+  for (const line of lines) {
+    if (/^(?:Storyboard|Shot) beats\b/i.test(line)) {
+      sawBeatHeader = true;
+      continue;
+    }
+    if (isWorkflowVideoBeatLine(line)) {
+      beatLines.push(line);
+      sawBeat = true;
+      continue;
+    }
+    if (!sawBeat) preBeatLines.push(line);
+    else postBeatLines.push(line);
+  }
+
+  if (beatLines.length === 0) return lines.join("\n");
+  const beatKind = beatLines.some((line) => /^P\d+/i.test(line.trim())) ? "P" : "S";
+  const header = sawBeatHeader
+    ? (beatKind === "P" ? "Storyboard beats, follow in this exact order:" : "Shot beats, follow in this exact order:")
+    : "";
+  const renumbered = beatLines.map((line, index) =>
+    line.replace(/^(?:P|S)\d{1,2}(\s*(?:\/\s*(?:P|S)?\d{1,2})?\s*(?:[:：\-—]|\s+-\s+)\s*)/i, `${beatKind}${index + 1}: `),
+  );
+  const uniquePost = uniqueStrings(postBeatLines);
+  return [
+    ...preBeatLines,
+    header,
+    ...renumbered,
+    ...uniquePost,
+  ].filter(Boolean).join("\n");
+}
+
 function extractDialogueFromVideoBeatLine(value: string): string {
-  const labelled = value.match(/\b(?:Exact dialogue|dialogue\/reaction|dialogue)\s*[:;]?\s*([\s\S]*)$/i)?.[1] ?? "";
+  const labelledParts = value
+    .split(";")
+    .map((part) => cleanVideoLine(part))
+    .filter(Boolean)
+    .map((part) => part.match(/^(?:Exact dialogue|dialogue\/reaction|dialogue)\s*[:：]\s*([\s\S]+)$/i)?.[1]?.trim() ?? "")
+    .filter(Boolean);
+  if (labelledParts.length > 0) {
+    const extracted = labelledParts
+      .map((part) => {
+        const speakerMatches = extractSpeakerDialogueFragments(part);
+        return speakerMatches.length > 0 ? speakerMatches.join(" ") : part;
+      })
+      .join(" ");
+    if (extracted) return extracted;
+  }
+  const labelled = value.match(/\b(?:Exact dialogue|dialogue\/reaction|dialogue)\s*[:;]\s*([\s\S]*?)(?=;\s*(?:Camera plan|Shot|State|Performance|shot size|angle|movement|composition|blocking|lens)\s*[:：]?\s*|$)/i)?.[1] ?? "";
   if (labelled) {
     const speakerMatches = extractSpeakerDialogueFragments(labelled);
     if (speakerMatches.length > 0) return speakerMatches.join(" ");
     return labelled.split(";")[0]?.trim() ?? labelled.trim();
   }
-  return extractSpeakerDialogueFragments(value).join(" ");
+  const speakerMatches = extractSpeakerDialogueFragments(value);
+  return speakerMatches.length > 0 ? speakerMatches.join(" ") : "";
 }
 
 function extractSpeakerDialogueFragments(value: string): string[] {
-  const speakerMatches = Array.from(value.matchAll(/\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s*[:：]\s*([\s\S]*?)(?=\b[A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}\s*[:：]|;|\n|$)/g))
+  const speakerPattern = String.raw`(?:[A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})`;
+  const saysMatches = Array.from(value.matchAll(new RegExp(String.raw`(?:^|\s)(${speakerPattern})\s+says\s+[“"]([\s\S]*?)[”"](?=\s*${speakerPattern}\s+says\s+[“"]|;|\n|$)`, "g")))
+    .map((match) => {
+      const speaker = (match[1] ?? "").trim();
+      const line = cleanVideoDialogue((match[2] ?? "").trim());
+      if (!speaker || !line || isNonDialogueSpeakerLabel(speaker, line)) return "";
+      return `${speaker}: ${line}`.trim();
+    })
+    .filter((item) => item.length > 4);
+  if (saysMatches.length > 0) return saysMatches;
+  const speakerMatches = Array.from(value.matchAll(new RegExp(String.raw`(?:^|\s)(${speakerPattern})\s*[:：]\s*([\s\S]*?)(?=\s*${speakerPattern}\s*[:：]|;|\n|$)`, "g")))
     .map((match) => {
       const speaker = (match[1] ?? "").trim();
       const line = cleanVideoDialogue((match[2] ?? "").trim());
@@ -5518,10 +7526,35 @@ function extractSpeakerDialogueFragments(value: string): string[] {
   return speakerMatches;
 }
 
+function formatExactVideoDialogue(value: string): string {
+  const cleaned = cleanVideoDialogue(value || "");
+  if (!cleaned) return "";
+  const alreadyFormatted = cleaned.match(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s+says\s+[“"]([\s\S]+)[”"]$/);
+  if (alreadyFormatted) {
+    const speaker = (alreadyFormatted[1] ?? "").trim();
+    const line = trimDialogueQuotes((alreadyFormatted[2] ?? "").trim());
+    return `${speaker} says “${line}”`;
+  }
+  const speakerMatch = cleaned.match(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：]\s*([\s\S]+)$/);
+  if (speakerMatch) {
+    const speaker = (speakerMatch[1] ?? "").trim();
+    const line = trimDialogueQuotes((speakerMatch[2] ?? "").trim());
+    return `${speaker} says “${line}”`;
+  }
+  return `“${trimDialogueQuotes(cleaned)}”`;
+}
+
+function trimDialogueQuotes(value: string): string {
+  return value
+    .trim()
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .trim();
+}
+
 function isNonDialogueSpeakerLabel(speaker: string, line: string): boolean {
   const key = normalizeCompareText(speaker);
-  if (/(camera|scene|shot|panel|action|dialogue|physics hack|poster ruined|face cracks open|exact dialogue)/.test(key)) return true;
-  if (/^(camera|medium|close-up|wide|eye-level|static|handheld|tracking|slow push|cut|whip-pan)\b/i.test(line)) return true;
+  if (/(camera|scene|shot|panel|action|dialogue|state|performance|composition|blocking|block|movement|lens|angle|shot size|visual|reference|references|setting|style|physics hack|poster ruined|face cracks open|exact dialogue)/.test(key)) return true;
+  if (/^(camera|composition|blocking|block|movement|lens|angle|shot size|performance|medium|close-up|wide|eye-level|static|handheld|tracking|slow push|cut|whip-pan)\b/i.test(line)) return true;
   return false;
 }
 
@@ -5529,9 +7562,64 @@ function isWorkflowVideoBeatLine(line: string): boolean {
   return /^(?:P|S)\d{1,2}\s*(?:\/\s*(?:P|S)?\d{1,2})?\s*(?:[:：\-—]|\s+-\s+)/i.test(line.trim());
 }
 
+// composeSeedancePrompt 在节拍块之后还会输出顺序/连续性/导演/负面指令行；
+// 这些行必须归为 header section，否则会被吞进最后一个节拍而在压缩时整行丢失。
+function isWorkflowVideoPostBeatHeaderLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (isWorkflowVideoBeatLine(trimmed)) return false;
+  return /^(?:Do not skip|Do not add|Continuity:|Direction:|No subtitles)/i.test(trimmed);
+}
+
 function trimWorkflowVideoPromptToLimit(prompt: string, maxChars: number): string {
   if (prompt.length <= maxChars) return prompt;
   const lines = prompt.split("\n");
+  const beatLines = lines.filter((line) => isWorkflowVideoBeatLine(line));
+  if (beatLines.length > 0) {
+    const footerLine = lines.find((line) => line === COMPACT_WORKFLOW_VIDEO_FOOTER) ?? COMPACT_WORKFLOW_VIDEO_FOOTER;
+    let headerLines = compactWorkflowVideoHeaderForBeatRetention(
+      lines.filter((line) => line && !isWorkflowVideoBeatLine(line) && line !== footerLine),
+    );
+    const buildPrompt = (headers: string[], beats: string[], footer: string) => normalizePromptTextWithoutCompression([
+      ...headers,
+      ...beats,
+      footer,
+    ].filter(Boolean).join("\n"));
+    const compactBeatsForBudget = (headers: string[], footer: string) => {
+      const fixedChars = joinedLineLength(headers) + (headers.length ? 1 : 0) + footer.length + 1 + Math.max(0, beatLines.length - 1);
+      const perBeatLimit = Math.max(
+        24,
+        Math.min(COMPACT_WORKFLOW_VIDEO_SECOND_PASS_MIN_BEAT_CHARS, Math.floor((maxChars - fixedChars) / beatLines.length)),
+      );
+      return beatLines.map((line) => compactWorkflowVideoBeatLine(line, perBeatLimit)).filter(Boolean);
+    };
+
+    let footer: string = footerLine;
+    let compactBeats = compactBeatsForBudget(headerLines, footer);
+    let rebuilt = buildPrompt(headerLines, compactBeats, footer);
+    if (rebuilt.length <= maxChars) return rebuilt;
+
+    headerLines = headerLines.map((line) => {
+      if (/^Scene visual continuity lock:/i.test(line)) return compactSentence(line, 80);
+      if (/^Initial character state and positions:/i.test(line)) return compactSentence(line, 100);
+      if (/^Scene:|^Style:|^Characters:|^Story goal:|^Direction:/i.test(line)) return compactSentence(line, 90);
+      if (/^Continuity:/i.test(line)) return "";
+      return compactSentence(line, 70);
+    });
+    compactBeats = compactBeatsForBudget(headerLines, footer);
+    rebuilt = buildPrompt(headerLines, compactBeats, footer);
+    if (rebuilt.length <= maxChars) return rebuilt;
+
+    const requiredHeader = headerLines.filter((line) => /^Generate |^Scene:|^Characters:|^Follow (?:shot|P) beats/i.test(line));
+    headerLines = requiredHeader.length ? requiredHeader : headerLines.slice(0, 1);
+    compactBeats = compactBeatsForBudget(headerLines, footer);
+    rebuilt = buildPrompt(headerLines, compactBeats, footer);
+    if (rebuilt.length <= maxChars) return rebuilt;
+
+    footer = "";
+    compactBeats = compactBeatsForBudget(headerLines, footer);
+    rebuilt = buildPrompt(headerLines, compactBeats, footer);
+    if (rebuilt.length <= maxChars) return rebuilt;
+  }
   const output: string[] = [];
   for (const line of lines) {
     const remaining = maxChars - output.join("\n").length - (output.length ? 1 : 0);
@@ -5540,7 +7628,7 @@ function trimWorkflowVideoPromptToLimit(prompt: string, maxChars: number): strin
       output.push(line);
       continue;
     }
-    if (isWorkflowVideoBeatLine(line)) output.push(compactSentence(line, remaining));
+    if (isWorkflowVideoBeatLine(line)) output.push(compactWorkflowVideoBeatLine(line, remaining));
     break;
   }
   return normalizePromptTextWithoutCompression(output.join("\n"));
@@ -5549,8 +7637,36 @@ function trimWorkflowVideoPromptToLimit(prompt: string, maxChars: number): strin
 function compactSentence(value: string, maxChars: number): string {
   const cleaned = cleanVideoLine(value);
   if (cleaned.length <= maxChars) return cleaned;
-  const sliced = cleaned.slice(0, Math.max(0, maxChars - 1)).replace(/\s+\S*$/, "").trim();
-  return sliced ? `${sliced}.` : cleaned.slice(0, maxChars);
+  if (maxChars <= 0) return "";
+  if (maxChars <= 8) return cleaned.slice(0, maxChars).trim();
+  const candidate = cleaned.slice(0, maxChars).trim();
+  const sentenceMatches = Array.from(candidate.matchAll(/[.!?。！？；;](?=\s|$)/g));
+  const sentenceBoundary = sentenceMatches
+    .reverse()
+    .find((match) => {
+      const index = match.index ?? -1;
+      const punctuation = match[0] ?? "";
+      const trailing = candidate.slice(index + punctuation.length).trim();
+      return !/[;；]/.test(punctuation) || trailing.length < 24;
+    });
+  const sentenceEnd = sentenceBoundary?.index;
+  if (sentenceEnd !== undefined && sentenceEnd + 1 >= Math.floor(maxChars * 0.45)) {
+    return stripDanglingVideoFragment(candidate.slice(0, sentenceEnd + (sentenceBoundary?.[0]?.length ?? 1)));
+  }
+  const commaBoundary = Math.max(candidate.lastIndexOf(", "), candidate.lastIndexOf("，"));
+  if (commaBoundary >= Math.floor(maxChars * 0.55)) {
+    return stripDanglingVideoFragment(candidate.slice(0, commaBoundary));
+  }
+  const wordBoundary = candidate.replace(/\s+\S*$/, "").trim();
+  return stripDanglingVideoFragment(wordBoundary || candidate);
+}
+
+function stripDanglingVideoFragment(value: string): string {
+  return cleanVideoLine(value)
+    .replace(/(?<!-)\b(?:as if|and|or|with|to|from|of|for|by|in|on|at|the|a|an)\.?$/i, "")
+    .replace(/\b(?:as if addre|addre|del|Cultists s|Cultists sit r)\.?$/i, "")
+    .replace(/\s*[;,，；:：-]\s*$/g, "")
+    .trim();
 }
 
 function formatClipCharacters(characters: string[], identities: Record<string, string>): string {
@@ -5563,14 +7679,22 @@ function formatClipCharacters(characters: string[], identities: Record<string, s
 }
 
 function formatClipVideoCharacters(characters: string[], identities: Record<string, string>): string {
-  return characters
-    .slice(0, 8)
-    .map((name) => {
-      const identity = compactVideoIdentity(identities[normalizeCompareText(name)] ?? "");
-      const reference = identity && normalizeCompareText(identity) !== normalizeCompareText(name) ? `${identity}; ` : "";
-      return `${name} = ${reference}use ${name}'s connected character reference image`;
-    })
-    .join("; ");
+  void identities;
+  const names = compactWorkflowCharacterNames(characters).slice(0, 8);
+  return names.length ? `${names.join(", ")}. Use connected character reference images for identity; do not redesign.` : "";
+}
+
+function compactWorkflowCharacterNames(values: string[]): string[] {
+  const names = uniqueStrings(values.map((value) => cleanVideoLine(value))).filter(Boolean);
+  return names.filter((name) => {
+    const key = normalizeCompareText(name);
+    if (!key) return false;
+    return !names.some((other) => {
+      const otherKey = normalizeCompareText(other);
+      if (otherKey === key || otherKey.length <= key.length) return false;
+      return new RegExp(`(^|\\s)${escapeRegExp(key)}($|\\s)`, "i").test(otherKey);
+    });
+  });
 }
 
 function compactVideoIdentity(value: string): string {
@@ -5592,10 +7716,10 @@ function shortVideoStyle(value: string): string {
   return cleanVideoLine(normalized || "cinematic 3D animated short-drama, fast pacing");
 }
 
-function buildClipVideoStoryboardBeats(clip: NormalizedWorkflowClip, shots: NormalizedStoryboardShot[]): ClipVideoStoryboardBeat[] {
+function buildClipVideoStoryboardBeats(clip: NormalizedWorkflowClip, shots: NormalizedStoryboardShot[], workflow?: ReturnType<typeof getWorkflowState>): ClipVideoStoryboardBeat[] {
   const panelBeats = extractStoryboardPanelVideoBeats(clip.storyboardPrompt);
   if (panelBeats.length > 0) return attachStoryboardBeatDialogues(panelBeats, shots);
-  return buildShotOrderVideoBeats(shots);
+  return buildShotOrderVideoBeats(shots, clip, workflow);
 }
 
 function extractStoryboardPanelVideoBeats(storyboardPrompt: string): ClipVideoStoryboardBeat[] {
@@ -5624,6 +7748,7 @@ function extractStoryboardPanelVideoBeats(storyboardPrompt: string): ClipVideoSt
 
 function cleanStoryboardPanelText(value: string): string {
   return cleanVideoBeat(value)
+    .replace(/\bdialogue\s*\/\s*reaction\b/gi, "")
     .replace(/\b(?:shot size|angle|camera angle|camera movement|move|lens|focal length|action|key prop|dialogue)\s*[:=]/gi, "")
     .replace(/\b(?:image area|technical label strip|label strip)\b/gi, "")
     .replace(/\s*[|/]\s*/g, "; ")
@@ -5631,36 +7756,599 @@ function cleanStoryboardPanelText(value: string): string {
     .trim();
 }
 
-function buildShotOrderVideoBeats(shots: NormalizedStoryboardShot[]): ClipVideoStoryboardBeat[] {
+function buildShotOrderVideoBeats(shots: NormalizedStoryboardShot[], clip?: NormalizedWorkflowClip, workflow?: ReturnType<typeof getWorkflowState>): ClipVideoStoryboardBeat[] {
+  const allocation = allocateClipDialogueToBeats(
+    shots.map((shot) => ({
+      dialogue: shot.dialogue || "",
+      characters: shot.characters || [],
+      title: shot.title,
+      action: shot.action,
+      description: shot.description,
+      visualPrompt: shot.visualPrompt,
+      references: shot.references,
+    })),
+  );
+  const stateMemory = buildClipCharacterStateMemory(clip, workflow);
   return shots
     .map((shot, index) => {
-      const camera = [shot.shotSize, shot.cameraAngle, shot.cameraMove, shot.lens].filter(Boolean).join(", ");
-      const action = cleanVideoBeat(shot.action || shot.description || shot.visualPrompt || "");
-      const dialogue = cleanVideoDialogue(shot.dialogue || "");
-      const text = [camera ? `camera ${camera}` : "", action, dialogue ? `dialogue/reaction ${dialogue}` : ""]
-        .filter(Boolean)
-        .join("; ");
+      const camera = shotVideoCameraPlan(shot, index);
+      const action = cleanVideoBeat(shot.action || shot.description || shot.visualPrompt || fallbackBeatActionFromDialogue(shot, allocation.beats[index]?.join(" ") ?? ""));
+      const dialogue = cleanVideoDialogue(allocation.beats[index]?.join(" ") ?? "");
+      const visibleCharacters = visibleCharactersForShot(shot, dialogue);
+      const state = stateLineForVisibleCharacters(visibleCharacters, action, shot, stateMemory);
+      const performance = performanceLineForVideoBeat(shot, action, dialogue, visibleCharacters, clip);
       return {
         label: `S${index + 1}`,
-        text,
+        camera,
+        composition: cleanVideoBeat(shot.composition || ""),
+        action,
+        sourceTitle: cleanVideoBeat(shot.title || ""),
+        sourceDescription: cleanVideoBeat(shot.description || ""),
+        sourceReferences: cleanVideoBeat(shot.references || ""),
+        sourceVisualPrompt: cleanVideoBeat(shot.visualPrompt || ""),
+        text: [camera ? `Shot: ${camera}` : "", action].filter(Boolean).join("; "),
         dialogue,
+        visibleCharacters,
+        state,
+        performance,
       };
     })
-    .filter((beat) => beat.text)
+    .filter((beat) => beat.text || beat.dialogue)
     .slice(0, MAX_CLIP_STORYBOARD_PANEL_COUNT);
 }
 
-function formatStoryboardVideoBeats(beats: ClipVideoStoryboardBeat[]): string[] {
-  return beats
-    .map((beat) => {
+function performanceLineForVideoBeat(
+  shot: NormalizedStoryboardShot,
+  action: string,
+  dialogue: string,
+  visibleCharacters: string[],
+  clip?: NormalizedWorkflowClip,
+): string {
+  const localText = normalizeCompareText([
+    shot.title,
+    shot.description,
+    shot.action,
+    shot.references,
+    shot.visualPrompt,
+    action,
+    dialogue,
+  ].join(" "));
+  const closeOrReaction = /(close|close-up|reaction|face|eyes|stare|look|expression|whisper|smirk|特写|反应|表情|眼神)/.test(localText);
+  const hasDialogue = Boolean(cleanVideoDialogue(dialogue || shot.dialogue || ""));
+  const hasLocalEmotionCue = hasBeatEmotionCue(localText);
+  if (!hasDialogue && (!closeOrReaction || !hasLocalEmotionCue)) return "";
+
+  const subjects = visibleCharacters.length
+    ? visibleCharacters.slice(0, 2).join(" and ")
+    : extractAllocatedDialogueSpeakerNames(dialogue || shot.dialogue || "").slice(0, 2).join(" and ");
+  const subject = subjects || "visible performer(s)";
+  const emotion = inferBeatEmotionDescriptor(localText, hasLocalEmotionCue || hasDialogue ? clip : undefined);
+  const delivery = hasDialogue ? inferDialogueDeliveryDescriptor(localText, dialogue || shot.dialogue || "", clip) : "";
+  const parts = [
+    `${subject} ${subject.includes(" and ") ? "show" : "shows"} ${emotion}`,
+    delivery ? `delivery ${delivery}` : "",
+  ].filter(Boolean);
+  return parts.length ? `Performance: ${parts.join("; ")}` : "";
+}
+
+function hasBeatEmotionCue(text: string): boolean {
+  return /(panic|fear|afraid|terrified|tense|hesitat|nervous|worried|angry|rage|furious|scold|accuse|yell|shout|snap|glares|sarcastic|mock|dry|deadpan|joke|wisecrack|snark|surprise|reveal|shock|realize|sudden|startled|\bconfess(?:es|ed|ing)?\b|guilty|ashamed|plead|beg|ritual|trial|announce|ceremony|sermon|judgment|惊恐|害怕|紧张|犹豫|怒|训斥|指责|吼|瞪|讽刺|吐槽|冷笑|黑色幽默|惊讶|震惊|发现|意识到|忏悔|内疚|羞愧|求饶|审判|仪式|宣告|布道)/.test(text);
+}
+
+function inferBeatEmotionDescriptor(text: string, clip?: NormalizedWorkflowClip): string {
+  const arc = normalizeCompareText(clip?.emotionArc || "");
+  const combined = `${text} ${arc}`;
+  if (/(panic|fear|afraid|terrified|tense|hesitat|nervous|worried|惊恐|害怕|紧张|犹豫)/.test(combined)) return "tense, alert expression with small anxious micro-reactions";
+  if (/(angry|rage|furious|scold|accuse|yell|shout|snap|glares|怒|训斥|指责|吼|瞪)/.test(combined)) return "sharp anger or righteous outrage in the face and posture";
+  if (/(sarcastic|mock|dry|deadpan|joke|wisecrack|snark|讽刺|吐槽|冷笑|黑色幽默)/.test(combined)) return "dry comic timing, restrained sarcasm, and a readable deadpan face";
+  if (/(surprise|reveal|shock|realize|sudden|startled|惊讶|震惊|发现|意识到)/.test(combined)) return "surprised recognition that quickly turns into a reaction";
+  if (/\b(confess(?:es|ed|ing)?|guilty|ashamed|plead|beg)\b|忏悔|内疚|羞愧|求饶/.test(combined)) return "uneasy guilt or pleading vulnerability";
+  if (/(ritual|trial|announce|ceremony|sermon|judgment|审判|仪式|宣告|布道)/.test(combined)) return "heightened ritual seriousness with theatrical conviction";
+  return "story-specific emotion matching the current beat, readable through face and body language";
+}
+
+function inferDialogueDeliveryDescriptor(text: string, dialogue: string, clip?: NormalizedWorkflowClip): string {
+  const combined = normalizeCompareText(`${text} ${dialogue} ${clip?.emotionArc || ""}`);
+  if (/(deadpan|dry|sarcastic|mock|joke|wisecrack|crap|kidding|讽刺|吐槽|冷笑)/.test(combined)) return "dry, quick, sarcastic, with comic pause timing";
+  if (/(angry|furious|scold|accuse|yell|shout|snap|murder|trial|审判|指责|训斥|怒吼)/.test(combined)) return "forceful and theatrical, rising with controlled outrage";
+  if (/(whisper|secret|quiet|low|低声|耳语|悄声)/.test(combined)) return "lower and controlled, with guarded tension";
+  if (/(panic|fear|please|beg|help|惊恐|求饶|拜托)/.test(combined)) return "urgent and breathy, pushed by fear";
+  if (/(announce|ritual|ceremony|sermon|宣告|仪式|布道)/.test(combined)) return "ceremonial, declarative, and aimed at the hall";
+  return "natural to the line's intent, not monotone, with clear emotional subtext";
+}
+
+function shotVideoCameraPlan(shot: NormalizedStoryboardShot, index = 0): string {
+  const fallback = inferProfessionalShotFields(
+    {
+      title: shot.title,
+      description: shot.description,
+      action: shot.action,
+      dialogue: shot.dialogue,
+      durationSeconds: shot.durationSeconds,
+      characters: shot.characters,
+      setting: shot.setting,
+      references: shot.references,
+      visualPrompt: shot.visualPrompt,
+    },
+    index,
+  );
+  const shotSize = cleanVideoBeat(shot.shotSize || fallback.shotSize || "medium shot");
+  const angle = cleanVideoBeat(shot.cameraAngle || fallback.cameraAngle || "eye-level");
+  const movement = cleanVideoBeat(shot.cameraMove || fallback.cameraMove || "controlled camera move");
+  const lens = cleanVideoBeat(shot.lens || fallback.lens || "50mm");
+  const composition = cleanShotBlocking(shot.composition || fallback.composition || shot.references || shot.visualPrompt || "");
+  return [
+    shotSize,
+    angle,
+    movement,
+    lens,
+    composition ? `blocking: ${composition}` : "",
+  ].filter(Boolean).join("; ");
+}
+
+function cleanShotBlocking(value: string): string {
+  return stripShotStyleBoilerplate(cleanVideoBeat(value || ""))
+    .replace(/\bSet in [^;。.!?]+[;。.!?]?\s*/gi, "")
+    .replace(/\bUse the current scene layout[;。.!?]?\s*/gi, "")
+    .replace(/\bframe only the visible subject\(s\) for this shot[;。.!?]?\s*/gi, "")
+    .replace(/\bkeep screen direction readable[;。.!?]?\s*/gi, "")
+    .replace(/\bseparate foreground, midground, and background(?: for continuity)?[;。.!?]?\s*/gi, "")
+    .replace(/\bclear character blocking[;。.!?]?\s*/gi, "")
+    .replace(/\bcurrent scene layout[;。.!?]?\s*/gi, "")
+    .replace(/\b[A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?\s+in the same established scene position[;。.!?]?\s*/gi, "")
+    .replace(/\bin the same established scene position[;。.!?]?\s*/gi, "")
+    .replace(/\bSame setting and character blocking,?\s*natural reaction or angle change\.?\s*/gi, "")
+    .replace(/\s*;\s*;\s*/g, "; ")
+    .replace(/^;\s*|\s*;$/g, "")
+    .trim();
+}
+
+function stripShotStyleBoilerplate(value: string): string {
+  return cleanVideoBeat(value || "")
+    .replace(/\b(?:masterpiece|best quality|highly detailed|cinematic lighting|consistent character design|polished render|saturated colors|clean 3D render)\b,?\s*/gi, "")
+    .replace(/\b(?:saturated\s+)?3D\s+(?:American\s+)?(?:animated\s+)?(?:dark[- ]comedy\s+)?comic style\b,?\s*/gi, "")
+    .replace(/\b(?:3D style|American comic style|dark humor|dark-comedy comic look)\b,?\s*/gi, "")
+    .replace(/^(?:[,;]\s*)+/g, "")
+    .replace(/\s*;\s*;\s*/g, "; ")
+    .trim();
+}
+
+function summarizeInitialCharacterStateAndPositions(
+  beats: ClipVideoStoryboardBeat[],
+  startState = "",
+  layoutMemory = "",
+): string {
+  const sources = beats
+    .filter((beat) => (beat.visibleCharacters?.length ?? 0) > 0 || beat.camera || beat.composition || beat.action || beat.text)
+    .slice(0, 3);
+  const fallbackText = cleanVideoBeat([startState, layoutMemory].filter(Boolean).join("; "));
+  const output: string[] = [];
+  const seen = new Set<string>();
+  for (const beat of sources) {
+    const names = uniqueStrings([...(beat.visibleCharacters ?? []), ...extractAllocatedDialogueSpeakerNames(beat.dialogue || "")]).slice(0, 4);
+    if (names.length === 0) continue;
+    const evidence = cleanInitialStateEvidence([
+      beat.composition,
+      extractBlockingFromCameraLine(beat.camera || ""),
+      beat.state,
+      beat.sourceReferences,
+      beat.sourceDescription,
+      beat.sourceVisualPrompt,
+      beat.action,
+      beat.text,
+    ].filter(Boolean).join("; "));
+    for (const name of names) {
+      const key = normalizeCompareText(name);
+      if (!key || seen.has(key)) continue;
+      const phrase = summarizeInitialStateForCharacter(name, evidence, fallbackText);
+      if (!phrase) continue;
+      output.push(phrase);
+      seen.add(key);
+      if (output.length >= 5) break;
+    }
+    if (output.length >= 5) break;
+  }
+  if (output.length === 0 && fallbackText) return compactSentence(fallbackText, 360);
+  return compactSentence(output.join("; "), 520);
+}
+
+function summarizeInitialStateForCharacter(character: string, evidence: string, fallbackText: string): string {
+  const clauses = reduceInitialStateClauses(uniqueStrings([
+    ...initialStateClausesForCharacter(character, fallbackText),
+    ...initialStateClausesForCharacter(character, evidence),
+  ]).sort((a, b) => initialStateClausePriority(b) - initialStateClausePriority(a)));
+  if (clauses.length === 0) return "";
+  return `${character} ${uniqueStrings(clauses).slice(0, 3).join(", ")}`;
+}
+
+function initialStateClausesForCharacter(character: string, value: string): string[] {
+  const source = cleanInitialStateEvidence(value);
+  if (!source) return [];
+  const name = escapeRegExp(character);
+  const clauses: string[] = [];
+  const carriedBedState = livingVineBedStateForCharacter(source, character);
+  if (carriedBedState) clauses.push(carriedBedState);
+  const localSource = initialStateLocalTextForCharacter(source, character);
+  const screenSideMatch = localSource.match(new RegExp(String.raw`\b${name}\b[^.;。!?]{0,90}\b(screen[- ]?(?:left|right|center)|center[- ]?(?:left|right)|foreground|midground|background|left side|right side|front row|rear|elevated|below|above|at the head|head of (?:the )?bed|bed head)\b[^.;。!?]{0,70}`, "i"));
+  if (screenSideMatch) clauses.push(cleanInitialStateClause(screenSideMatch[0].replace(new RegExp(String.raw`^\b${name}\b\s*`, "i"), "")));
+  const facingMatch = localSource.match(new RegExp(String.raw`\b${name}\b[^.;。!?]{0,90}\b(?:facing|faces|looks toward|turned toward|toward|面向|看向)\b[^.;。!?]{0,70}`, "i"));
+  if (facingMatch) clauses.push(cleanInitialStateClause(facingMatch[0].replace(new RegExp(String.raw`^\b${name}\b\s*`, "i"), "")));
+  const heldMatch = localSource.match(new RegExp(String.raw`\b${name}\b[^.;。!?]{0,100}\b(?:holding|holds|held|clutching|clutches|carrying|carries|with|手持|拿着|抱着)\b[^.;。!?]{0,70}`, "i"));
+  if (heldMatch) clauses.push(cleanInitialStateClause(heldMatch[0].replace(new RegExp(String.raw`^\b${name}\b\s*`, "i"), "")));
+  const stateMatch = localSource.match(new RegExp(String.raw`\b${name}\b[^.;。!?]{0,110}\b(?:bound|tied|restrained|wearing|wears|splattered|stained|injured|lowered|raised|嵌在|长在|被绑|受限|穿着|戴着|污渍|溅到)\b[^.;。!?]{0,80}`, "i"));
+  if (stateMatch) clauses.push(cleanInitialStateClause(stateMatch[0].replace(new RegExp(String.raw`^\b${name}\b\s*`, "i"), "")));
+  const compactSentenceWithName = localSource.match(new RegExp(String.raw`\b${name}\b[^.;。!?]{0,140}`, "i"));
+  if (clauses.length === 0 && compactSentenceWithName) {
+    const fallbackClause = cleanInitialStateClause(compactSentenceWithName[0].replace(new RegExp(String.raw`^\b${name}\b\s*`, "i"), ""));
+    if (isUsefulInitialStateClause(fallbackClause)) clauses.push(fallbackClause);
+  }
+  return clauses.filter(Boolean);
+}
+
+function initialStateClausePriority(value: string): number {
+  const text = normalizeCompareText(value);
+  let score = 0;
+  if (/living vine hospital bed|vine bed|ritual bed|hospital bed|altar|bed/.test(text)) score += 5;
+  if (/bound|restrained|strapped|tied|root restraint|vine restraint|藤蔓|根须|被绑|束缚/.test(text)) score += 4;
+  if (/screen|center|left|right|foreground|background|at the head|head of/.test(text)) score += 2;
+  if (/facing|toward|looks toward|面向|看向/.test(text)) score += 1;
+  return score;
+}
+
+function reduceInitialStateClauses(values: string[]): string[] {
+  const cleaned = uniqueStrings(values.map(cleanInitialStateClause).filter(Boolean))
+    .filter((item) => !/^Start\s*[:：]/i.test(item))
+    .filter((item) => !/^开始\s*[:：]/i.test(item))
+    .filter((item) => !/^Ends?\s+with\b/i.test(item))
+    .filter((item) => !/^结束\s*[:：]/i.test(item))
+    .filter((item) => !/^['’]s\b/i.test(item))
+    .filter((item) => !/^(?:Location|Characters|Continuity references|Character personal prop continuity|Rule|位置|角色|连续性参考|角色个人道具连续性|规则)\s*[:：]/i.test(item))
+    .filter((item) => !/^\s*,\s*$/.test(item));
+  const bestLivingBedState = cleaned.find((item) => /Living Vine Hospital Bed.*wrist connected to needle\/tubing/i.test(item))
+    ?? cleaned.find((item) => /lying on the Living Vine Hospital Bed, restrained by living vines\/root restraints/i.test(item))
+    ?? cleaned.find((item) => /Living Vine Hospital Bed.*restrained by living vines\/root restraints/i.test(item));
+  return cleaned.filter((item) => {
+    if (bestLivingBedState && /\bhands bound with rope\b|\bbound with rope\b|\bmovement restricted\b/i.test(item)) return false;
+    if (
+      bestLivingBedState &&
+      item !== bestLivingBedState &&
+      /Living Vine Hospital Bed.*restrained by living vines\/root restraints/i.test(item)
+    ) return false;
+    return true;
+  });
+}
+
+function livingVineBedStateForCharacter(value: string, character: string): string {
+  const source = cleanVideoBeat(value || "");
+  if (!source) return "";
+  const name = escapeRegExp(character);
+  const hasName = new RegExp(String.raw`\b${name}\b`, "i").test(source);
+  if (!hasName) return "";
+  const hasLivingBed = /\b(?:Living Vine Hospital Bed|vine hospital bed|living vine bed|vine bed|ritual bed|hospital bed|altar)\b|藤蔓病床|藤蔓床|仪式病床|仪式床/.test(source);
+  const local = initialStateLocalTextForCharacter(source, character);
+  const hasVineRestraint = /\b(?:living vines?|vine restraints?|root restraints?|restrained by vines?|bound by vines?|tendrils?|fungal neck threads?|bound|restrained|strapped|tied)\b|藤蔓|根须|触须|菌丝|被绑|束缚/.test(local);
+  const characterOnBed = /\b(?:lies?|lying|bound|restrained|strapped|twists?|glares?|strains?)\b/i.test(local) ||
+    /\bon\s+(?:the\s+)?(?:Living Vine Hospital Bed|vine hospital bed|living vine bed|vine bed|ritual bed|hospital bed|altar)\b/i.test(local);
+  if (!hasLivingBed || !hasVineRestraint || !characterOnBed) return "";
+  if (/\b(?:wrist|needle|tube|tubing|injection)\b/i.test(local)) {
+    return "on the Living Vine Hospital Bed, still restrained by living vines/root restraints, wrist connected to needle/tubing";
+  }
+  if (/\b(?:lies?|lying|twists?|tilts?|glares?|strains?)\b/i.test(local)) {
+    return "lying on the Living Vine Hospital Bed, restrained by living vines/root restraints";
+  }
+  return "on the Living Vine Hospital Bed, restrained by living vines/root restraints";
+}
+
+function initialStateLocalTextForCharacter(value: string, character: string): string {
+  const name = escapeRegExp(character);
+  return initialStateEvidenceClauses(value)
+    .map((item) => {
+      const match = item.match(new RegExp(String.raw`\b${name}\b[\s\S]*`, "i"));
+      const local = match?.[0]?.trim() ?? "";
+      return local.split(/(?:[;,]|[.!?。！？])\s*(?=(?:[A-Z][A-Za-z'’.-]+\b|Location|Characters|Start|End|Continuity references|Rule|位置|角色|开始|结束|连续性参考|规则)\b)/)[0]?.trim() ?? "";
+    })
+    .filter(Boolean)
+    .join("; ");
+}
+
+function splitStateAtoms(value: string): string[] {
+  return value
+    .split(/\s*,\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function cleanInitialStateEvidence(value: string): string {
+  const structured = initialStateEvidenceClauses(value).join("; ");
+  return cleanVideoBeat(structured)
+    .replace(/\bShot:\s*/gi, "")
+    .replace(/\bState:\s*/gi, "")
+    .replace(/\bPerformance:\s*[^;。!?]+[;。!?]?\s*/gi, "")
+    .replace(/\bExact dialogue:\s*[^;。!?]+[;。!?]?\s*/gi, "")
+    .replace(/\b(?:medium shot|close-up|wide shot|eye-level|over-shoulder|static hold|slow push-in|controlled camera move|handheld tracking|24mm|35mm|50mm|85mm)\b;?\s*/gi, "")
+    .replace(/\s*;\s*;\s*/g, "; ")
+    .replace(/^;\s*|\s*;$/g, "")
+    .trim();
+}
+
+function initialStateEvidenceClauses(value: string): string[] {
+  return String(value || "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/(?:Character personal prop continuity|角色个人道具连续性)\s*[:：][\s\S]*?(?=\b(?:Rule|Start|End|Location|Characters|Continuity references)\s*[:：]|(?:规则|开始|结束|位置|角色|连续性参考)\s*[:：]|$)/gi, "\n")
+    .replace(/\s*\|\s*/g, "\n")
+    .replace(/\b(Location|Characters|Start|End|Continuity references|Character personal prop continuity|Rule)\s*[:：]/gi, "\n$1: ")
+    .replace(/(角色个人道具连续性|连续性参考|位置|角色|开始|结束|规则)\s*[:：]/g, "\n$1：")
+    .split(/\n+|;\s*/)
+    .map((line) => line.trim().replace(/^[-*]\s*/, ""))
+    .filter(Boolean)
+    .map((line) => {
+      if (/^(?:Location|Characters|Character personal prop continuity|Rule|位置|角色|角色个人道具连续性|规则)\s*[:：]/i.test(line)) return "";
+      if (/^Continuity references\s*[:：]\s*/i.test(line)) return line.replace(/^Continuity references\s*[:：]\s*/i, "").trim();
+      if (/^连续性参考\s*[:：]\s*/i.test(line)) return line.replace(/^连续性参考\s*[:：]\s*/i, "").trim();
+      return line
+        .replace(/^Start\s*[:：]\s*(?:Starts?\s+with\s*)?/i, "")
+        .replace(/^End\s*[:：]\s*(?:Ends?\s+with\s*)?/i, "")
+        .replace(/^开始\s*[:：]\s*(?:开始于\s*)?/i, "")
+        .replace(/^结束\s*[:：]\s*(?:结束于\s*)?/i, "")
+        .replace(/^Continuity\s*[:：]\s*/i, "")
+        .replace(/^Starts?\s+with\s+/i, "")
+        .replace(/^Ends?\s+with\s+/i, "")
+        .replace(/^开始于\s+/i, "")
+        .replace(/^结束于\s+/i, "")
+        .trim();
+    })
+    .filter((line) => line && !/^Keep screen direction, character side, important props\b/i.test(line))
+    .filter((line) => line && !/^保持屏幕方向、角色所在侧、重要道具以及入场\/退场位置连续到下一个 Clip。?$/.test(line))
+    .filter((line) => line && !/^these props belong to the listed characters\b/i.test(line))
+    .filter((line) => line && !/^这些道具属于列出的角色\b/i.test(line));
+}
+
+function cleanInitialStateClause(value: string): string {
+  return cleanVideoBeat(value || "")
+    .replace(/\b(?:blocking|composition)\s*[:：]\s*/gi, "")
+    .replace(/\b(?:Location|Characters|Continuity references)\s*[:：][^;。!?]*[;。!?]?\s*/gi, "")
+    .replace(/(?:位置|角色|连续性参考)\s*[:：][^;。!?]*[;。!?]?\s*/g, "")
+    .replace(/\bStart\s*[:：]\s*(?:Starts?\s+with\s*)?/gi, "")
+    .replace(/\bEnd\s*[:：]\s*(?:Ends?\s+with\s*)?/gi, "")
+    .replace(/开始\s*[:：]\s*(?:开始于\s*)?/g, "")
+    .replace(/结束\s*[:：]\s*(?:结束于\s*)?/g, "")
+    .replace(/^开始于\s+/g, "")
+    .replace(/^结束于\s+/g, "")
+    .replace(/^(?:is|are|stands?|remains?|still|with)\s+/i, "")
+    .replace(/^[,;:：\s]+/g, "")
+    .replace(/\s*;\s*$/g, "")
+    .trim();
+}
+
+function isUsefulInitialStateClause(value: string): boolean {
+  return /\b(?:screen[- ]?(?:left|right|center)|center[- ]?(?:left|right)?|foreground|midground|background|left side|right side|front row|rear|elevated|below|above|at the head|head of (?:the )?bed|bed head|facing|faces|looks toward|turned toward|toward|holding|holds|held|clutching|clutches|carrying|carries|with|bound|tied|restrained|wearing|wears|splattered|stained|injured|lowered|raised|lies?|lying|on the|upon|bed|altar)\b|面向|看向|手持|拿着|抱着|嵌在|长在|被绑|受限|穿着|戴着|污渍|溅到/.test(value);
+}
+
+function extractBlockingFromCameraLine(camera: string): string {
+  const match = camera.match(/;\s*blocking:\s*([\s\S]*)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function removeBlockingFromCameraLine(camera: string): string {
+  return camera.replace(/;\s*blocking:\s*[\s\S]*$/i, "").trim().replace(/;\s*$/, "");
+}
+
+function fallbackBeatActionFromDialogue(shot: NormalizedStoryboardShot, dialogue: string): string {
+  const speakers = extractAllocatedDialogueSpeakerNames(dialogue || shot.dialogue || "");
+  if (speakers.length > 0) return `${speakers.join(" and ")} speak in ${shot.setting || "the scene"} with clear expression and readable body language.`;
+  const cast = (shot.characters || []).filter(Boolean).slice(0, 3);
+  if (cast.length > 0) return `${cast.join(" and ")} react in ${shot.setting || "the scene"} with clear story intent.`;
+  return "Continue the current story beat with visible character action.";
+}
+
+function visibleCharactersForShot(shot: NormalizedStoryboardShot, dialogue: string): string[] {
+  const text = normalizeCompareText([
+    shot.title,
+    shot.description,
+    shot.action,
+    dialogue,
+  ].join(" "));
+  const speakers = extractAllocatedDialogueSpeakerNames(dialogue || shot.dialogue || "");
+  const explicit = (shot.characters || []).filter((name) => text.includes(normalizeCompareText(name)));
+  return uniqueStrings([...speakers, ...explicit]).slice(0, 3);
+}
+
+function buildClipCharacterStateMemory(clip?: NormalizedWorkflowClip, workflow?: ReturnType<typeof getWorkflowState>): Map<string, string[]> {
+  const memory = new Map<string, string[]>();
+  const push = (character: string, state: string) => {
+    const key = normalizeCompareText(character);
+    if (!key || !state) return;
+    const states = memory.get(key) ?? [];
+    if (!states.some((item) => normalizeCompareText(item) === normalizeCompareText(state))) states.push(state);
+    memory.set(key, states.slice(-4));
+  };
+  const texts: string[] = [];
+  if (workflow && clip) {
+    const workflowClips = Array.isArray(workflow.clips) ? workflow.clips : [];
+    const clipIndex = workflowClips.findIndex((item) => item.id === clip.id);
+    const previousClips = clipIndex > 0 ? workflowClips.slice(Math.max(0, clipIndex - 3), clipIndex) : [];
+    for (const item of previousClips) {
+      texts.push(item.startState, item.endState, item.layoutMemory, item.storyboardNotes);
+    }
+  }
+  if (clip) texts.push(clip.startState, clip.endState, clip.layoutMemory, clip.storyboardNotes);
+  const joined = texts.filter(Boolean).join("\n");
+  if (/\bBound\s+Chloe,\s*Bob,\s*and\s*Leo\b/i.test(joined) || /\bChloe,\s*Bob,\s*and\s*Leo[^.\n;]*\b(?:bound|tied|restrained|captives)\b/i.test(joined)) {
+    for (const name of ["Chloe", "Bob", "Leo"]) push(name, "hands bound with rope, movement restricted");
+  }
+  const workflowCharacters = Array.isArray(workflow?.clips) ? workflow.clips.flatMap((item) => item.characters) : [];
+  for (const character of uniqueStrings([...(clip?.characters ?? []), ...workflowCharacters]).slice(0, 40)) {
+    const name = escapeRegExp(character);
+    const livingVineBedState = livingVineBedStateForCharacter(joined, character);
+    const explicitBound = new RegExp(String.raw`\b${name}\b\s+(?:is|are|stands?|remains?|still)?\s*(?:hands bound|hands tied|wrists bound|wrists tied|bound with rope|tied with rope|restrained)\b`, "i").test(joined);
+    const explicitPizza = new RegExp(String.raw`\b${name}\b[^.\n;:]{0,80}\b(?:clutch|clutches|holding|holds)\b[^.\n;:]{0,80}\bpizza box\b`, "i").test(joined);
+    const explicitHelmet = new RegExp(String.raw`\b${name}\b[^.\n;:]{0,80}\b(?:wearing|wears)\b[^.\n;:]{0,80}\bhelmet\b`, "i").test(joined);
+    if (livingVineBedState) push(character, livingVineBedState);
+    else if (explicitBound) push(character, "hands bound with rope, movement restricted");
+    if (explicitPizza) push(character, "clutching the pizza box despite restraints");
+    if (explicitHelmet) push(character, "still wearing the helmet");
+  }
+  return memory;
+}
+
+function statePhraseFromText(value: string, character: string): string {
+  const text = normalizeCompareText(value);
+  const name = escapeRegExp(character);
+  const states: string[] = [];
+  const raw = value;
+  const livingVineBedState = livingVineBedStateForCharacter(raw, character);
+  if (livingVineBedState) states.push(livingVineBedState);
+  if (!livingVineBedState && (
+    new RegExp(String.raw`\b${name}\b[^.\n;:]{0,80}\b(?:hands bound|hands tied|wrists bound|wrists tied|bound with rope|tied with rope|restrained|still bound)\b`, "i").test(raw) ||
+    new RegExp(String.raw`\b(?:Bound|Tied|Restrained)\s+${name}\b`, "i").test(raw)
+  )) {
+    states.push("hands bound with rope, movement restricted");
+  }
+  if (new RegExp(String.raw`\b${name}\b[^.\n;:]{0,80}\b(?:clutch|clutches|holding|holds|held)\b[^.\n;:]{0,80}\bpizza box\b`, "i").test(raw)) {
+    states.push("clutching the pizza box despite restraints");
+  }
+  if (new RegExp(String.raw`\b${name}\b[^.\n;:]{0,80}\b(?:wearing|wears)\b[^.\n;:]{0,80}\bhelmet\b`, "i").test(raw)) {
+    states.push("still wearing the helmet");
+  }
+  if (states.length === 0) return "";
+  return `${character}: ${uniqueStrings(states).join(", ")}`;
+}
+
+function stateLineForVisibleCharacters(visibleCharacters: string[], action: string, shot: NormalizedStoryboardShot, memory: Map<string, string[]>): string {
+  if (visibleCharacters.length === 0) return "";
+  const localText = [shot.title, shot.description, shot.action, shot.references, shot.visualPrompt, action].filter(Boolean).join(" ");
+  const output: string[] = [];
+  for (const character of visibleCharacters) {
+    const localState = statePhraseFromText(localText, character);
+    const remembered = memory.get(normalizeCompareText(character)) ?? [];
+    let states = uniqueStrings([
+      ...(localState ? localState.replace(new RegExp(`^${escapeRegExp(character)}\\s*[:：]\\s*`, "i"), "").split(/\s*,\s*/) : []),
+      ...remembered.flatMap((item) => splitStateAtoms(item.replace(new RegExp(`^${escapeRegExp(character)}\\s*[:：]\\s*`, "i"), ""))),
+    ].map((item) => item.trim()).filter(Boolean));
+    const hasBoundState = states.some((item) => /hands bound|tied|restrained|movement restricted/i.test(item));
+    const hasLivingVineBedState = states.some((item) => /Living Vine Hospital Bed|living vines\/root restraints|root restraints/i.test(item));
+    if (hasLivingVineBedState) {
+      states = states.filter((item) => !/\bhands bound with rope\b|\bbound with rope\b|\bmovement restricted\b|\bhands bound\b|\btied with rope\b/i.test(item));
+    }
+    const localShotgunState = new RegExp(String.raw`\b${escapeRegExp(character)}\b[^.\n;]*\b(?:holding|holds|held|lowered)\b[^.\n;]*\bshotgun\b`, "i").test(localText);
+    if (hasBoundState && !localShotgunState) {
+      states = states.filter((item) => !/holding the shotgun/i.test(item));
+    }
+    if (states.length > 0) output.push(`${character} ${states.slice(0, 2).join(", ")}`);
+  }
+  return output.length ? `State: ${output.join("; ")}` : "";
+}
+
+function formatStoryboardVideoBeats(beats: ClipVideoStoryboardBeat[]): { lines: string[]; clipBlocking: string } {
+  const builderBeats = beats.filter((beat) => beat.camera !== undefined);
+  const blockingTexts = builderBeats.map((beat) => extractBlockingFromCameraLine(beat.camera || ""));
+  const nonEmptyBlockings = blockingTexts.filter(Boolean);
+  const uniqueBlockings = new Set(nonEmptyBlockings.map((b) => normalizeCompareText(b)));
+  const clipBlocking = nonEmptyBlockings.length > 1 && uniqueBlockings.size === 1 ? nonEmptyBlockings[0] : "";
+
+  let previousActionKey = "";
+  const seenPerformanceKeys = new Set<string>();
+  const lines = beats
+    .map((beat, index) => {
       const label = beat.label || "Beat";
       const dialogue = cleanVideoDialogue(beat.dialogue || "");
-      const dialoguePrefix = dialogue ? `dialogue ${dialogue}; ` : "";
-      const core = cleanVideoLine(cleanStoryboardPanelText(removeVideoDialogueFragments(beat.text, dialogue)));
+      const dialoguePrefix = dialogue ? `Dialogue: ${formatExactVideoDialogue(dialogue)}; ` : "";
+      let core: string;
+      if (beat.camera !== undefined || beat.action !== undefined) {
+        const camera = clipBlocking ? removeBlockingFromCameraLine(beat.camera || "") : (beat.camera || "");
+        const actionKey = videoBeatActionRepeatKey(beat.action || "");
+        const repeatedAction = Boolean(actionKey) && actionKey === previousActionKey;
+        if (actionKey) previousActionKey = actionKey;
+        const performance = cleanVideoBeat(beat.performance || "");
+        const performanceKey = normalizeCompareText(performance);
+        const omitPerformance = Boolean(performance) && (
+          isGenericVideoPerformanceLine(performance) ||
+          seenPerformanceKeys.has(performanceKey)
+        );
+        if (performance && !omitPerformance) seenPerformanceKeys.add(performanceKey);
+        const actionText = repeatedAction
+          ? repeatedBeatActionFallback(beat, index)
+          : stripShotStyleBoilerplate(cleanVideoBeat(beat.action || ""));
+        core = [camera ? `Shot: ${camera}` : "", cleanVideoBeat(beat.state || ""), omitPerformance ? "" : performance, actionText]
+          .filter(Boolean)
+          .join("; ");
+      } else {
+        previousActionKey = "";
+        core = cleanVideoLine(cleanStoryboardPanelText(removeVideoDialogueFragments(beat.text, dialogue)));
+      }
       const text = cleanVideoLine(`${dialoguePrefix}${core}`.trim());
       return text ? `${label}: ${text}` : "";
     })
     .filter(Boolean);
+
+  return { lines, clipBlocking };
+}
+
+function isGenericVideoPerformanceLine(value: string): boolean {
+  const text = normalizeCompareText(value);
+  if (!text) return false;
+  if (/story specific emotion matching the current beat/.test(text)) return true;
+  if (/heightened ritual seriousness with theatrical conviction/.test(text)) return true;
+  if (/ceremonial and performative as if addressing the room/.test(text)) return true;
+  if (/show the listener s reaction speaker s expression/.test(text)) return true;
+  return false;
+}
+
+function repeatedBeatActionFallback(beat: ClipVideoStoryboardBeat, index: number): string {
+  const concrete = concreteRepeatedBeatAction(beat);
+  if (concrete) return concrete;
+  const characters = (beat.visibleCharacters ?? []).filter(Boolean).slice(0, 2);
+  const subject = characters.length ? characters.join(" and ") : "visible character(s)";
+  if (beat.dialogue) return `${subject} speak while the listener's visible posture or expression changes.`;
+  return `${subject} remain in the shot with a specific visible change in gaze, posture, hand position, or prop contact.`;
+}
+
+function concreteRepeatedBeatAction(beat: ClipVideoStoryboardBeat): string {
+  const repeatedKey = videoBeatActionRepeatKey(beat.action || "");
+  const candidates = [
+    beat.sourceVisualPrompt,
+    beat.composition,
+    beat.sourceReferences,
+    beat.sourceDescription,
+    beat.sourceTitle,
+  ]
+    .flatMap((value) => splitConcreteBeatCandidateText(value || ""))
+    .map((value) => stripShotStyleBoilerplate(cleanVideoBeat(value)))
+    .filter(Boolean);
+  for (const candidate of candidates) {
+    const key = videoBeatActionRepeatKey(candidate);
+    if (!key || key === repeatedKey || isGenericRepeatedBeatFallbackText(candidate)) continue;
+    return candidate;
+  }
+  return "";
+}
+
+function splitConcreteBeatCandidateText(value: string): string[] {
+  const cleaned = cleanVideoBeat(value || "");
+  if (!cleaned) return [];
+  const parts = cleaned
+    .split(/\s*;\s*|(?<=[.!?。！？])\s+/)
+    .map((part) => cleanVideoBeat(part))
+    .filter(Boolean);
+  return parts.length ? parts : [cleaned];
+}
+
+function isGenericRepeatedBeatFallbackText(value: string): boolean {
+  const text = normalizeCompareText(value);
+  if (!text || text.length < 8) return true;
+  if (/^(?:use linked images|linked images|use connected references|same scene|same setting|reaction|setup)$/i.test(value.trim())) return true;
+  return /(previous action|reaction angle|consequence of the previous action|without repeating|continue the exchange|clean reaction beat|natural reaction|show the listener|same scene geography|same character positions|same setting and character blocking|same established scene position|frame only visible subject|screen direction readable|foreground midground background|masterpiece best quality|3d style dark humor|3d american comic style)/.test(text);
+}
+
+function videoBeatActionRepeatKey(action: string): string {
+  const cleaned = cleanVideoBeat(action || "")
+    .replace(/\bShow the listener's reaction, speaker's expression, and body language as the line lands\.?/gi, "")
+    .replace(/\bHold the same scene geography and shift to a natural reaction or angle change\.?/gi, "")
+    .replace(/\bContinue the exchange with a clean reaction beat\.?/gi, "")
+    .replace(/\breaction\/cutaway detail\b/gi, "")
+    .trim();
+  const firstSentence = cleaned.match(/^[\s\S]*?[.!?。！？](?=\s|$)/)?.[0] ?? cleaned;
+  return normalizeCompareText(firstSentence || cleaned);
 }
 
 function attachStoryboardBeatDialogues(beats: ClipVideoStoryboardBeat[], shots: NormalizedStoryboardShot[]): ClipVideoStoryboardBeat[] {
@@ -5689,9 +8377,7 @@ function storyboardDialogueSpeakers(shots: NormalizedStoryboardShot[]): string[]
 }
 
 function extractDialogueSpeakerNames(value: string): string[] {
-  return Array.from(value.matchAll(/\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2})\s*[:：]/g))
-    .map((match) => match[1]?.trim() ?? "")
-    .filter(Boolean);
+  return extractAllocatedDialogueSpeakerNames(value);
 }
 
 function storyboardShotDialogueTargets(shots: NormalizedStoryboardShot[], beatCount: number): Array<{ panelIndex: number; dialogue: string }> {
@@ -5740,7 +8426,7 @@ function panelTextContainsDialogue(panelText: string, dialogue: string): boolean
 function removeVideoDialogueFragments(value: string, dialogue: string): string {
   if (!dialogue) return value;
   return dialogue
-    .split(/\s+(?=[A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}\s*[:：])/)
+    .split(/\s+(?=(?:[A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s*[:：])/)
     .reduce((text, fragment) => {
       const cleaned = cleanVideoDialogue(fragment).trim();
       if (cleaned.length < 6) return text;
@@ -5762,7 +8448,7 @@ function buildClipVideoBeats(actions: string[], dialogue: string[]): string[] {
     .filter(Boolean)
     .slice(0, 4);
   const dialogueBeat = cleanVideoLine(cleanVideoDialogue(dialogue.filter(Boolean).join(" ")));
-  return dialogueBeat ? [...actionBeats, `dialogue/reactions: ${dialogueBeat}`] : actionBeats;
+  return dialogueBeat ? [...actionBeats, `S${actionBeats.length + 1}: Dialogue: ${formatExactVideoDialogue(dialogueBeat)}; reaction beat tied to the spoken line.`] : actionBeats;
 }
 
 function uniqueVideoBeats(values: string[]): string[] {
@@ -5779,12 +8465,25 @@ function uniqueVideoBeats(values: string[]): string[] {
 }
 
 function cleanVideoBeat(value: string): string {
-  return value
+  return stripDanglingVideoFragment(value
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+absorbs\s+the\s+spoken\s+line\s+with\s+a\s+changed\s+expression,\s+gesture,\s+or\s+posture\.?/gi, "$1 hold a specific visible reaction tied to this shot.")
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+absorb\s+the\s+spoken\s+line\s+with\s+a\s+changed\s+expression,\s+gesture,\s+or\s+posture\.?/gi, "$1 hold a specific visible reaction tied to this shot.")
+    .replace(/\bShow the listener's reaction, speaker's expression, and body language as the line lands\.?/gi, "")
     .replace(/\bHold the same scene geography and shift to a natural reaction or angle change\.?/gi, "")
     .replace(/\bSame setting and character blocking, natural reaction or angle change\.?/gi, "")
+    .replace(/\bSame setting and character blocking,?\s*natural reaction or angle change\.?/gi, "")
+    .replace(/\breaction\/cutaway detail, same scene geography, same character positions\.?/gi, "")
+    .replace(/\bSame dialogue turn continues over this silent reaction\/cutaway shot\.?/gi, "")
     .replace(/\bContinue the exchange with a clean reaction beat\.?/gi, "")
+    .replace(/\bReaction beat\.?/gi, "")
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+in the same established scene position\.?/gi, "")
+    .replace(/\bin the same established scene position\.?/gi, "")
+    .replace(/;\s*block\s+[^;]+?\s+with clear screen direction/gi, "; frame only visible subject(s) with clear screen direction")
+    .replace(/\bblock\s+[^;]+?\s+with clear screen direction;?\s*/gi, "frame only visible subject(s) with clear screen direction; ")
     .replace(/\s+/g, " ")
-    .trim();
+    .replace(/\s*;\s*;\s*/g, "; ")
+    .replace(/^;\s*|\s*;$/g, "")
+    .trim());
 }
 
 function cleanVideoPlotGoal(value: string): string {
@@ -5797,10 +8496,12 @@ function cleanVideoPlotGoal(value: string): string {
 }
 
 function cleanVideoDialogue(value: string): string {
-  return value
-    .replace(/\s*\/\s*(?=[A-Z][A-Za-z0-9_-]*:)/g, " ")
+  const cleaned = value
+    .replace(/\s*\/\s*(?=(?:[A-Z][A-Za-z0-9_-]*|[一-龥·]{1,12})[:：])/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  if (/^(?:Composition|Camera|Shot|Blocking|Block|Movement|Lens|Angle|Shot size|State|Setting|Scene|Visual|References?)\s*[:：]/i.test(cleaned)) return "";
+  return cleaned;
 }
 
 function summarizeVideoContinuity(startState: string, endState: string): string {
@@ -5898,6 +8599,7 @@ function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>();
   const output: string[] = [];
   for (const value of values) {
+    if (typeof value !== "string") continue;
     const normalized = value.trim();
     const key = normalized.toLowerCase();
     if (!normalized || seen.has(key)) continue;
@@ -5919,6 +8621,222 @@ function mostCommonString(values: string[]): string {
 
 function normalizeCompareText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizedWorkflowAssetAliases(value: unknown): string[] {
+  if (typeof value === "string") return uniqueStrings([value].map((item) => normalizeCompareText(item))).filter(Boolean);
+  if (!isRecord(value)) return [];
+  return uniqueStrings(workflowAssetAliasValues(value).map((item) => normalizeCompareText(item))).filter(Boolean);
+}
+
+function workflowAssetAliasValues(value: Record<string, unknown>): string[] {
+  return uniqueStrings([
+    stringFrom(value.name, ""),
+    stringFrom(value.title, ""),
+    ...arrayFrom(value.aliases).map((item) => stringFrom(item, "")),
+    stringFrom(value.canonicalName, ""),
+  ]).filter(Boolean);
+}
+
+function propCanonicalSignature(value: string): string {
+  const text = normalizeCompareText(value).replace(/[-_]+/g, " ");
+  if (!text) return "";
+  const hasPanWord = /\b(pan|skillet)\b/.test(text);
+  const isIronPan = hasPanWord && (
+    /\bcast\s+iron\b/.test(text) ||
+    /\biron\s+(?:frying\s+)?pan\b/.test(text) ||
+    /\biron\s+skillet\b/.test(text) ||
+    /^skillet$/.test(text)
+  );
+  if (isIronPan) return "prop:iron-pan";
+  return "";
+}
+
+function workflowAssetNameKeys(kind: WorkflowAssetKind, value: unknown): string[] {
+  const aliases = normalizedWorkflowAssetAliases(value);
+  const keys = [...aliases];
+  if (kind === "props") {
+    for (const alias of aliases) {
+      const signature = propCanonicalSignature(alias);
+      if (signature) keys.push(signature);
+    }
+  }
+  return uniqueStrings(keys).filter(Boolean);
+}
+
+function workflowAssetNamesMatch(kind: WorkflowAssetKind, left: unknown, right: unknown): boolean {
+  const leftKeys = workflowAssetNameKeys(kind, left);
+  const rightKeys = new Set(workflowAssetNameKeys(kind, right));
+  return leftKeys.some((key) => rightKeys.has(key));
+}
+
+function workflowAssetItemMatchesName(item: Record<string, unknown>, kind: WorkflowAssetKind, name: string): boolean {
+  return workflowAssetNamesMatch(kind, item, name);
+}
+
+function workflowAssetHasReusableImageRecord(item: Record<string, unknown>): boolean {
+  return Boolean(
+    stringFrom(item.referenceImageUrl, "") ||
+      stringFrom(item.generatedImageUrl, "") ||
+      stringFrom(item.referenceImageAssetId, "") ||
+      stringFrom(item.generatedImageAssetId, ""),
+  );
+}
+
+function copyReusableAssetImageFields(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...target };
+  for (const key of REUSABLE_ASSET_IMAGE_KEYS) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== "") next[key] = source[key];
+  }
+  return next;
+}
+
+function mergeAssetTextField(existing: unknown, incoming: unknown, maxLength = 320): string {
+  const current = stringFrom(existing, "");
+  const next = stringFrom(incoming, "");
+  if (!current) return next.slice(0, maxLength);
+  if (!next || normalizeCompareText(current).includes(normalizeCompareText(next))) return current.slice(0, maxLength);
+  if (normalizeCompareText(next).includes(normalizeCompareText(current))) return next.slice(0, maxLength);
+  return `${current}; ${next}`.slice(0, maxLength);
+}
+
+function mergeWorkflowAssetRecords(
+  kind: WorkflowAssetKind,
+  canonical: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+  index = 0,
+): Record<string, unknown> {
+  const canonicalName = workflowAssetNameFromRecord(canonical);
+  const incomingName = workflowAssetNameFromRecord(incoming);
+  const name = canonicalName || incomingName;
+  const preferredImageSource = workflowAssetHasReusableImageRecord(canonical) ? canonical : incoming;
+  const merged: Record<string, unknown> = {
+    ...incoming,
+    ...canonical,
+    id: stringFrom(canonical.id, stringFrom(incoming.id, slugId(kind === "props" ? "prop" : kind === "scenes" ? "loc" : "char", name, index))),
+    name,
+    title: stringFrom(canonical.title, stringFrom(incoming.title, name)),
+    description: mergeAssetTextField(canonical.description, incoming.description),
+    aliases: uniqueStrings([
+      ...workflowAssetAliasValues(canonical),
+      ...workflowAssetAliasValues(incoming),
+      incomingName,
+    ].filter((alias) => alias && normalizeCompareText(alias) !== normalizeCompareText(name))),
+  };
+  if (kind === "props") {
+    merged.function = mergeAssetTextField(canonical.function, incoming.function, 240);
+    merged.visualPrompt = stringFrom(canonical.visualPrompt, stringFrom(incoming.visualPrompt, ""));
+  }
+  return copyReusableAssetImageFields(merged, preferredImageSource);
+}
+
+function mergeWorkflowAssetListWithMemory(
+  kind: WorkflowAssetKind,
+  extractedItems: Record<string, unknown>[],
+  memoryItems: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const output: Record<string, unknown>[] = [];
+  const findMatch = (items: Record<string, unknown>[], target: Record<string, unknown>) =>
+    items.find((item) => workflowAssetNamesMatch(kind, item, target));
+
+  extractedItems.forEach((item, index) => {
+    const memoryMatch = findMatch(memoryItems, item);
+    const mergedWithMemory = memoryMatch ? mergeWorkflowAssetRecords(kind, memoryMatch, item, index) : item;
+    const existingIndex = output.findIndex((existing) => workflowAssetNamesMatch(kind, existing, mergedWithMemory));
+    if (existingIndex >= 0) {
+      output[existingIndex] = mergeWorkflowAssetRecords(kind, output[existingIndex], mergedWithMemory, existingIndex);
+    } else {
+      output.push(mergedWithMemory);
+    }
+  });
+
+  return output.map(stripWorkflowMemoryFields);
+}
+
+function stripWorkflowMemoryFields(item: Record<string, unknown>): Record<string, unknown> {
+  const {
+    workflowMemoryEpisodeId: _workflowMemoryEpisodeId,
+    workflowMemoryEpisodeTitle: _workflowMemoryEpisodeTitle,
+    workflowMemoryIsCurrentEpisode: _workflowMemoryIsCurrentEpisode,
+    ...rest
+  } = item;
+  return rest;
+}
+
+function mergeExtractedAssetsWithProjectMemory(
+  metadata: unknown,
+  episodeId: string | undefined,
+  assets: WorkflowAssetsRecord,
+): WorkflowAssetsRecord {
+  const memory = collectProjectAssetMemory(metadata, episodeId);
+  return {
+    characters: mergeWorkflowAssetListWithMemory("characters", assets.characters, memory.characters),
+    locations: mergeWorkflowAssetListWithMemory("scenes", assets.locations, memory.locations),
+    props: mergeWorkflowAssetListWithMemory("props", assets.props, memory.props),
+  };
+}
+
+function collectProjectAssetMemory(metadata: unknown, currentEpisodeId?: string): WorkflowAssetsRecord {
+  const memory: WorkflowAssetsRecord = { characters: [], locations: [], props: [] };
+  const episodes = Object.entries(getWorkflowEpisodes(metadata))
+    .sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }));
+  const appendAssets = (workflow: ReturnType<typeof normalizeWorkflowStateRecord>, episodeId: string, title: string) => {
+    const assets: Record<string, unknown> = isRecord(workflow.assets) ? workflow.assets : defaultAssets();
+    const push = (kind: WorkflowAssetKind, target: Record<string, unknown>[], value: unknown, index: number) => {
+      if (!isRecord(value)) return;
+      const name = workflowAssetNameFromRecord(value);
+      if (!name) return;
+      const item = {
+        ...value,
+        workflowMemoryEpisodeId: episodeId,
+        workflowMemoryEpisodeTitle: title,
+        workflowMemoryIsCurrentEpisode: Boolean(currentEpisodeId && episodeId === currentEpisodeId),
+      };
+      const existingIndex = target.findIndex((existing) => workflowAssetNamesMatch(kind, existing, item));
+      if (existingIndex >= 0) {
+        target[existingIndex] = mergeWorkflowAssetRecords(kind, target[existingIndex], item, existingIndex);
+      } else {
+        target.push(item);
+      }
+      void index;
+    };
+    arrayFrom(assets.characters).forEach((item, index) => push("characters", memory.characters, item, index));
+    arrayFrom(assets.locations ?? assets.scenes).forEach((item, index) => push("scenes", memory.locations, item, index));
+    arrayFrom(assets.props).forEach((item, index) => push("props", memory.props, item, index));
+  };
+
+  for (const [episodeId, episode] of episodes) {
+    if (!isRecord(episode.workflowCenter)) continue;
+    appendAssets(normalizeWorkflowStateRecord(episode.workflowCenter, stringFrom(episode.title, "第 1 集")), episodeId, stringFrom(episode.title, episodeId));
+  }
+
+  if (episodes.length === 0 && isRecord(metadata) && isRecord(metadata.workflowCenter)) {
+    const workflow = normalizeWorkflowStateRecord(metadata.workflowCenter);
+    appendAssets(workflow, currentEpisodeId || workflowEpisodeIdForTitle(workflow.selectedEpisode, "episode-001"), workflow.selectedEpisode);
+  }
+
+  return memory;
+}
+
+function summarizeProjectAssetMemoryForPrompt(memory: WorkflowAssetsRecord): string {
+  const summarize = (items: Record<string, unknown>[], limit: number) => items
+    .slice(0, limit)
+    .map((item) => ({
+      name: workflowAssetNameFromRecord(item),
+      aliases: workflowAssetAliasValues(item)
+        .filter((alias) => normalizeCompareText(alias) !== normalizeCompareText(workflowAssetNameFromRecord(item)))
+        .slice(0, 8),
+      description: stringFrom(item.description, ""),
+      hasReferenceImage: workflowAssetHasReusableImageRecord(item),
+      episode: stringFrom(item.workflowMemoryEpisodeTitle, ""),
+    }));
+  const compact = {
+    characters: summarize(memory.characters, 30),
+    locations: summarize(memory.locations, 30),
+    props: summarize(memory.props, 60),
+  };
+  const hasAny = compact.characters.length > 0 || compact.locations.length > 0 || compact.props.length > 0;
+  return hasAny ? JSON.stringify(compact).slice(0, 9000) : "";
 }
 
 function stringifyWorkflowText(value: unknown): string {
@@ -5958,7 +8876,7 @@ function inferProfessionalShotFields(
   const iso = /night|dark|地下|黑|暗/.test(text) ? "ISO 1000" : "ISO 800";
   const composition = [
     shot.setting ? `Set in ${shot.setting}` : "Use the current scene layout",
-    shot.characters.length ? `block ${shot.characters.join(", ")} with clear screen direction` : "keep character blocking readable",
+    "frame only the visible subject(s) for this shot; keep screen direction readable",
     "separate foreground, midground, and background for continuity",
   ].join("; ");
   const sound = shot.dialogue ? "preserve dialogue clarity with light room tone" : "use scene-appropriate sound effects and room tone";
@@ -5991,10 +8909,18 @@ function inferProfessionalShotFields(
   };
 }
 
-async function persistWorkflowAssetsProgress(project: any, input: z.infer<typeof runWorkflowSchema>, assetsJson: unknown) {
+async function persistWorkflowAssetsProgress(
+  project: any,
+  input: z.infer<typeof runWorkflowSchema>,
+  assetsJson: unknown,
+  authority?: WorkflowAuthorityContext,
+) {
   const metadata = isRecord(project.metadata) ? project.metadata : {};
   const currentWorkflow = getWorkflowState(metadata, input.episodeId);
-  const assets = normalizeWorkflowAssets(assetsJson);
+  const normalizedAssets = isWorkflowAssetsRecord(assetsJson)
+    ? assetsJson
+    : canonicalizeWorkflowAssetsWithAuthority(normalizeWorkflowAssets(assetsJson), authority);
+  const assets = mergeExtractedAssetsWithProjectMemory(metadata, input.episodeId, normalizedAssets);
   const workflowCenter = {
     ...currentWorkflow,
     sourceText: input.sourceText,
@@ -6013,7 +8939,6 @@ async function persistWorkflowAssetsProgress(project: any, input: z.infer<typeof
       storyboard: "running",
     },
     lastRun: {
-      ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
       status: "assets-succeeded",
       stage: input.stage,
       sourceLength: input.sourceText.length,
@@ -6036,22 +8961,31 @@ async function persistWorkflowRunStarted(project: any, input: z.infer<typeof run
   const metadata = isRecord(project.metadata) ? project.metadata : {};
   const currentWorkflow = getWorkflowState(metadata, episodeId || input.episodeId);
   const now = new Date().toISOString();
+  const selectedModel = await selectedWorkflowModelSummary(input.aiModelId);
   const workflowCenter = {
     ...currentWorkflow,
     sourceText: input.sourceText,
     sourceName: input.sourceName ?? currentWorkflow.sourceName,
     selectedEpisode: input.selectedEpisode,
     activeStage: input.stage === "assets" ? "assets" : "storyboard",
+    ...(input.stage === "assets"
+      ? {
+          breakdownScenes: [],
+          clips: [],
+          sceneVisualBibles: [],
+        }
+      : {}),
     stageStatuses: {
       ...currentWorkflow.stageStatuses,
       source: "done",
       assets: input.stage === "storyboard" ? currentWorkflow.stageStatuses.assets ?? "idle" : "running",
-      storyboard: input.stage === "assets" ? currentWorkflow.stageStatuses.storyboard ?? "idle" : "running",
+      storyboard: input.stage === "assets" ? "idle" : "running",
+      video: input.stage === "assets" ? "idle" : currentWorkflow.stageStatuses.video ?? "idle",
     },
     lastRun: {
-      ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
       status: "running",
       stage: input.stage,
+      model: selectedModel,
       sourceLength: input.sourceText.length,
       startedAt: now,
     },
@@ -6068,11 +9002,57 @@ async function persistWorkflowRunStarted(project: any, input: z.infer<typeof run
   project.metadata = nextMetadata;
 }
 
+async function persistWorkflowRunProgress(
+  project: any,
+  input: z.infer<typeof runWorkflowSchema>,
+  progress: {
+    phase: string;
+    message: string;
+    currentPart?: number;
+    totalParts?: number;
+    generatedShots?: number;
+  },
+) {
+  const metadata = isRecord(project.metadata) ? project.metadata : {};
+  const currentWorkflow = getWorkflowState(metadata, input.episodeId);
+  const now = new Date().toISOString();
+  const workflowCenter = {
+    ...currentWorkflow,
+    stageStatuses: {
+      ...currentWorkflow.stageStatuses,
+      source: "done",
+      assets: input.stage === "storyboard" ? currentWorkflow.stageStatuses.assets ?? "idle" : currentWorkflow.stageStatuses.assets ?? "running",
+      storyboard: input.stage === "assets" ? currentWorkflow.stageStatuses.storyboard ?? "idle" : "running",
+    },
+    lastRun: {
+      ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
+      status: "running",
+      stage: input.stage,
+      sourceLength: input.sourceText.length,
+      progress: {
+        ...progress,
+        updatedAt: now,
+      },
+    },
+    updatedAt: now,
+  };
+
+  const targetEpisodeId = input.episodeId || workflowEpisodeIdForWorkflow(metadata, workflowCenter);
+  const nextMetadata = writeWorkflowEpisode(metadata, targetEpisodeId, workflowCenter, true);
+  await prisma.project.update({
+    where: { id: project.id },
+    data: { metadata: nextMetadata },
+  });
+
+  project.metadata = nextMetadata;
+}
+
 async function persistWorkflowRunFailed(project: any, input: z.infer<typeof runWorkflowSchema>, error: unknown, episodeId?: string) {
   const metadata = isRecord(project.metadata) ? project.metadata : {};
   const currentWorkflow = getWorkflowState(metadata, episodeId || input.episodeId);
   const now = new Date().toISOString();
   const message = error instanceof Error ? error.message : "AI 智能拆解失败";
+  const selectedModel = await selectedWorkflowModelSummary(input.aiModelId);
   const workflowCenter = {
     ...currentWorkflow,
     sourceText: input.sourceText,
@@ -6091,9 +9071,9 @@ async function persistWorkflowRunFailed(project: any, input: z.infer<typeof runW
       storyboard: input.stage === "assets" ? currentWorkflow.stageStatuses.storyboard ?? "idle" : "failed",
     },
     lastRun: {
-      ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
       status: "failed",
       stage: input.stage,
+      model: selectedModel,
       sourceLength: input.sourceText.length,
       error: message,
       failedAt: now,
@@ -6111,7 +9091,7 @@ async function persistWorkflowRunFailed(project: any, input: z.infer<typeof runW
   project.metadata = nextMetadata;
 }
 
-function normalizeWorkflowAssets(value: unknown) {
+function normalizeWorkflowAssets(value: unknown): WorkflowAssetsRecord {
   const record = isRecord(value) ? value : {};
   const characters = arrayFrom(record.characters).slice(0, 80).map((item, index) => {
     const character = isRecord(item) ? item : {};
@@ -6121,6 +9101,7 @@ function normalizeWorkflowAssets(value: unknown) {
     return {
       id: slugId("char", name, index),
       name,
+      aliases: arrayFrom(character.aliases).map((alias) => stringFrom(alias, "")).filter(Boolean).slice(0, 12),
       role: normalizeRole(stringFrom(character.role, "SUPPORTING")),
       description: stringFrom(character.description, ""),
       visualPrompt: stringFrom(character.visualPrompt, stringFrom(character.prompt, "")),
@@ -6144,26 +9125,54 @@ function normalizeWorkflowAssets(value: unknown) {
     };
   });
 
-  const locations = arrayFrom(record.locations ?? record.scenes).slice(0, 80).map((item, index) => {
-    const location = isRecord(item) ? item : {};
-    const name = stringFrom(location.name ?? location.title, `场景 ${index + 1}`);
-    return {
-      id: slugId("loc", name, index),
-      name,
-      description: stringFrom(location.description, ""),
-      timeOfDay: stringFrom(location.timeOfDay, ""),
-    };
-  });
+	  const locations = arrayFrom(record.locations ?? record.scenes).slice(0, 80).map((item, index) => {
+	    const location = isRecord(item) ? item : {};
+	    const name = stringFrom(location.name ?? location.title, `场景 ${index + 1}`);
+	    return {
+	      id: slugId("loc", name, index),
+	      name,
+	      title: stringFrom(location.title, name),
+	      description: stringFrom(location.description, ""),
+	      timeOfDay: stringFrom(location.timeOfDay, ""),
+	      aliases: arrayFrom(location.aliases).map((alias) => stringFrom(alias, "")).filter(Boolean).slice(0, 12),
+	      visualPrompt: stringFrom(location.visualPrompt ?? location.prompt, ""),
+	      canonicalSceneId: stringFrom(location.canonicalSceneId, ""),
+	      sceneVisualLock: stringFrom(location.sceneVisualLock, ""),
+	      sceneZone: stringFrom(location.sceneZone, ""),
+	      sceneAnchors: arrayFrom(location.sceneAnchors).map((anchor) => stringFrom(anchor, "")).filter(Boolean).slice(0, 12),
+	      referenceImageUrl: stringFrom(location.referenceImageUrl, ""),
+	      referenceImageAssetId: stringFrom(location.referenceImageAssetId, ""),
+	      generatedImageUrl: stringFrom(location.generatedImageUrl, ""),
+	      generatedImageAssetId: stringFrom(location.generatedImageAssetId, ""),
+	    };
+	  });
 
-  const props = arrayFrom(record.props).slice(0, 120).map((item, index) => {
-    const prop = isRecord(item) ? item : {};
-    const name = stringFrom(prop.name ?? prop.title, `道具 ${index + 1}`);
-    return {
-      id: slugId("prop", name, index),
-      name,
-      description: stringFrom(prop.description, ""),
-    };
-  });
+	  const props = arrayFrom(record.props).slice(0, 120).map((item, index) => {
+	    const prop = isRecord(item) ? item : {};
+	    const name = stringFrom(prop.name ?? prop.title, `道具 ${index + 1}`);
+	    return {
+	      id: slugId("prop", name, index),
+	      name,
+	      title: stringFrom(prop.title, name),
+	      description: stringFrom(prop.description, ""),
+	      aliases: arrayFrom(prop.aliases).map((alias) => stringFrom(alias, "")).filter(Boolean).slice(0, 20),
+	      function: stringFrom(prop.function, ""),
+	      visualPrompt: stringFrom(prop.visualPrompt ?? prop.prompt, ""),
+	      lockedVisualIdentity: stringFrom(prop.lockedVisualIdentity, ""),
+	      referencePolicy: stringFrom(prop.referencePolicy, ""),
+	      referenceImageUrl: stringFrom(prop.referenceImageUrl, ""),
+	      referenceImageAssetId: stringFrom(prop.referenceImageAssetId, ""),
+	      generatedImageUrl: stringFrom(prop.generatedImageUrl, ""),
+	      generatedImageAssetId: stringFrom(prop.generatedImageAssetId, ""),
+	      generatedImagePrompt: stringFrom(prop.generatedImagePrompt, ""),
+	      generatedImageRevisedPrompt: stringFrom(prop.generatedImageRevisedPrompt, ""),
+	      generatedImageAt: stringFrom(prop.generatedImageAt, ""),
+	      generationId: stringFrom(prop.generationId, ""),
+	      imageGenerationModel: isRecord(prop.imageGenerationModel) ? prop.imageGenerationModel : stringFrom(prop.imageGenerationModel, ""),
+	      visualAuthority: stringFrom(prop.visualAuthority, ""),
+	      referenceAnalysisStatus: stringFrom(prop.referenceAnalysisStatus, ""),
+	    };
+	  });
 
   return { characters, locations, props };
 }
@@ -6286,6 +9295,8 @@ function compactPromptText(value: string): string {
 
 function cleanWorkflowPublicText(value: string): string {
   return value
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+absorbs\s+the\s+spoken\s+line\s+with\s+a\s+changed\s+expression,\s+gesture,\s+or\s+posture\.?/gi, "$1 hold a specific visible reaction tied to this shot.")
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+absorb\s+the\s+spoken\s+line\s+with\s+a\s+changed\s+expression,\s+gesture,\s+or\s+posture\.?/gi, "$1 hold a specific visible reaction tied to this shot.")
     .replace(/\bFast reaction\/cutaway continuation\.?\s*/gi, "")
     .replace(/\bDialogue beat\s+\d+\s*\/\s*\d+\s*;?\s*/gi, "")
     .replace(/\bContinue the exchange as a separate fast-paced reaction beat\.?\s*/gi, "Continue the exchange with a clean reaction beat. ")
@@ -6295,6 +9306,8 @@ function cleanWorkflowPublicText(value: string): string {
 
 function cleanWorkflowPromptText(value: string): string {
   return value
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+absorbs\s+the\s+spoken\s+line\s+with\s+a\s+changed\s+expression,\s+gesture,\s+or\s+posture\.?/gi, "$1 hold a specific visible reaction tied to this shot.")
+    .replace(/\b([A-Z][A-Za-z'’.-]+(?:\s+and\s+[A-Z][A-Za-z'’.-]+)?)\s+absorb\s+the\s+spoken\s+line\s+with\s+a\s+changed\s+expression,\s+gesture,\s+or\s+posture\.?/gi, "$1 hold a specific visible reaction tied to this shot.")
     .replace(/\bFast reaction\/cutaway continuation\.?\s*/gi, "")
     .replace(/\bDialogue beat\s+\d+\s*\/\s*\d+\s*;?\s*/gi, "")
     .replace(/\bContinue the exchange as a separate fast-paced reaction beat\.?\s*/gi, "Continue the exchange with a clean reaction beat. ")
@@ -6357,6 +9370,10 @@ function isPromptOptimizationPlaceholder(value: string): boolean {
   return /^(optimized prompt only|optimized prompt|optimization|optimizedPrompt|优化后提示词|提示词优化结果)$/i.test(value.trim());
 }
 
+function isPromptOptimizationModelRefusal(value: string): boolean {
+  return /(?:ai safety check violation detected|safety check violation|policy violation|content policy|cannot comply|can't comply|unable to comply|i'?m sorry|我无法|不能协助|安全检查|安全策略|违反政策)/i.test(value.trim());
+}
+
 function missingPreservedDialogueFragments(source: string, optimized: string): string[] {
   const fragments = extractPreservedDialogueFragments(source);
   if (fragments.length === 0) return [];
@@ -6380,21 +9397,35 @@ function extractPreservedDialogueFragments(value: string): string[] {
     add(match[1] ?? "");
   }
   for (const lineText of value.split(/\r?\n/)) {
-    const matches = Array.from(lineText.matchAll(/\b([A-Z][A-Za-z0-9_' -]{0,40})\s*:/g));
-    for (let index = 0; index < matches.length; index += 1) {
-      const match = matches[index];
-      const speaker = (match[1] ?? "").trim();
-      if (isProductionLabelSpeaker(speaker)) continue;
-      const start = match.index ?? 0;
-      const end = matches[index + 1]?.index ?? lineText.length;
-      add(lineText.slice(start, end));
-    }
+    for (const fragment of explicitDialogueFragmentsFromLine(lineText)) add(fragment);
   }
   return fragments;
 }
 
+function explicitDialogueFragmentsFromLine(lineText: string): string[] {
+  const trimmed = lineText.trim();
+  if (!trimmed) return [];
+  const prefixed = trimmed.match(/^(?:Exact\s+dialogue|Dialogue|dialogue|Dialog|Line|Spoken\s+line|台词|对白)\s*[:：]\s*(.+)$/i);
+  const inline = prefixed ? null : trimmed.match(/\b(?:Exact\s+dialogue|Dialogue|dialogue|Dialog|Line|Spoken\s+line|台词|对白)\s*[:：]\s*(.+)$/i);
+  const dialogueText = (prefixed?.[1] ?? inline?.[1] ?? "").trim();
+  if (!dialogueText) return [];
+  if (!prefixed && !inline && !/^\s*(?:S\d+|P\d+|Shot\s*\d+|Panel\s*\d+)\b/i.test(trimmed)) return [];
+  const matches = Array.from(dialogueText.matchAll(/\b([A-Z][A-Za-z0-9_' -]{0,40})\s*:/g));
+  const output: string[] = [];
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    const speaker = (match[1] ?? "").trim();
+    if (isProductionLabelSpeaker(speaker)) continue;
+    const start = match.index ?? 0;
+    const end = matches[index + 1]?.index ?? dialogueText.length;
+    const fragment = dialogueText.slice(start, end).replace(/[;；]\s*$/g, "").trim();
+    if (fragment) output.push(fragment);
+  }
+  return output;
+}
+
 function isProductionLabelSpeaker(value: string): boolean {
-  return /^(P\d+|S\d+|Panel\s*\d+|Shot\s*\d+|Image|Action|Camera|Style|Scene|Characters?|Reference|Duration|Ratio|Lens|Move|Angle|Prompt)$/i.test(value.trim());
+  return /^(P\d+|S\d+|Panel\s*\d+|Shot\s*\d+|Image|Action|Camera|Style|Scene|Setting|Characters?|Reference|References|Duration|Ratio|Lens|Move|Angle|Prompt|Exact\s+dialogue|Dialogue|Dialog|Line|Spoken\s+line|Performance|Continuity|State|Blocking|Composition|Important spatial\/prop cue)$/i.test(value.trim());
 }
 
 function normalizeOptimizationDialogueCompareText(value: string): string {
@@ -6430,31 +9461,7 @@ async function persistWorkflowRun(args: {
   const metadata = isRecord(project.metadata) ? project.metadata : {};
   const currentWorkflow = getWorkflowState(metadata, input.episodeId);
   const now = new Date().toISOString();
-  const breakdownScenes = normalized.storyboard.map((shot) => ({
-    id: shot.id,
-    title: shot.title,
-    description: shot.description || shot.action || shot.visualPrompt,
-    references: shot.references || [shot.setting, shot.characters.join(", ")].filter(Boolean).join(" · "),
-    action: shot.action,
-    dialogue: shot.dialogue,
-    durationSeconds: shot.durationSeconds,
-    shotSize: shot.shotSize,
-    cameraAngle: shot.cameraAngle,
-    cameraMove: shot.cameraMove,
-    composition: shot.composition,
-    lens: shot.lens,
-    aperture: shot.aperture,
-    shutter: shot.shutter,
-    iso: shot.iso,
-    sound: shot.sound,
-    music: shot.music,
-    subtitle: shot.subtitle,
-    characters: shot.characters,
-    setting: shot.setting,
-    visualPrompt: shot.visualPrompt,
-    directorBoardPrompt: shot.directorBoardPrompt,
-    status: shot.status,
-  }));
+  const breakdownScenes = workflowBreakdownScenesFromNormalizedStoryboard(normalized.storyboard);
   const clips = normalized.clips;
   const shotClipIds = new Map<string, string>();
   for (const clip of clips) {
@@ -6467,9 +9474,10 @@ async function persistWorkflowRun(args: {
     sourceText: input.sourceText,
     sourceName: input.sourceName ?? currentWorkflow.sourceName,
     selectedEpisode: input.selectedEpisode,
-    activeStage: "storyboard",
-    breakdownScenes,
-    clips,
+    activeStage: input.stage === "assets" ? "assets" : "storyboard",
+    breakdownScenes: input.stage === "assets" ? [] : breakdownScenes,
+    clips: input.stage === "assets" ? [] : clips,
+    sceneVisualBibles: input.stage === "assets" ? [] : normalized.sceneVisualBibles,
     assets:
       input.stage === "storyboard"
         ? currentWorkflow.assets
@@ -6482,7 +9490,7 @@ async function persistWorkflowRun(args: {
       ...(input.stage === "storyboard" ? currentWorkflow.stageStatuses : defaultStageStatuses()),
       source: "done",
       assets: input.stage === "storyboard" ? currentWorkflow.stageStatuses.assets ?? "idle" : "done",
-      storyboard: "done",
+      storyboard: input.stage === "assets" ? "idle" : "done",
       video: "idle",
       voice: "idle",
       preview: "idle",
@@ -6647,7 +9655,7 @@ async function persistWorkflowRun(args: {
     });
 
     return { generation, updatedProject, episodeId, nextMetadata };
-  });
+  }, { timeout: 30000 });
 
   return {
     workflow: { ...workflowCenter, episodeId: result.episodeId, episodes: getWorkflowEpisodeList(result.nextMetadata) },
@@ -6662,6 +9670,38 @@ async function persistWorkflowRun(args: {
       completedAt: now,
     },
   };
+}
+
+function workflowBreakdownScenesFromNormalizedStoryboard(storyboard: NormalizedStoryboardShot[]) {
+  return storyboard.map((shot) => ({
+    id: shot.id,
+    title: shot.title,
+    description: shot.description || shot.action || shot.visualPrompt,
+    references: shot.references || [shot.setting, shot.characters.join(", ")].filter(Boolean).join(" · "),
+    action: shot.action,
+    dialogue: shot.dialogue,
+    durationSeconds: shot.durationSeconds,
+    shotSize: shot.shotSize,
+    cameraAngle: shot.cameraAngle,
+    cameraMove: shot.cameraMove,
+    composition: shot.composition,
+    lens: shot.lens,
+    aperture: shot.aperture,
+    shutter: shot.shutter,
+    iso: shot.iso,
+    sound: shot.sound,
+    music: shot.music,
+    subtitle: shot.subtitle,
+    characters: shot.characters,
+    setting: shot.setting,
+    canonicalSceneId: shot.canonicalSceneId,
+    sceneVisualLock: shot.sceneVisualLock,
+    sceneZone: shot.sceneZone,
+    sceneAnchors: shot.sceneAnchors,
+    visualPrompt: shot.visualPrompt,
+    directorBoardPrompt: shot.directorBoardPrompt,
+    status: shot.status,
+  }));
 }
 
 function defaultAssets() {
@@ -7834,7 +10874,71 @@ async function persistGeneratedVideoBuffer(
   if (!resolvedPath.startsWith(`${rootPath}${path.sep}`)) badRequest("Invalid generated video path");
   await mkdir(path.dirname(resolvedPath), { recursive: true });
   await writeFile(resolvedPath, buffer);
-  return { url: localPublicUploadUrl(req, key), mimeType: options.mimeType || videoMimeTypeForExtension(options.extension) };
+  const converted = await convertGeneratedVideoToBrowserWebm(req, resolvedPath, {
+    userId: options.userId,
+    projectId: options.projectId,
+    generationId: options.generationId,
+    prefix: options.prefix,
+  });
+  return converted ?? { url: localPublicUploadUrl(req, key), mimeType: options.mimeType || videoMimeTypeForExtension(options.extension) };
+}
+
+async function convertGeneratedVideoToBrowserWebm(
+  req: { get(name: string): string | undefined; protocol: string },
+  inputPath: string,
+  options: { userId: string; projectId: string; generationId: string; prefix: string },
+): Promise<{ url: string; mimeType: string } | null> {
+  const key = safeLocalUploadKey([
+    options.userId,
+    "generated",
+    options.projectId,
+    `${options.prefix}-${options.generationId}.webm`,
+  ].join("/"));
+  const outputPath = path.join(LOCAL_UPLOAD_ROOT, key);
+  const rootPath = path.resolve(LOCAL_UPLOAD_ROOT);
+  const resolvedOutputPath = path.resolve(outputPath);
+  if (!resolvedOutputPath.startsWith(`${rootPath}${path.sep}`)) return null;
+  await mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+  try {
+    await execFilePromise("ffmpeg", [
+      "-y",
+      "-hide_banner",
+      "-i",
+      inputPath,
+      "-an",
+      "-c:v",
+      "libvpx-vp9",
+      "-b:v",
+      "2500k",
+      "-pix_fmt",
+      "yuv420p",
+      "-row-mt",
+      "1",
+      "-deadline",
+      "good",
+      "-cpu-used",
+      "4",
+      resolvedOutputPath,
+    ], 180_000);
+    const output = await readFile(resolvedOutputPath);
+    if (output.length === 0) return null;
+    return { url: localPublicUploadUrl(req, key), mimeType: "video/webm" };
+  } catch (error) {
+    console.warn("[workflow-video] webm conversion failed:", error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+function execFilePromise(command: string, args: string[], timeout: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { timeout }, (error, _stdout, stderr) => {
+      if (error) {
+        reject(new Error(stderr?.trim() || error.message));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 function normalizeDreaminaVideoDuration(value: unknown): number {
@@ -7948,6 +11052,8 @@ function withCanvasVideoStatusRaw(raw: unknown, genStatus: unknown): unknown {
 function canvasVideoResultFailureMessage(raw: unknown): string {
   if (!isRecord(raw)) return "";
   const direct = stringFrom(raw.errorMessage, "");
+  const providerFailure = canvasVideoProviderFailureMessage(raw);
+  if (providerFailure) return providerFailure;
   if (direct) return direct;
   const rawStatus = stringFrom(raw.genStatus, "") || stringFrom(raw.status, "");
   if (/missing-submit-id-timeout/i.test(rawStatus)) return dreaminaWebMissingSubmitIdFailureMessage();
@@ -7956,12 +11062,100 @@ function canvasVideoResultFailureMessage(raw: unknown): string {
   if (/missing-submit-id-timeout/i.test(resultStatus)) return dreaminaWebMissingSubmitIdFailureMessage();
   const resultError = stringFrom(result.errorMessage, "");
   if (resultError) return resultError;
+  const resultProviderFailure = canvasVideoProviderFailureMessage(result);
+  if (resultProviderFailure) return resultProviderFailure;
   const dom = isRecord(raw.dom) ? raw.dom : {};
   const bodyTail = stringFrom(dom.bodyTail, "");
   if (/may contain inappropriate content|内容违规|审核失败|敏感内容|不适宜/i.test(bodyTail)) {
     return `Dreamina Web 视频任务审核失败：${bodyTail.slice(-500)}`;
   }
   return "";
+}
+
+function canvasVideoProviderFailureMessage(raw: unknown): string {
+  const expandedRaw = expandCanvasVideoRawSummaries(raw);
+  const textFailure = extractCanvasVideoProviderFailureFromText(raw);
+  const errorMsg = findDeepStringValue(expandedRaw, ["errorMsg", "error_msg"]) || textFailure.errorMsg;
+  const failStarlingMessage = findDeepStringValue(expandedRaw, ["failStarlingMessage", "fail_starling_message"]) || textFailure.failStarlingMessage;
+  const errorCode = findDeepScalarStringValue(expandedRaw, ["errorCode", "error_code", "statusCode", "status_code"]) || textFailure.errorCode;
+  const parts = [errorMsg, failStarlingMessage].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+  if (parts.length === 0) return "";
+  const codeSuffix = errorCode ? `（code ${errorCode}）` : "";
+  return `Dreamina Web 视频任务失败：${parts.join(" / ")}${codeSuffix}`;
+}
+
+function extractCanvasVideoProviderFailureFromText(raw: unknown): { errorMsg?: string; failStarlingMessage?: string; errorCode?: string } {
+  const strings = deepObjectValues(raw).filter((value): value is string => typeof value === "string");
+  for (const text of strings) {
+    if (!/errorMsg|error_msg|failStarlingMessage|fail_starling_message|statusCode|status_code|errorCode|error_code/.test(text)) continue;
+    const errorMsg = extractJsonStringField(text, "errorMsg") || extractJsonStringField(text, "error_msg");
+    const failStarlingMessage = extractJsonStringField(text, "failStarlingMessage") || extractJsonStringField(text, "fail_starling_message");
+    const errorCode = extractJsonScalarField(text, "errorCode") || extractJsonScalarField(text, "error_code") || extractJsonScalarField(text, "statusCode") || extractJsonScalarField(text, "status_code");
+    if (errorMsg || failStarlingMessage) return { errorMsg, failStarlingMessage, errorCode };
+  }
+  return {};
+}
+
+function extractJsonStringField(text: string, field: string): string | undefined {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`"${escapedField}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, "i"));
+  if (!match?.[1]) return undefined;
+  return match[1].replace(/\\"/g, "\"").replace(/\\\\/g, "\\").trim() || undefined;
+}
+
+function extractJsonScalarField(text: string, field: string): string | undefined {
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`"${escapedField}"\\s*:\\s*("?)(-?\\d+|[A-Za-z0-9_-]+)\\1`, "i"));
+  return match?.[2]?.trim() || undefined;
+}
+
+function expandCanvasVideoRawSummaries(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const summary = stringFrom(raw.summary, "");
+  const parsedSummary = summary ? parseJsonObject(summary) : null;
+  const result = isRecord(raw.result) ? raw.result : null;
+  const resultSummary = stringFrom(result?.summary, "");
+  const parsedResultSummary = resultSummary ? parseJsonObject(resultSummary) : null;
+  return {
+    ...raw,
+    ...(parsedSummary ? { parsedSummary } : {}),
+    ...(result ? {
+      result: {
+        ...result,
+        ...(parsedResultSummary ? { parsedSummary: parsedResultSummary } : {}),
+      },
+    } : {}),
+  };
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(text);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function findDeepScalarStringValue(value: unknown, keys: string[]): string | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findDeepScalarStringValue(item, keys);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!isRecord(value)) return undefined;
+  for (const key of keys) {
+    const found = value[key];
+    if (typeof found === "string" && found.trim()) return found.trim();
+    if (typeof found === "number" && Number.isFinite(found)) return String(found);
+  }
+  for (const item of Object.values(value)) {
+    const found = findDeepScalarStringValue(item, keys);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function dreaminaWebMissingSubmitIdFailureMessage(): string {
@@ -8054,13 +11248,38 @@ function rawImageGenerationMessage(error: unknown): string {
 function normalizeCanvasImageGenerationPrompt(prompt: string, metadata: unknown): string {
   const text = prompt.trim();
   const record = isRecord(metadata) ? metadata : {};
+  const clipNodeKind = stringFrom(record.clipNodeKind, "");
+  const isPositioningBoardRequest =
+    record.positioningBoardFlow === true ||
+    record.positioningBoardForClip === true ||
+    clipNodeKind === "positioning-board" ||
+    clipNodeKind === "positioning-board-reference" ||
+    stringFrom(record.assetKind, "") === "positioning-board";
+  const positioningBoardMode = stringFrom(record.positioningBoardMode, "");
   const isStoryboardRequest =
+    positioningBoardMode === "storyboard" ||
     record.storyboardForClip === true ||
-    stringFrom(record.clipNodeKind, "") === "storyboard" ||
+    clipNodeKind === "storyboard" ||
     /storyboard|director board|production board|分镜|故事板|导演板|technical label strip|Technical labels under each panel/i.test(text);
-  if (!isStoryboardRequest) return text;
+  if (!isStoryboardRequest) {
+    if (isPositioningBoardRequest) return normalizePositioningBoardImagePrompt(text);
+    return text;
+  }
   const panelCount = numberFrom(record.storyboardPanelCount, numberFrom(record.panelCount, 0));
   return finalizeClipStoryboardImagePrompt(text, panelCount || undefined);
+}
+
+function normalizePositioningBoardImagePrompt(prompt: string): string {
+  return stripComicStoryboardLayoutPrompt(stripLegacyClipStoryboardImageLayoutPrompt(prompt))
+    .replace(/\bShow spoken dialogue as clean white comic speech bubbles[^.\n]*[.\n]?/gi, "")
+    .replace(/\bPlace each exact dialogue line in one speech bubble[^.\n]*[.\n]?/gi, "")
+    .replace(/\bVisible text stays to panel labels and speech bubbles\.[ \t]*/gi, "")
+    .replace(/\bPlace a small readable panel number label[^.\n]*[.\n]?/gi, "")
+    .replace(/\bUse a full-page comic grid[^.\n]*[.\n]?/gi, "")
+    .replace(/\bEach panel should contain[^.\n]*[.\n]?/gi, "")
+    .replace(/\bFavor medium close-ups[^.\n]*[.\n]?/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function logRawImageGenerationFailure(generationId: string, error: unknown, userMessage: string) {
@@ -8184,11 +11403,48 @@ function slugId(prefix: string, value: string, index: number) {
 export const workflowsRouter = router;
 
 export const workflowsTestInternals = {
+  buildBreakdownPrompt,
+  buildClipSeedancePromptRefinementPrompt,
+  buildClipPreflight,
+  buildWorkflowAssetImagePromptForTest: buildWorkflowAssetImagePrompt,
+  sceneVisualConflictWarningForTest: sceneVisualConflictWarning,
+  buildStoryboardOnlyPrompt,
+  buildClipStateLedgerText,
+  buildShotOrderVideoBeats,
   cleanOptimizedPrompt,
   canvasVideoResultFailureMessage,
+  clampShotDuration,
+  clipStoryboardDialogueLockLines,
+  compactWorkflowVideoPromptLine,
+  composeSeedancePrompt,
+  deriveWorkflowClipsFromShots,
   dreaminaExistingVideoUrlsFromRaw,
+  enforceShotCameraPlansInVideoPrompt,
+  extractVideoBeatLabels,
   finalizeWorkflowVideoPrompt,
   formatDreaminaGenerationFailure,
+  formatStoryboardVideoBeats,
+  getWorkflowState,
   missingPreservedDialogueFragments,
+  mergeExtractedAssetsWithProjectMemory,
+  normalizeBreakdown,
+  normalizeFragmentedStoryboardDialogue,
+  normalizeWorkflowAssets,
   normalizeCanvasVideoRatio,
+  rebalanceStoryboardPacing,
+  regenerateWorkflowClipSeedancePrompt,
+  resolveWorkflowEpisodeId,
+  sourceDialogueLockLines,
+  unwrapJsonWrappedPromptText,
+  workflowClipContext,
+  workflowAssetsWithSceneVisualBiblesForStoryboard,
+  workflowBreakdownScenesFromNormalizedStoryboard,
+  writeWorkflowEpisode,
+};
+
+export const workflowMaintenanceInternals = {
+  deriveWorkflowClipsFromShots,
+  getWorkflowState,
+  regenerateWorkflowClipSeedancePrompt,
+  writeWorkflowEpisode,
 };

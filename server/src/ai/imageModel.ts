@@ -47,6 +47,7 @@ export type ImageModelCallResult = {
 const providerImageQueues = new Map<string, Promise<void>>();
 const defaultSub2ApiResponsesImageModel = "gpt-5.5";
 const defaultImageRequestTimeoutMs = 8 * 60 * 1000;
+const transientImageRequestRetryDelaysMs = [4000, 9000];
 
 export async function callConfiguredImageModel(input: {
   prompt: string;
@@ -154,13 +155,33 @@ async function executeQueuedImageRequest(
   providerImageQueues.set(queueKey, queued);
   await previous.catch(() => undefined);
   try {
-    return await executeImageRequest(model, request, apiKey);
+    return await executeImageRequestWithRetries(model, request, apiKey);
   } finally {
     releaseQueue();
     if (providerImageQueues.get(queueKey) === queued) {
       providerImageQueues.delete(queueKey);
     }
   }
+}
+
+async function executeImageRequestWithRetries(
+  model: ImageAiModelLike,
+  request: { endpoint: URL; body: Record<string, unknown> },
+  apiKey: string,
+): Promise<{ raw: unknown; images: ImageModelOutput[] }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= transientImageRequestRetryDelaysMs.length; attempt += 1) {
+    try {
+      return await executeImageRequest(model, request, apiKey);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= transientImageRequestRetryDelaysMs.length || !isRetryableImageRequestError(error)) break;
+      const delayMs = transientImageRequestRetryDelaysMs[attempt];
+      console.warn(`[image-generation] transient_failure_retry attempt=${attempt + 1} delayMs=${delayMs} ${imageRequestLogSummary(model, request.endpoint, request.body)} reason=${rawImageErrorMessage(error).slice(0, 180)}`);
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
 }
 
 async function executeImageRequest(
@@ -355,10 +376,22 @@ function buildSub2ApiResponsesImageBody(body: Record<string, unknown>) {
     tool_choice: { type: "image_generation" },
     tools: [buildResponsesImageTool(body)],
   };
+  if (shouldSubmitResponsesImageInBackground(body)) {
+    next.background = true;
+  }
   for (const key of ["metadata", "service_tier", "user"]) {
     if (body[key] !== undefined) next[key] = body[key];
   }
   return next;
+}
+
+function shouldSubmitResponsesImageInBackground(body: Record<string, unknown>): boolean {
+  if (body.responses_background !== undefined || body.responsesBackground !== undefined) {
+    return booleanFrom(body.responses_background ?? body.responsesBackground, true);
+  }
+  const configured = process.env.SUB2API_RESPONSES_BACKGROUND;
+  if (configured !== undefined) return booleanFrom(configured, true);
+  return true;
 }
 
 function sub2ApiResponsesModelFromBody(body: Record<string, unknown>): string {
@@ -953,6 +986,19 @@ function imageRequestTimeoutMs(): number {
   return defaultImageRequestTimeoutMs;
 }
 
+function isRetryableImageRequestError(error: unknown): boolean {
+  const message = rawImageErrorMessage(error).toLowerCase();
+  return /\b(429|500|502|503|504)\b/.test(message) ||
+    message.includes("bad gateway") ||
+    message.includes("overloaded") ||
+    message.includes("upstream_error") ||
+    message.includes("temporarily unavailable") ||
+    message.includes("rate limit") ||
+    message.includes("failed to fetch") ||
+    message.includes("fetch failed") ||
+    message.includes("network");
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
@@ -1045,4 +1091,15 @@ function firstString(...values: unknown[]): string {
 function numberFrom(value: unknown, fallback: number): number {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? Math.max(1, Math.min(4, number)) : fallback;
+}
+
+function booleanFrom(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
 }

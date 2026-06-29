@@ -192,16 +192,16 @@ export function ProjectRecordsPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-2 border-zinc-700 bg-[#141416] text-zinc-300" onClick={() => void loadRecords()}>
+          <Button variant="outline" size="sm" className="h-8 gap-2 border-border bg-[#141416] text-zinc-300" onClick={() => void loadRecords()}>
             <RefreshCw className="h-3.5 w-3.5" />
             刷新
           </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-2 border-zinc-700 bg-[#141416] text-zinc-300">
+          <Button variant="outline" size="sm" className="h-8 gap-2 border-border bg-[#141416] text-zinc-300">
             <Filter className="h-3.5 w-3.5" />
             筛选
           </Button>
           <div className="flex items-center gap-1 rounded-md border border-zinc-800 bg-[#141416] p-1">
-            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-sm bg-zinc-800 text-zinc-100"><LayoutGrid className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-sm bg-layer-4 text-zinc-100"><LayoutGrid className="h-4 w-4" /></Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-sm text-zinc-400 hover:text-zinc-100"><List className="h-4 w-4" /></Button>
           </div>
         </div>
@@ -273,10 +273,10 @@ function RecordCard({
     return (
       <div className="flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-[#141416]">
         <div className="flex aspect-square flex-col items-center justify-center bg-zinc-900/50 p-4">
-          <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-            <div className="h-full animate-pulse bg-indigo-500" style={{ width: `${item.progress ?? 35}%` }} />
+          <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-layer-4">
+            <div className="h-full animate-pulse bg-primary/90" style={{ width: `${item.progress ?? 35}%` }} />
           </div>
-          <span className="text-center text-sm font-medium text-indigo-400">正在生成... {item.progress ?? 35}%</span>
+          <span className="text-center text-sm font-medium text-primary">正在生成... {item.progress ?? 35}%</span>
         </div>
         <RecordMeta item={item} />
       </div>
@@ -293,7 +293,7 @@ function RecordCard({
         <div className="border-t border-zinc-800 p-3 text-xs">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-zinc-300">{item.model}</span>
-            <button className="text-indigo-400 hover:underline" onClick={() => void onRetry(item.id)}>重试 &rarr;</button>
+            <button className="text-primary hover:underline" onClick={() => void onRetry(item.id)}>重试 &rarr;</button>
           </div>
           <div className="flex justify-between text-zinc-500">
             <span>{item.cost} 积分</span>
@@ -318,22 +318,22 @@ function RecordCard({
 
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
           {item.image && (
-            <Button size="sm" variant="secondary" className="h-8 w-24 bg-zinc-800/80 hover:bg-zinc-700" onClick={() => window.open(item.image, "_blank", "noopener,noreferrer")}>
+            <Button size="sm" variant="secondary" className="h-8 w-24 bg-layer-4/80 hover:bg-zinc-700" onClick={() => window.open(item.image, "_blank", "noopener,noreferrer")}>
               <Maximize2 className="mr-1.5 h-3.5 w-3.5" /> 放大
             </Button>
           )}
           <div className="flex gap-2">
-            <Button size="icon" variant="secondary" className="h-8 w-8 bg-zinc-800/80 hover:bg-zinc-700" title="作为生成图片节点放入画布" onClick={() => onAddToCanvas(item)}>
+            <Button size="icon" variant="secondary" className="h-8 w-8 bg-layer-4/80 hover:bg-zinc-700" title="作为生成图片节点放入画布" onClick={() => onAddToCanvas(item)}>
               <LayoutDashboard className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="secondary" className="h-8 w-8 bg-zinc-800/80 hover:bg-zinc-700" title="编辑提示词" onClick={() => onEditPrompt(item)}>
+            <Button size="icon" variant="secondary" className="h-8 w-8 bg-layer-4/80 hover:bg-zinc-700" title="编辑提示词" onClick={() => onEditPrompt(item)}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>
-            <Button size="icon" variant="secondary" className="h-8 w-8 bg-zinc-800/80 hover:bg-zinc-700" title="复制提示词" onClick={() => void navigator.clipboard?.writeText(item.prompt ?? "").catch(() => undefined)}>
+            <Button size="icon" variant="secondary" className="h-8 w-8 bg-layer-4/80 hover:bg-zinc-700" title="复制提示词" onClick={() => void navigator.clipboard?.writeText(item.prompt ?? "").catch(() => undefined)}>
               <Copy className="h-3.5 w-3.5" />
             </Button>
             {item.image && (
-              <Button size="icon" variant="secondary" className="h-8 w-8 bg-zinc-800/80 hover:bg-zinc-700" title="下载" onClick={() => void onDownload(item)}>
+              <Button size="icon" variant="secondary" className="h-8 w-8 bg-layer-4/80 hover:bg-zinc-700" title="下载" onClick={() => void onDownload(item)}>
                 <Download className="h-3.5 w-3.5" />
               </Button>
             )}
@@ -355,14 +355,14 @@ function RecordCard({
           <Textarea
             value={promptDraft}
             onChange={(e) => setPromptDraft(e.target.value)}
-            className="h-32 max-h-40 resize-none overflow-y-auto border-[#27272a] bg-[#1f1f23] text-xs leading-5 focus-visible:ring-[#6366f1]"
+            className="h-32 max-h-40 resize-none overflow-y-auto border-border bg-layer-4 text-xs leading-5 focus-visible:ring-primary"
             placeholder="输入提示词..."
           />
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-400" onClick={onCancelEdit}>
               <X className="mr-1 h-3 w-3" /> 取消
             </Button>
-            <Button size="sm" className="h-7 bg-[#6366f1] text-xs text-white hover:bg-[#6366f1]/90" onClick={() => onSavePrompt(item.id)}>
+            <Button size="sm" className="h-7 bg-primary text-xs text-white hover:bg-primary/90" onClick={() => onSavePrompt(item.id)}>
               <Check className="mr-1 h-3 w-3" /> 保存
             </Button>
           </div>
@@ -385,7 +385,7 @@ function RecordMeta({ item, onEditPrompt }: { item: RecordItem; onEditPrompt?: (
       {item.paramsLabel && <div className="mb-1 truncate text-[10px] text-zinc-500">{item.paramsLabel}</div>}
       {item.prompt && (
         <div
-          className="mb-2 max-h-28 cursor-pointer overflow-y-auto whitespace-pre-wrap rounded-md border border-zinc-800 bg-[#101014] px-2 py-1.5 text-[11px] leading-4 text-zinc-500 transition-colors hover:border-zinc-700 hover:text-zinc-300"
+          className="mb-2 max-h-28 cursor-pointer overflow-y-auto whitespace-pre-wrap rounded-md border border-zinc-800 bg-[#101014] px-2 py-1.5 text-[11px] leading-4 text-zinc-500 transition-colors hover:border-border hover:text-zinc-300"
           onClick={() => onEditPrompt?.(item)}
           title="点击编辑提示词"
         >

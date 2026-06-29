@@ -5,14 +5,17 @@ import { asyncRoute } from "../lib/asyncRoute";
 import {
   normalizeCanvasStoryboardReferencesForScene,
   preserveExistingClipStoryboardSections,
+  removeCanvasStoryboardNodesForMultiReference,
   storyboardReferencesFromGenerationRecords,
 } from "../lib/canvasStoryboardReferences";
+import { restoreSucceededCanvasVideoNodes } from "../lib/canvasSucceededVideoNodes";
 import { config } from "../config";
-import { callConfiguredTextModel } from "../ai/textModel";
+import { callConfiguredPlainTextModel, callConfiguredTextModel } from "../ai/textModel";
 import { buildEpisodeCanvasSyncScene, writeEpisodeCanvasSyncMetadata } from "../lib/episodeCanvasSync";
 import { callHermesAgent, hermesAgentStatus, type HermesAgentResult } from "../lib/hermesAgent";
 import { isRecord, mapProject } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
+import { isSeedanceMultiReferenceStrategy, metadataWithProjectSettings, projectGenerationStrategyFromMetadata } from "../lib/projectGenerationStrategy";
 import { ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 
@@ -22,6 +25,7 @@ const messageSchema = z.object({
   content: z.string().min(1).max(12000),
   projectId: z.string().optional(),
   conversationId: z.string().max(300).optional(),
+  modelId: z.string().max(200).optional(),
   context: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -36,6 +40,7 @@ const CANVAS_REFERENCE_NODE_HEIGHT = 248;
 const CANVAS_REFERENCE_NODE_GAP_X = 12;
 const CANVAS_REFERENCE_NODE_GAP_Y = 10;
 const CANVAS_REFERENCE_ROWS_PER_COLUMN = 4;
+const AGENT_LINKED_PROMPT_CONTEXT_LIMIT = 24000;
 
 const agentActionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -159,6 +164,7 @@ router.post(
             payload: {
               ...(input.context ?? {}),
               conversationId,
+              modelId: input.modelId || "",
             },
           },
         });
@@ -208,6 +214,7 @@ router.post(
           project: mapProject(project),
           workflow,
           recentMessages: recentConversationMessages,
+          modelId: input.modelId || undefined,
           clientContext: input.context,
         }).catch((error) => {
           console.error(`[agent] background_failed message=${assistantMessageId}`, error);
@@ -482,6 +489,7 @@ type AgentRunContext = {
   project: Record<string, unknown>;
   workflow: Record<string, unknown>;
   recentMessages: Array<{ role: string; content: string; createdAt: string }>;
+  modelId?: string;
   clientContext?: Record<string, unknown>;
 };
 
@@ -518,6 +526,8 @@ function snapshotAgentRequest(req: { get(name: string): string | undefined; prot
 }
 
 async function completeAgentMessage(context: CompleteAgentMessageContext): Promise<void> {
+  const effectiveUserRequest = agentEffectiveUserRequest(context.content);
+  const draftOnly = agentContextDraftOnly(context.clientContext);
   let content = replyFor(context.content);
   let responseMetadata: Record<string, unknown> = {
     source: "backend-placeholder",
@@ -526,7 +536,7 @@ async function completeAgentMessage(context: CompleteAgentMessageContext): Promi
     status: "COMPLETED",
   };
   try {
-    const agentRun = await runHermesAgentWithActions(context);
+    const agentRun = draftOnly ? await runCanvasAgentDraftOnly(context) : await runHermesAgentWithActions(context);
     if (agentRun) {
       content = agentRun.content || "我已执行项目操作。";
       responseMetadata = {
@@ -536,12 +546,12 @@ async function completeAgentMessage(context: CompleteAgentMessageContext): Promi
         status: "COMPLETED",
         ...(agentRun.actionResults.length ? { actionResults: compactAgentActionResultsForMessage(agentRun.actionResults) } : {}),
       };
-      if (shouldRunDeterministicAgentFallback(context.content, agentRun)) {
+      if (!draftOnly && shouldRunDeterministicAgentFallback(effectiveUserRequest, agentRun)) {
         const fallbackResults = await executeDeterministicAgentFallback({
           req: context.req,
           userId: context.userId,
           projectId: context.projectId,
-          userRequest: context.content,
+          userRequest: effectiveUserRequest,
           clientContext: context.clientContext,
         });
         if (fallbackResults.length) {
@@ -556,7 +566,7 @@ async function completeAgentMessage(context: CompleteAgentMessageContext): Promi
         }
       }
     }
-    if (!agentRun || shouldRunLocalAgentController(context.content, agentRun)) {
+    if (!draftOnly && (!agentRun || shouldRunLocalAgentController(effectiveUserRequest, agentRun))) {
       console.warn(`[agent] local_controller_fallback project=${context.projectId} conversation=${context.conversationId} hermesContent=${agentRun ? JSON.stringify(agentRun.content.slice(0, 80)) : "null"} hermesActions=${agentRun?.actionResults.length ?? 0}`);
       const localRun = await runLocalAgentController(context);
       if (localRun.actionResults.length || localRun.content) {
@@ -587,7 +597,9 @@ async function completeAgentMessage(context: CompleteAgentMessageContext): Promi
     };
   }
 
-  const guarded = applyAgentCompletionGuard(context.content, content, responseMetadata);
+  const guarded = draftOnly
+    ? { content, metadata: responseMetadata }
+    : applyAgentCompletionGuard(effectiveUserRequest, content, responseMetadata);
 
   await prisma.agentMessage.update({
     where: { id: context.assistantMessageId },
@@ -600,10 +612,51 @@ async function completeAgentMessage(context: CompleteAgentMessageContext): Promi
       },
     },
   });
+  await syncCanvasAgentNodeCompletion(context, guarded.content, guarded.metadata);
+}
+
+async function syncCanvasAgentNodeCompletion(
+  context: CompleteAgentMessageContext,
+  content: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const agentNodeId = stringValue(isRecord(context.clientContext) ? context.clientContext.agentNodeId : "");
+  if (!agentNodeId) return;
+  const project = await prisma.project.findUnique({
+    where: { id: context.projectId },
+    select: { metadata: true },
+  });
+  const record = isRecord(project?.metadata) ? project.metadata : {};
+  const sceneId = resolveAgentCanvasSceneId(record, "", context.clientContext);
+  const canvasScenes = getCanvasScenes(record);
+  const scene = canvasScenes[sceneId];
+  const rawNodes = Array.isArray(scene?.nodes) ? scene.nodes : [];
+  const rawEdges = Array.isArray(scene?.edges) ? scene.edges : [];
+  let changed = false;
+  const status = stringValue(metadata.status) === "FAILED" ? "failed" : "completed";
+  const nodes = rawNodes.map((node) => {
+    if (!isRecord(node) || stringValue(node.id) !== agentNodeId) return node;
+    const data = isRecord(node.data) ? node.data : {};
+    changed = true;
+    return {
+      ...node,
+      data: {
+        ...data,
+        status,
+        error: status === "failed" ? content : "",
+        resultText: content || (status === "failed" ? "智能体执行失败。" : "智能体已完成。"),
+        lastMetadata: metadata,
+        lastCompletedAt: new Date().toISOString(),
+      },
+    };
+  });
+  if (!changed) return;
+  await saveCanvasForAgent(context.projectId, record, sceneId, nodes, rawEdges);
 }
 
 async function runHermesAgentWithActions(context: AgentRunContext): Promise<AgentRunResult | null> {
-  let content = context.content;
+  const userRequest = agentEffectiveUserRequest(context.content);
+  let content = userRequest;
   let clientContext = context.clientContext;
   let finalContent = "";
   let finalMetadata: Record<string, unknown> = {};
@@ -618,6 +671,7 @@ async function runHermesAgentWithActions(context: AgentRunContext): Promise<Agen
       project: context.project,
       workflow: context.workflow,
       recentMessages: context.recentMessages,
+      modelId: context.modelId,
       clientContext,
     });
     if (!hermes?.content) return index === 0 ? null : { content: finalContent, metadata: finalMetadata, actionResults: allActionResults };
@@ -632,13 +686,13 @@ async function runHermesAgentWithActions(context: AgentRunContext): Promise<Agen
       userId: context.userId,
       projectId: context.projectId,
       clientContext,
-      userRequest: context.content,
+      userRequest,
       actions: parsed.actions,
     });
     allActionResults.push(...actionResults);
-    if (shouldStopAgentActionLoop(context.content, actionResults)) break;
+    if (shouldStopAgentActionLoop(userRequest, actionResults)) break;
 
-    content = buildHermesContinuationInstruction(context.content, actionResults);
+    content = buildHermesContinuationInstruction(userRequest, actionResults);
     clientContext = {
       ...(clientContext ?? {}),
       actionResults: summarizeAgentActionResultsForContext(allActionResults),
@@ -715,9 +769,214 @@ function isInvalidAgentVisibleReply(value: string): boolean {
   return /^(none|null|undefined|n\/a|无|空)$/i.test(value.trim());
 }
 
+function agentEffectiveUserRequest(value: string): string {
+  const text = String(value || "");
+  const marker = text.match(/用户要求[:：]\s*([\s\S]*?)(?:\n\s*智能体节点ID[:：]|\n\s*连接节点[:：]|$)/);
+  const extracted = marker?.[1]?.trim();
+  return extracted || text;
+}
+
+function agentContextDraftOnly(clientContext?: Record<string, unknown>): boolean {
+  const context = isRecord(clientContext) ? clientContext : {};
+  return stringValue(context.agentMode) === "draft_only" || context.draftOnly === true;
+}
+
+function agentDraftOnlyActionAllowed(action: AgentAction): boolean {
+  return action.type === "load_canvas";
+}
+
+async function runCanvasAgentDraftOnly(context: AgentRunContext): Promise<AgentRunResult> {
+  const userRequest = agentEffectiveUserRequest(context.content);
+  const preloaded = await executeAgentActions({
+    req: context.req,
+    userId: context.userId,
+    projectId: context.projectId,
+    clientContext: context.clientContext,
+    userRequest,
+    actions: [{ type: "load_canvas", sceneId: agentClientActiveSceneId(context.clientContext) || undefined }],
+  });
+  const linkedPromptContext = linkedNodePromptContextForDraftAgent(context.clientContext, preloaded);
+  const deterministicDraft = draftOnlyPromptRemovalResult(userRequest, linkedPromptContext);
+  if (deterministicDraft) {
+    return {
+      content: deterministicDraft,
+      metadata: {
+        source: "canvas-agent-draft",
+        mode: "draft_only",
+        deterministic: true,
+      },
+      actionResults: [],
+    };
+  }
+  const result = await callConfiguredPlainTextModel([
+    {
+      role: "system",
+      content: [
+        "You are a Loohii canvas agent in draft-only mode.",
+        "Never emit tool calls, hidden actions, JSON actions, or instructions that modify the canvas.",
+        "Return only the proposed result text that should be shown inside the agent node.",
+        "The draft is not applied to connected nodes yet. The user will review it inside the agent node first.",
+        "If the user asks to modify a prompt, your main output must be the complete revised prompt draft, not a short status summary.",
+        "For prompt edits, preserve dialogue, story meaning, character identities, references, and structure unless explicitly asked otherwise.",
+        "Do not say you already updated the canvas. Do not mention backend actions.",
+      ].join(" "),
+    },
+    {
+      role: "user",
+      content: [
+        `User request: ${userRequest}`,
+        `Project: ${JSON.stringify(context.project)}`,
+        `Workflow summary: ${JSON.stringify(context.workflow)}`,
+        `Connected node prompt context: ${JSON.stringify(linkedPromptContext)}`,
+        `Canvas context: ${JSON.stringify(summarizeAgentActionResultsForPlanner(preloaded))}`,
+        "",
+        "Return the draft result in Chinese when explaining changes, but keep prompt text in its original working language unless the user asks to translate.",
+      ].join("\n"),
+    },
+  ], context.modelId);
+  const content = result.rawText.trim() || "智能体没有生成可用草稿。";
+  return {
+    content,
+    metadata: {
+      source: "canvas-agent-draft",
+      mode: "draft_only",
+      model: result.model,
+    },
+    actionResults: [],
+  };
+}
+
+type AgentLinkedPromptContextItem = {
+  id: string;
+  type: string;
+  label?: string;
+  title?: string;
+  clipId?: string;
+  prompt: string;
+  promptLength: number;
+  truncated: boolean;
+  source: string;
+};
+
+function linkedNodePromptContextForDraftAgent(
+  clientContext: Record<string, unknown> | undefined,
+  preloadedResults: Array<Record<string, unknown>>,
+): AgentLinkedPromptContextItem[] {
+  const items = new Map<string, AgentLinkedPromptContextItem>();
+  const add = (item: AgentLinkedPromptContextItem) => {
+    if (!item.id || !item.prompt) return;
+    const current = items.get(item.id);
+    if (!current || item.prompt.length > current.prompt.length) items.set(item.id, item);
+  };
+  for (const item of linkedNodePromptContextFromClient(clientContext)) add(item);
+  for (const item of linkedNodePromptContextFromPreloaded(clientContext, preloadedResults)) add(item);
+  return Array.from(items.values()).slice(0, 16);
+}
+
+function linkedNodePromptContextFromClient(clientContext?: Record<string, unknown>): AgentLinkedPromptContextItem[] {
+  const context = isRecord(clientContext) ? clientContext : {};
+  const rawItems = Array.isArray(context.linkedNodePrompts) ? context.linkedNodePrompts : [];
+  return rawItems.filter(isRecord).map((item) => {
+    const prompt = firstNonEmptyForAgent(item.promptForModel, item.prompt);
+    const clipped = prompt.slice(0, AGENT_LINKED_PROMPT_CONTEXT_LIMIT);
+    return {
+      id: stringValue(item.id),
+      type: stringValue(item.type),
+      label: shortText(stringValue(item.label), 180),
+      title: shortText(stringValue(item.title), 180),
+      clipId: stringValue(item.clipId) || undefined,
+      prompt: clipped,
+      promptLength: numberValue(item.promptLength, prompt.length),
+      truncated: Boolean(item.truncated) || prompt.length > clipped.length,
+      source: "client-context",
+    };
+  }).filter((item) => item.id && item.prompt);
+}
+
+function linkedNodePromptContextFromPreloaded(
+  clientContext: Record<string, unknown> | undefined,
+  preloadedResults: Array<Record<string, unknown>>,
+): AgentLinkedPromptContextItem[] {
+  const linkedIds = new Set(agentLinkedNodeIdsFromContext(clientContext));
+  if (!linkedIds.size) return [];
+  const items: AgentLinkedPromptContextItem[] = [];
+  for (const result of preloadedResults) {
+    const canvas = isRecord(result.canvas) ? result.canvas : {};
+    const nodes = Array.isArray(canvas.nodes) ? canvas.nodes.filter(isRecord) : [];
+    for (const node of nodes) {
+      const id = stringValue(node.id);
+      const prompt = stringValue(node.prompt);
+      if (!id || !linkedIds.has(id) || !prompt) continue;
+      const clipped = prompt.slice(0, AGENT_LINKED_PROMPT_CONTEXT_LIMIT);
+      items.push({
+        id,
+        type: stringValue(node.type),
+        label: shortText(stringValue(node.label), 180),
+        title: shortText(stringValue(node.title), 180),
+        clipId: stringValue(node.clipId) || undefined,
+        prompt: clipped,
+        promptLength: prompt.length,
+        truncated: prompt.length > clipped.length,
+        source: "loaded-canvas",
+      });
+    }
+  }
+  return items;
+}
+
+function draftOnlyPromptRemovalResult(userRequest: string, linkedPrompts: AgentLinkedPromptContextItem[]): string {
+  if (!userRequestWantsPromptRemoval(userRequest) || !linkedPrompts.length) return "";
+  const target = bestLinkedPromptForUserRequest(linkedPrompts, userRequest);
+  if (!target?.prompt) return "";
+  const removalNames = promptNamesToRemoveFromUserRequest(userRequest);
+  const withoutNames = removalNames.length ? removeNamesFromPrompt(target.prompt, removalNames) : target.prompt;
+  const nextPrompt = normalizeAgentExactDialogueQuoteStyle(removeRequestedPromptContentFromPrompt(withoutNames, userRequest));
+  if (!nextPrompt || nextPrompt === target.prompt) return "";
+  const label = target.title || target.label || target.id;
+  return [
+    `已基于连接节点「${label}」生成修改后的完整提示词草稿（未写回画布）：`,
+    "",
+    nextPrompt,
+  ].join("\n");
+}
+
+function normalizeAgentExactDialogueQuoteStyle(prompt: string): string {
+  return String(prompt || "")
+    .split("\n")
+    .map((line) => line.replace(
+      /\bExact dialogue:\s*([^:：;\n]{1,40})\s*[:：]\s*([^;\n]+?)(?=;|$)/g,
+      (_match, speaker, dialogue) => `Exact dialogue: ${String(speaker).trim()}: “${trimAgentDialogueQuotes(String(dialogue))}”`,
+    ))
+    .join("\n");
+}
+
+function trimAgentDialogueQuotes(value: string): string {
+  return String(value || "")
+    .trim()
+    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
+    .trim();
+}
+
+function bestLinkedPromptForUserRequest(items: AgentLinkedPromptContextItem[], userRequest: string): AgentLinkedPromptContextItem | null {
+  let best: { item: AgentLinkedPromptContextItem; score: number } | null = null;
+  for (const item of items) {
+    const score = promptNodeTargetScore({
+      id: item.id,
+      type: item.type,
+      title: item.title ?? "",
+      label: item.label ?? "",
+      clipId: item.clipId ?? "",
+      prompt: item.prompt,
+    }, userRequest);
+    if (!best || score > best.score) best = { item, score };
+  }
+  return best?.item ?? items[0] ?? null;
+}
+
 function userRequestWantsCanvasMutation(value: string): boolean {
-  if (/只问|只是问|不用改|不要改|不要生成|不生成|无需生成|查询|检查|看看|why|为什么|what|只需要回答/i.test(value)) return false;
-  return /修改|更改|改成|改为|不要写|不写|删了|删掉|删除|移除|去掉|去除|替换|优化|生成|重新生成|生图|提交|放入画布|连接|接入|fix|update|change|remove|replace|generate|regenerate/i.test(value);
+  const text = agentEffectiveUserRequest(value);
+  if (/只问|只是问|不用改|不要改|不要生成|不生成|无需生成|查询|检查|看看|why|为什么|what|只需要回答/i.test(text)) return false;
+  return /修改|更改|改成|改为|不要写|不写|删了|删掉|删除|移除|去掉|去除|替换|优化|生成|重新生成|生图|提交|放入画布|连接|接入|fix|update|change|remove|replace|generate|regenerate/i.test(text);
 }
 
 function agentActionResultChangedState(result: Record<string, unknown>): boolean {
@@ -740,15 +999,16 @@ function agentActionResultVerifiedState(result: Record<string, unknown>): boolea
 }
 
 async function runLocalAgentController(context: AgentRunContext): Promise<AgentRunResult> {
+  const userRequest = agentEffectiveUserRequest(context.content);
   const preloaded = await executeAgentActions({
     req: context.req,
     userId: context.userId,
     projectId: context.projectId,
     clientContext: context.clientContext,
-    userRequest: context.content,
+    userRequest,
     actions: [{ type: "load_canvas", sceneId: agentClientActiveSceneId(context.clientContext) || undefined }],
   });
-  const deterministicActions = deterministicActionsFromUserRequest(context.content, preloaded);
+  const deterministicActions = deterministicActionsFromUserRequest(userRequest, preloaded);
   if (deterministicActions.length) {
     const actionResults = await executeAgentActions({
       req: context.req,
@@ -758,7 +1018,7 @@ async function runLocalAgentController(context: AgentRunContext): Promise<AgentR
         ...(context.clientContext ?? {}),
         actionResults: summarizeAgentActionResultsForContext(preloaded),
       },
-      userRequest: context.content,
+      userRequest,
       actions: deterministicActions,
     });
     return {
@@ -769,7 +1029,7 @@ async function runLocalAgentController(context: AgentRunContext): Promise<AgentR
   }
   const local = await callLocalActionPlanner(context, preloaded);
   const parsed = extractHermesActions(local.content);
-  const actions = parsed.actions.length ? parsed.actions : deterministicActionsFromUserRequest(context.content, preloaded);
+  const actions = parsed.actions.length ? parsed.actions : deterministicActionsFromUserRequest(userRequest, preloaded);
   if (!actions.length) {
     return {
       content: parsed.content || local.content || "项目总控没有生成可执行动作。请选中目标节点，或明确指定 clip 编号和要修改的字段。",
@@ -785,13 +1045,13 @@ async function runLocalAgentController(context: AgentRunContext): Promise<AgentR
       ...(context.clientContext ?? {}),
       actionResults: summarizeAgentActionResultsForContext(preloaded),
     },
-    userRequest: context.content,
+    userRequest,
     actions,
   });
   const failed = actionResults.find((item) => item.ok === false);
   const changed = actionResults.filter(agentActionResultChangedState);
   const verified = actionResults.filter(agentActionResultVerifiedState);
-  const mutationRequested = userRequestWantsCanvasMutation(context.content);
+  const mutationRequested = userRequestWantsCanvasMutation(userRequest);
   const content = failed
     ? `项目总控已尝试执行，但失败：${stringValue(failed.error) || "未知错误"}`
     : mutationRequested && !changed.length && !verified.length
@@ -809,7 +1069,8 @@ async function runLocalAgentController(context: AgentRunContext): Promise<AgentR
 }
 
 async function callLocalActionPlanner(context: AgentRunContext, preloadedResults: Array<Record<string, unknown>>): Promise<HermesAgentResult> {
-  const targetClipId = inferClipIdFromText(context.content) || inferClipIdFromAgentContext(context.clientContext);
+  const userRequest = agentEffectiveUserRequest(context.content);
+  const targetClipId = inferClipIdFromText(userRequest) || inferClipIdFromAgentContext(context.clientContext);
   const result = await callConfiguredTextModel([
     {
       role: "system",
@@ -833,7 +1094,7 @@ async function callLocalActionPlanner(context: AgentRunContext, preloadedResults
     {
       role: "user",
       content: [
-        `User request: ${context.content}`,
+        `User request: ${userRequest}`,
         targetClipId ? `Inferred target clip: ${targetClipId}` : "",
         `Project: ${JSON.stringify(context.project)}`,
         `Workflow summary: ${JSON.stringify(context.workflow)}`,
@@ -847,7 +1108,7 @@ async function callLocalActionPlanner(context: AgentRunContext, preloadedResults
         '{"type":"create_canvas_image_generation","sceneId":"episode-002","nodeId":"generation-abc","prompt":"full prompt","size":"16:9","parameters":{"resolution":"2k","quality":"high"}}',
       ].filter(Boolean).join("\n"),
     },
-  ]);
+  ], context.modelId);
   const text = result.rawText.trim();
   const parsed = tryParseJsonRecord(text);
   if (parsed) {
@@ -989,9 +1250,11 @@ function promptNamesToRemoveFromUserRequest(value: string, knownAssetNames: stri
   if (!userRequestWantsPromptRemoval(text)) return [];
   const knownNames = assetNamesMentionedInText(text, knownAssetNames);
   if (knownNames.length) return knownNames;
+  const promptObjectAfterVerb = text.match(/(?:不要写|不写|删了|删掉|删除|移除|remove|去掉|去除)\s*(?:提示词|prompt)(?:里|中|内|里的|中的)?(?:的)?\s*([^。.\n，,]+)/i);
+  const promptObjectBeforeVerb = text.match(/(?:提示词|prompt)(?:里|中|内|里的|中的)?(?:的)?\s*([^。.\n，,]{1,160}?)(?:不要写|不写|删了|删掉|删除|移除|remove|去掉|去除)/i);
   const containsMatch = text.match(/包含\s*([^。.\n]{1,120}?)(?:的)?(?:去掉|去除|删掉|删除|移除|remove)/i);
   const removeMatch = text.match(/(?:不要写|不写|删了|删掉|删除|移除|remove|去掉|去除)\s*([^。.\n]+)/i);
-  const raw = containsMatch?.[1] || removeMatch?.[1] || "";
+  const raw = promptObjectAfterVerb?.[1] || promptObjectBeforeVerb?.[1] || containsMatch?.[1] || removeMatch?.[1] || "";
   return splitAgentAssetNameList(raw);
 }
 
@@ -1034,7 +1297,13 @@ function agentTextMentionsName(text: string, name: string): boolean {
 }
 
 function splitAgentAssetNameList(rawValue: string): string[] {
-  return rawValue
+  const cleaned = rawValue
+    .replace(/^(?:提示词|prompt)(?:里|中|内|里的|中的)?(?:的)?/i, "")
+    .replace(/(?:其他|其它)\s*(?:不变|保持|不要变)[\s\S]*$/i, "")
+    .replace(/(?:保持|不要|别)\s*(?:其他|其它)[\s\S]*$/i, "")
+    .replace(/(?:即可|就行|就可以)$/i, "")
+    .trim();
+  return cleaned
     .split(/(?:和|与|、|,|，|and|&)/i)
     .map(cleanAgentAssetNameCandidate)
     .filter((item) => item && !/提示词|prompt|视频节点|视频生成|故事板|分镜|里|中|角色|人物|资产|参考图|不要|不写|存在|描述|这个|剧情|节点/.test(item))
@@ -1045,8 +1314,9 @@ function cleanAgentAssetNameCandidate(value: string): string {
   return value
     .replace(/["“”‘’]/g, "")
     .replace(/clip[-_\s]*\d{1,3}/gi, "")
+    .replace(/^包含\s*/i, "")
     .replace(/^(?:的|里|中|把|将|给|请|帮我|视频节点|故事板节点|分镜节点|资产中心|资产库)+/i, "")
-    .replace(/(?:资产|参考图|角色图|角色|道具|场景|节点|连接|接入|连线)$/i, "")
+    .replace(/(?:的)?(?:资产|参考图|角色图|角色|道具|场景|节点|连接|接入|连线)?$/i, "")
     .trim();
 }
 
@@ -1540,6 +1810,9 @@ async function executeAgentActions(context: AgentActionExecutionContext): Promis
 }
 
 async function executeAgentAction(context: AgentActionExecutionContext, action: AgentAction): Promise<Record<string, unknown>> {
+  if (agentContextDraftOnly(context.clientContext) && !agentDraftOnlyActionAllowed(action)) {
+    throw new Error("Draft-only agent mode can only read context; it cannot modify canvas nodes or submit generation tasks.");
+  }
   const conflictMessage = agentActionConflictMessage(context.userRequest ?? "", action);
   if (conflictMessage) throw new Error(conflictMessage);
 
@@ -1569,9 +1842,10 @@ async function executeAgentAction(context: AgentActionExecutionContext, action: 
     });
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${project.id} FOR UPDATE`;
-      const currentProject = await tx.project.findUnique({ where: { id: project.id }, select: { metadata: true } });
-      const metadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
-      const canvasScenes = getCanvasScenes(metadata);
+      const currentProject = await tx.project.findUnique({ where: { id: project.id }, select: { metadata: true, settings: true } });
+      const baseMetadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
+      const metadata = metadataWithProjectSettings(baseMetadata, currentProject?.settings);
+      const canvasScenes = getCanvasScenes(baseMetadata);
       const episodeId = action.episodeId || stringValue(metadata.activeEpisodeId) || resolveCanvasEpisodeId(metadata, "");
       const sync = buildEpisodeCanvasSyncScene({
         metadata,
@@ -1579,7 +1853,7 @@ async function executeAgentAction(context: AgentActionExecutionContext, action: 
         existingScene: canvasScenes[episodeId] ?? canvasScenes[resolveCanvasEpisodeId(metadata, episodeId)] ?? undefined,
         records,
       });
-      const nextMetadata = writeEpisodeCanvasSyncMetadata({ metadata, sync, makeActive: true });
+      const nextMetadata = writeEpisodeCanvasSyncMetadata({ metadata: baseMetadata, sync, makeActive: true });
       await tx.project.update({ where: { id: project.id }, data: { metadata: nextMetadata as Prisma.InputJsonValue } });
       return sync;
     });
@@ -1598,12 +1872,13 @@ async function executeAgentAction(context: AgentActionExecutionContext, action: 
     const targetClipId = inferClipIdFromText(context.userRequest ?? "") || inferClipIdFromAgentContext(context.clientContext);
     const episodeId = resolveCanvasEpisodeId(project.metadata, sceneId);
     const assetNames = collectWorkflowAssetNamesForAgent(project.metadata, episodeId);
+    const linkedNodeIds = agentLinkedNodeIdsFromContext(context.clientContext);
     return {
       sceneId,
       nodes: scene.nodes.length,
       edges: scene.edges.length,
       assetNames,
-      canvas: summarizeCanvasForAgent(scene, { targetClipId, assetNames }),
+      canvas: summarizeCanvasForAgent(scene, { targetClipId, assetNames, linkedNodeIds }),
     };
   }
 
@@ -1616,7 +1891,7 @@ async function executeAgentAction(context: AgentActionExecutionContext, action: 
   }
 
   if (action.type === "remove_asset_from_clip") {
-    return await removeAssetFromClipForAgent(project.id, project.metadata, sceneId, action);
+    return await removeAssetFromClipForAgent(project.id, project.metadata, sceneId, action, context.userRequest ?? "");
   }
 
   if (action.type === "create_canvas_image_generation") {
@@ -2369,12 +2644,16 @@ async function removeAssetFromClipForAgent(
   metadata: unknown,
   sceneId: string,
   action: Extract<AgentAction, { type: "remove_asset_from_clip" }>,
+  userRequest = "",
 ): Promise<Record<string, unknown>> {
   const scene = await loadCanvasForAgent(projectId, metadata, sceneId);
   const clipId = normalizeClipId(action.clipId);
   const assetNames = uniqueAgentNames(action.assetNames);
   if (!clipId) throw new Error("缺少目标 Clip");
   if (!assetNames.length) throw new Error("缺少要移除的资产名");
+  if (!userRequestExplicitlyAsksAssetRemoval(userRequest)) {
+    throw new Error("用户没有明确要求移除资产引用，已拒绝执行删除动作。");
+  }
 
   const nodes = scene.nodes.filter(isRecord);
   const edges = scene.edges.filter(isRecord);
@@ -2387,7 +2666,8 @@ async function removeAssetFromClipForAgent(
     const nodeId = stringValue(node.id);
     if (!nodeId) continue;
     const data = isRecord(node.data) ? node.data : {};
-    const nodeAssetName = stringValue(data.assetName) || stringValue(data.name) || stringValue(data.label) || stringValue(data.title);
+    if (!agentRemovableAssetReferenceNode(node)) continue;
+    const nodeAssetName = stringValue(data.assetName) || stringValue(data.name) || stringValue(data.label).replace(/^角色参考[:：]\s*/i, "");
     const nodeAssetKind = stringValue(data.assetKind);
     if (action.assetKind && nodeAssetKind && nodeAssetKind !== action.assetKind) continue;
     const matchesName = assetNames.some((name) => agentAssetNameMatches(nodeAssetName, name));
@@ -2405,6 +2685,7 @@ async function removeAssetFromClipForAgent(
   let promptUpdateCount = 0;
   const promptNames = assetNames;
   const patchedNodes = nextNodes.map((node) => {
+    if (!removeNodeIds.size) return node;
     if (!agentClipPromptTargetType(node) || !nodeMatchesClip(node, clipId)) return node;
     const data = isRecord(node.data) ? node.data : {};
     const prompt = firstNonEmptyForAgent(data.finalPrompt, data.seedancePrompt, data.videoPrompt, data.prompt, data.sourcePrompt);
@@ -2465,6 +2746,27 @@ async function removeAssetFromClipForAgent(
       ? `已从 ${action.clipId} 移除 ${assetNames.join("、")} 的资产引用，并清理相关提示词。`
       : `未发现 ${action.clipId} 中连接的 ${assetNames.join("、")} 资产引用。`,
   };
+}
+
+function agentRemovableAssetReferenceNode(node: Record<string, unknown>): boolean {
+  const type = stringValue(node.type);
+  const data = isRecord(node.data) ? node.data : {};
+  const role = stringValue(data.clipSyncRole) || stringValue(data.clipNodeKind);
+  const assetName = firstNonEmptyForAgent(data.assetName, data.name);
+  if (!assetName) return false;
+  if (type === "character") return true;
+  if (type !== "imageInput") return false;
+  if (data.storyboardSlotForClip === true || role === "storyboard-slot" || role === "video" || role === "storyboard") return false;
+  return role.startsWith("asset:") ||
+    role.startsWith("video-asset:") ||
+    stringValue(data.assetKind) === "characters" ||
+    stringValue(data.assetKind) === "scenes" ||
+    stringValue(data.assetKind) === "props";
+}
+
+function userRequestExplicitlyAsksAssetRemoval(value: string): boolean {
+  const text = agentEffectiveUserRequest(value);
+  return /(?:资产|参考图|角色图|场景图|道具图|asset|reference)[^。.\n]{0,80}(?:去掉|去除|删掉|删除|移除|取消|断开|remove|disconnect|unlink|delete)|(?:去掉|去除|删掉|删除|移除|取消|断开|remove|disconnect|unlink|delete)[^。.\n]{0,80}(?:资产|参考图|角色图|场景图|道具图|asset|reference)/i.test(text);
 }
 
 function agentClipPromptTargetType(node: Record<string, unknown>): boolean {
@@ -2900,20 +3202,26 @@ function isJsonSafeValue(value: unknown, depth: number): boolean {
 }
 
 async function loadCanvasForAgent(projectId: string, metadata: unknown, sceneId: string): Promise<{ nodes: unknown[]; edges: unknown[]; updatedAt?: string }> {
-  const record = isRecord(metadata) ? metadata : {};
-  const canvasScenes = getCanvasScenes(record);
+  const record = await agentCanvasMetadataWithProjectSettings(projectId, metadata);
+  const canvasScenes = getCanvasScenes(isRecord(metadata) ? metadata : {});
   const scene = canvasScenes[sceneId];
   const episodeId = resolveCanvasEpisodeId(record, sceneId);
-  const storyboardRefs = await getStoryboardGenerationReferences(projectId, record, episodeId);
-  const normalized = normalizeCanvasStoryboardReferencesForScene(
-    Array.isArray(scene?.nodes) ? scene.nodes : [],
-    Array.isArray(scene?.edges) ? scene.edges : [],
-    record,
-    storyboardRefs,
-    episodeId,
-  );
+  const useMultiReferenceStrategy = isSeedanceMultiReferenceStrategy(projectGenerationStrategyFromMetadata(record));
+  const normalized = useMultiReferenceStrategy
+    ? removeCanvasStoryboardNodesForMultiReference(
+        Array.isArray(scene?.nodes) ? scene.nodes : [],
+        Array.isArray(scene?.edges) ? scene.edges : [],
+      )
+    : normalizeCanvasStoryboardReferencesForScene(
+        Array.isArray(scene?.nodes) ? scene.nodes : [],
+        Array.isArray(scene?.edges) ? scene.edges : [],
+        record,
+        await getStoryboardGenerationReferences(projectId, record, episodeId),
+        episodeId,
+      );
+  const restored = await restoreSucceededCanvasVideoNodes({ projectId, nodes: normalized.nodes });
   return {
-    nodes: normalized.nodes,
+    nodes: restored.nodes,
     edges: normalized.edges,
     updatedAt: scene?.updatedAt,
   };
@@ -2921,19 +3229,25 @@ async function loadCanvasForAgent(projectId: string, metadata: unknown, sceneId:
 
 function summarizeCanvasForAgent(
   scene: { nodes: unknown[]; edges: unknown[]; updatedAt?: string },
-  options: { targetClipId?: string; assetNames?: string[] } = {},
+  options: { targetClipId?: string; assetNames?: string[]; linkedNodeIds?: string[] } = {},
 ) {
   const targetClipId = options.targetClipId || "";
+  const linkedNodeIds = new Set((options.linkedNodeIds ?? []).filter(Boolean));
   const compactNodes = scene.nodes.filter(isRecord);
   const relevantNodeIds = targetClipId ? relevantCanvasNodeIdsForClip(compactNodes, scene.edges, targetClipId) : undefined;
   const sourceNodes = relevantNodeIds
     ? compactNodes.filter((node) => relevantNodeIds.has(stringValue(node.id)))
     : compactNodes;
-  const nodes = sourceNodes
+  const orderedSourceNodes = [
+    ...sourceNodes.filter((node) => linkedNodeIds.has(stringValue(node.id))),
+    ...sourceNodes.filter((node) => !linkedNodeIds.has(stringValue(node.id))),
+  ];
+  const nodes = orderedSourceNodes
     .filter(isRecord)
     .map((node) => {
       const data = isRecord(node.data) ? node.data : {};
       const prompt = stringValue(data.finalPrompt) || stringValue(data.seedancePrompt) || stringValue(data.videoPrompt) || stringValue(data.prompt);
+      const isLinkedNode = linkedNodeIds.has(stringValue(node.id));
       return {
         id: stringValue(node.id),
         type: stringValue(node.type),
@@ -2945,10 +3259,11 @@ function summarizeCanvasForAgent(
         clipId: shortText(stringValue(data.clipId) || stringValue(data.sourceClipId) || stringValue(data.targetClipId), 80),
         clipTitle: shortText(stringValue(data.clipTitle) || stringValue(data.sourceClipTitle), 160),
         status: shortText(stringValue(data.status) || stringValue(data.videoStatus), 80),
-        prompt: shortText(prompt, targetClipId ? 20000 : 1200),
+        prompt: shortText(prompt, isLinkedNode ? AGENT_LINKED_PROMPT_CONTEXT_LIMIT : targetClipId ? 20000 : 1200),
         imageUrl: shortText(stringValue(data.outputImage) || stringValue(data.imageUrl) || stringValue(data.avatar) || stringValue(data.generatedImage), 600),
         outputVideo: shortText(stringValue(data.outputVideo), 600),
         role: shortText(stringValue(data.clipSyncRole) || stringValue(data.clipNodeKind), 100),
+        linked: isLinkedNode || undefined,
       };
     })
     .filter((node) => node.id)
@@ -3104,6 +3419,10 @@ function publicAgentImageUrl(value: string, req: { get(name: string): string | u
 
 function inferClipIdFromAgentContext(clientContext?: Record<string, unknown>): string {
   const context = isRecord(clientContext) ? clientContext : {};
+  for (const value of agentLinkedNodeIdsFromContext(clientContext)) {
+    const clipId = inferClipIdFromText(value);
+    if (clipId) return clipId;
+  }
   const selected = Array.isArray(context.selectedNodeIds) ? context.selectedNodeIds : [];
   for (const value of selected) {
     const clipId = inferClipIdFromText(String(value ?? ""));
@@ -3125,6 +3444,23 @@ function inferClipIdFromAgentContext(clientContext?: Record<string, unknown>): s
     }
   }
   return "";
+}
+
+function agentLinkedNodeIdsFromContext(clientContext?: Record<string, unknown>): string[] {
+  const context = isRecord(clientContext) ? clientContext : {};
+  const direct = Array.isArray(context.linkedNodeIds) ? context.linkedNodeIds : [];
+  const fromPromptContext = Array.isArray(context.linkedNodePrompts)
+    ? context.linkedNodePrompts.filter(isRecord).map((item) => item.id)
+    : [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const value of [...direct, ...fromPromptContext]) {
+    const id = stringValue(value);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids.slice(0, 40);
 }
 
 function inferClipIdFromText(value: string): string {
@@ -3154,21 +3490,33 @@ function shortText(value: string, limit: number): string | undefined {
 }
 
 async function saveCanvasForAgent(projectId: string, metadata: unknown, sceneId: string, nodes: unknown[], edges: unknown[], deletedNodeIds: string[] = []) {
-  const record = isRecord(metadata) ? metadata : {};
-  const canvasScenes = getCanvasScenes(record);
+  const baseRecord = isRecord(metadata) ? metadata : {};
+  const record = await agentCanvasMetadataWithProjectSettings(projectId, metadata);
+  const canvasScenes = getCanvasScenes(baseRecord);
   const existingScene = canvasScenes[sceneId];
-  const preserved = preserveExistingClipStoryboardSections(
-    nodes,
-    edges,
-    Array.isArray(existingScene?.nodes) ? existingScene.nodes : [],
-    Array.isArray(existingScene?.edges) ? existingScene.edges : [],
-    deletedNodeIds,
-  );
   const episodeId = resolveCanvasEpisodeId(record, sceneId);
-  const storyboardRefs = await getStoryboardGenerationReferences(projectId, record, episodeId);
-  const normalized = normalizeCanvasStoryboardReferencesForScene(preserved.nodes, preserved.edges, record, storyboardRefs, episodeId);
+  const useMultiReferenceStrategy = isSeedanceMultiReferenceStrategy(projectGenerationStrategyFromMetadata(record));
+  const preserved = useMultiReferenceStrategy
+    ? removeCanvasStoryboardNodesForMultiReference(nodes, edges)
+    : preserveExistingClipStoryboardSections(
+        nodes,
+        edges,
+        Array.isArray(existingScene?.nodes) ? existingScene.nodes : [],
+        Array.isArray(existingScene?.edges) ? existingScene.edges : [],
+        deletedNodeIds,
+      );
+  const normalized = useMultiReferenceStrategy
+    ? preserved
+    : normalizeCanvasStoryboardReferencesForScene(
+        preserved.nodes,
+        preserved.edges,
+        record,
+        await getStoryboardGenerationReferences(projectId, record, episodeId),
+        episodeId,
+      );
+  const restored = await restoreSucceededCanvasVideoNodes({ projectId, nodes: normalized.nodes });
   const nextScene = {
-    nodes: normalized.nodes,
+    nodes: restored.nodes,
     edges: normalized.edges,
     updatedAt: new Date().toISOString(),
   };
@@ -3176,7 +3524,7 @@ async function saveCanvasForAgent(projectId: string, metadata: unknown, sceneId:
     where: { id: projectId },
     data: {
       metadata: {
-        ...record,
+        ...baseRecord,
         canvasScenes: {
           ...canvasScenes,
           [sceneId]: nextScene,
@@ -3185,6 +3533,14 @@ async function saveCanvasForAgent(projectId: string, metadata: unknown, sceneId:
     },
   });
   return nextScene;
+}
+
+async function agentCanvasMetadataWithProjectSettings(projectId: string, metadata: unknown): Promise<Record<string, unknown>> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { settings: true },
+  });
+  return metadataWithProjectSettings(metadata, project?.settings);
 }
 
 function getCanvasScenes(metadata: unknown): Record<string, { nodes?: unknown[]; edges?: unknown[]; updatedAt?: string }> {
@@ -3294,10 +3650,15 @@ export const agentTestInternals = {
   collectAgentKnownAssetNamesFromActionResults,
   bestPromptNodeForUserRequest,
   deterministicActionsFromUserRequest,
+  agentEffectiveUserRequest,
+  agentRemovableAssetReferenceNode,
+  userRequestExplicitlyAsksAssetRemoval,
   verifyCanvasAssetConnections,
   promptNamesToRemoveFromUserRequest,
   removeRequestedPromptContentFromPrompt,
   removeNamesFromPrompt,
+  linkedNodePromptContextForDraftAgent,
+  draftOnlyPromptRemovalResult,
   updateWorkflowClipPromptInMetadata,
 };
 

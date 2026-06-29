@@ -1,14 +1,15 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router";
 import { MainLayout } from "./layouts/MainLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { LandingPage } from "./pages/LandingPage";
-import { AuthPage } from "./pages/AuthPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { ProjectSetupPage } from "./pages/ProjectSetupPage";
-import { ProjectCanvasPage } from "./pages/ProjectCanvasPage";
-import { ProjectRecordsPage } from "./pages/ProjectRecordsPage";
-import { SettingsPage } from "./pages/SettingsPage";
+
+const AuthPage = React.lazy(() => import("./pages/AuthPage").then(m => ({ default: m.AuthPage })));
+const DashboardPage = React.lazy(() => import("./pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
+const ProjectSetupPage = React.lazy(() => import("./pages/ProjectSetupPage").then(m => ({ default: m.ProjectSetupPage })));
+const ProjectCanvasPage = React.lazy(() => import("./pages/ProjectCanvasPage").then(m => ({ default: m.ProjectCanvasPage })));
+const ProjectRecordsPage = React.lazy(() => import("./pages/ProjectRecordsPage").then(m => ({ default: m.ProjectRecordsPage })));
+const SettingsPage = React.lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 
 export const router = createBrowserRouter([
   {
@@ -17,11 +18,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/login",
-    element: <AuthPage />,
+    element: <Suspense fallback={null}><AuthPage /></Suspense>,
   },
   {
     path: "/register",
-    element: <AuthPage />,
+    element: <Suspense fallback={null}><AuthPage /></Suspense>,
   },
   {
     path: "/app",

@@ -56,6 +56,7 @@ export function normalizeCanvasVideoReferenceInputs(
 
   const videoNode = canvas.videoNode;
   const videoData = videoNode.data ?? {};
+  const includeScenePropReferences = isSeedanceMultiReferenceVideoNode(videoNode, requestMetadata);
   const incomingEdges = canvas.edges.filter((edge) => edge.target === videoNode.id);
   const incomingSources = incomingEdges
     .map((edge) => canvas.nodes.find((node) => node.id === edge.source))
@@ -64,7 +65,8 @@ export function normalizeCanvasVideoReferenceInputs(
     if (isAudioNode(source)) return false;
     if (isStoryboardSourceForVideo(source, videoNode)) return Boolean(canvasNodeImageUrl(source));
     const assetKind = normalizeAssetKind(source.data?.assetKind);
-    if (assetKind === "scenes" || assetKind === "props" || assetKind === "audio") return false;
+    if (assetKind === "audio") return false;
+    if ((assetKind === "scenes" || assetKind === "props") && !includeScenePropReferences) return false;
     return Boolean(canvasNodeImageUrl(source));
   });
 
@@ -87,7 +89,7 @@ export function normalizeCanvasVideoReferenceInputs(
     if (isAudioNode(source)) continue;
     if (isStoryboardSourceForVideo(source, videoNode)) continue;
     const assetKind = normalizeAssetKind(source.data?.assetKind);
-    if (assetKind === "scenes" || assetKind === "props") continue;
+    if ((assetKind === "scenes" || assetKind === "props") && !includeScenePropReferences) continue;
     addImage(canvasNodeImageUrl(source), source.id);
   }
 
@@ -202,6 +204,7 @@ function findVideoNode(nodes: CanvasNode[], nodeId: string, clipId: string): Can
 }
 
 function videoReferenceSourcePriority(source: CanvasNode, video: CanvasNode): number {
+  if (isPositioningBoardSourceForVideo(source, video)) return 0;
   if (isStoryboardSlotForVideo(source, video)) return 0;
   if (isStoryboardSourceForVideo(source, video)) return 1;
   const assetKind = normalizeAssetKind(source.data?.assetKind);
@@ -210,6 +213,23 @@ function videoReferenceSourcePriority(source: CanvasNode, video: CanvasNode): nu
   if (assetKind === "scenes") return 7;
   if (assetKind === "props") return 8;
   return 5;
+}
+
+function isPositioningBoardSourceForVideo(source: CanvasNode, video: CanvasNode): boolean {
+  const data = source.data ?? {};
+  const videoData = video.data ?? {};
+  if (source.type !== "imageInput" && source.type !== "generation") return false;
+  if (normalizeAssetKind(data.assetKind) !== "positioning-board" && data.positioningBoardForClip !== true && data.clipNodeKind !== "positioning-board-reference") return false;
+  const sourceClipId = stringValue(data.clipId) || stringValue(data.sourceClipId) || stringValue(data.targetClipId);
+  const videoClipId = stringValue(videoData.clipId);
+  if (sourceClipId && videoClipId) return sourceClipId === videoClipId;
+  return true;
+}
+
+function isSeedanceMultiReferenceVideoNode(video: CanvasNode, requestMetadata: Record<string, unknown>): boolean {
+  const data = video.data ?? {};
+  const strategy = stringValue(data.generationStrategy) || stringValue(requestMetadata.generationStrategy);
+  return /seedance[-_ ]multi[-_ ]ref/i.test(strategy);
 }
 
 function isStoryboardSourceForVideo(source: CanvasNode, video: CanvasNode): boolean {
@@ -324,6 +344,7 @@ function normalizeAssetKind(value: unknown): string {
   if (text === "character" || text === "characters") return "characters";
   if (text === "scene" || text === "scenes") return "scenes";
   if (text === "prop" || text === "props") return "props";
+  if (text === "positioning-board" || text === "positioning_board" || text === "positioningboard") return "positioning-board";
   if (text === "audio") return "audio";
   return text;
 }

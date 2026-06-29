@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { Node, Edge, Connection, addEdge } from '@xyflow/react'
 import { apiClient } from '../lib/apiClient'
 
-export type CanvasNodeKind = 'scene' | 'character' | 'episode' | 'asset' | 'workflow' | 'directorBoard' | 'imageInput' | 'generation' | 'video' | 'audio' | 'translation' | 'promptOptimizer' | 'promptInspector' | 'section'
+export type CanvasNodeKind = 'scene' | 'character' | 'episode' | 'asset' | 'workflow' | 'directorBoard' | 'imageInput' | 'generation' | 'video' | 'audio' | 'translation' | 'promptOptimizer' | 'promptInspector' | 'agent' | 'section'
 
 interface CanvasStore {
   nodes: Node[]
@@ -73,15 +73,33 @@ const initialNodes: Node[] = [
 ]
 
 const initialEdges: Edge[] = [
-  { id: 'e1', source: 'char-1', target: 'scene-1', animated: true, style: { stroke: '#6366f1' } },
+  { id: 'e1', source: 'char-1', target: 'scene-1', animated: true, style: { stroke: 'var(--primary)' } },
   { id: 'e2', source: 'scene-1', target: 'scene-2', type: 'smoothstep' },
   { id: 'e3', source: 'scene-2', target: 'scene-3', type: 'smoothstep' },
 ]
 
 let nodeCounter = 4
-const DEFAULT_CANVAS_MIGRATED_PROJECT_KEY = 'loohii-canvas:default-migrated-project'
+let remoteLoadSeq = 0
 let remoteSaveInFlight: Promise<void> | null = null
 let queuedRemoteSave: { projectId: string; sceneId: string } | null = null
+
+const POSITIONING_BOARD_SECTION_WIDTH = 1180
+const POSITIONING_BOARD_REFERENCE_NODE_WIDTH = 220
+const POSITIONING_BOARD_REFERENCE_NODE_HEIGHT = 180
+const POSITIONING_BOARD_REFERENCE_NODE_GAP_X = 18
+const POSITIONING_BOARD_REFERENCE_NODE_GAP_Y = 16
+const POSITIONING_BOARD_REFERENCE_COLUMNS = 3
+const POSITIONING_BOARD_GENERATION_NODE_WIDTH = 420
+const POSITIONING_BOARD_GENERATION_NODE_HEIGHT = 560
+const POSITIONING_BOARD_SECTION_GAP = 36
+const POSITIONING_BOARD_PADDING_X = 12
+const POSITIONING_BOARD_HEADER_HEIGHT = 42
+const POSITIONING_BOARD_PADDING_BOTTOM = 12
+const POSITIONING_BOARD_GENERATION_NODE_X =
+  POSITIONING_BOARD_PADDING_X +
+  POSITIONING_BOARD_REFERENCE_COLUMNS * POSITIONING_BOARD_REFERENCE_NODE_WIDTH +
+  Math.max(0, POSITIONING_BOARD_REFERENCE_COLUMNS - 1) * POSITIONING_BOARD_REFERENCE_NODE_GAP_X +
+  18
 
 function generateNodeId(type: string): string {
   return `${type}-${Date.now().toString(36)}-${(nodeCounter++).toString()}`
@@ -99,6 +117,11 @@ function stableCanvasStoreValue(value: unknown): string {
   } catch {
     return String(value)
   }
+}
+
+function numericCanvasStoreValue(value: unknown, fallback = 0): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
 }
 
 function canvasDataPatchChanges(current: unknown, patch: Record<string, unknown>): boolean {
@@ -174,6 +197,7 @@ function defaultNodeStyle(type: CanvasNodeKind): Node['style'] {
   if (type === 'translation') return { width: 460 }
   if (type === 'promptOptimizer') return { width: 500 }
   if (type === 'promptInspector') return { width: 480 }
+  if (type === 'agent') return { width: 520, height: 600 }
   if (type === 'imageInput') return { width: 340 }
   if (type === 'scene') return { width: 280 }
   return { width: 260 }
@@ -267,6 +291,192 @@ function normalizeCanvasNodeImageUrls(node: Node): Node {
   return changed ? { ...node, data } : node
 }
 
+function stripCanvasNodeDimensions(node: Node): Node {
+  const { width: _width, height: _height, measured: _measured, ...rest } = node as Node & {
+    width?: number
+    height?: number
+    measured?: unknown
+  }
+  return rest as Node
+}
+
+function canvasNodeLayoutEqual(
+  node: Node,
+  position: { x: number; y: number },
+  stylePatch: Record<string, unknown>,
+): boolean {
+  const style = node.style && typeof node.style === 'object' ? node.style as Record<string, unknown> : {}
+  if (numericCanvasStoreValue(node.position?.x) !== position.x || numericCanvasStoreValue(node.position?.y) !== position.y) return false
+  return Object.entries(stylePatch).every(([key, value]) => stableCanvasStoreValue(style[key]) === stableCanvasStoreValue(value))
+}
+
+function withCanvasNodeLayout(
+  node: Node,
+  position: { x: number; y: number },
+  stylePatch: Record<string, unknown>,
+): Node {
+  const stripped = stripCanvasNodeDimensions(node)
+  const style = stripped.style && typeof stripped.style === 'object' ? stripped.style as Record<string, unknown> : {}
+  return {
+    ...stripped,
+    position,
+    style: {
+      ...style,
+      ...stylePatch,
+    },
+  }
+}
+
+function positioningBoardSectionHeight(referenceCount: number, generationCount: number): number {
+  const rows = Math.ceil(referenceCount / POSITIONING_BOARD_REFERENCE_COLUMNS)
+  const referenceHeight = rows > 0
+    ? rows * POSITIONING_BOARD_REFERENCE_NODE_HEIGHT + Math.max(0, rows - 1) * POSITIONING_BOARD_REFERENCE_NODE_GAP_Y
+    : 0
+  const generationHeight = generationCount > 0
+    ? generationCount * POSITIONING_BOARD_GENERATION_NODE_HEIGHT + Math.max(0, generationCount - 1) * POSITIONING_BOARD_REFERENCE_NODE_GAP_Y
+    : 0
+  return Math.max(
+    360,
+    POSITIONING_BOARD_HEADER_HEIGHT + Math.max(referenceHeight, generationHeight) + POSITIONING_BOARD_PADDING_BOTTOM,
+  )
+}
+
+function isCanvasStoryboardPrompt(value: unknown): boolean {
+  return /comic storyboard board|Storyboard panels:/i.test(String(value || ''))
+}
+
+function isCanvasPositioningPrompt(value: unknown): boolean {
+  return /Create ONE static keyframe positioning-board image|single 16:9 still frame used as a spatial layout reference/i.test(String(value || ''))
+}
+
+function normalizePositioningBoardLayouts(nodes: Node[]): Node[] {
+  const sections = nodes.filter((node) => (
+    node.type === 'section' &&
+    node.data?.positioningBoardFlow === true
+  ))
+  if (!sections.length) return nodes
+
+  const nextNodes = nodes.slice()
+  const indexById = new Map(nextNodes.map((node, index) => [node.id, index]))
+  const nodesByParent = new Map<string, Node[]>()
+  for (const node of nextNodes) {
+    if (!node.parentId) continue
+    const list = nodesByParent.get(node.parentId) ?? []
+    list.push(node)
+    nodesByParent.set(node.parentId, list)
+  }
+  let changed = false
+
+  const replaceNode = (node: Node) => {
+    const index = indexById.get(node.id)
+    if (index === undefined) return
+    nextNodes[index] = node
+    changed = true
+  }
+
+  for (const section of sections) {
+    const clipId = String(section.data?.clipId || '')
+    const videoSection = clipId
+      ? nextNodes.find((node) => (
+        node.type === 'section' &&
+        node.data?.sectionKind === 'clip-video-assets' &&
+        String(node.data?.clipId || '') === clipId &&
+        String(node.data?.sourceEpisodeId || '') === String(section.data?.sourceEpisodeId || '')
+      )) ?? nextNodes.find((node) => (
+        node.type === 'section' &&
+        node.data?.sectionKind === 'clip-video-assets' &&
+        String(node.data?.clipId || '') === clipId
+      ))
+      : null
+    const children = (nodesByParent.get(section.id) ?? []).filter((node) => node.type === 'imageInput' || node.type === 'generation')
+    const refs = children
+      .filter((node) => node.type === 'imageInput' && node.data?.positioningBoardFlow === true)
+      .sort((a, b) => (
+        numericCanvasStoreValue(a.position?.y) - numericCanvasStoreValue(b.position?.y) ||
+        numericCanvasStoreValue(a.position?.x) - numericCanvasStoreValue(b.position?.x) ||
+        a.id.localeCompare(b.id)
+      ))
+    const generations = children
+      .filter((node) => node.type === 'generation' && node.data?.positioningBoardFlow === true)
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const sectionHeight = positioningBoardSectionHeight(refs.length, generations.length)
+    const targetSectionPosition = {
+      x: videoSection
+        ? numericCanvasStoreValue(videoSection.position?.x) - POSITIONING_BOARD_SECTION_WIDTH - POSITIONING_BOARD_SECTION_GAP
+        : numericCanvasStoreValue(section.position?.x),
+      y: videoSection
+        ? numericCanvasStoreValue(videoSection.position?.y)
+        : numericCanvasStoreValue(section.position?.y),
+    }
+    const sectionStyle = { width: POSITIONING_BOARD_SECTION_WIDTH, height: sectionHeight }
+    if (!canvasNodeLayoutEqual(section, targetSectionPosition, sectionStyle)) {
+      replaceNode(withCanvasNodeLayout(section, targetSectionPosition, sectionStyle))
+    }
+
+    refs.forEach((node, refIndex) => {
+      const column = refIndex % POSITIONING_BOARD_REFERENCE_COLUMNS
+      const row = Math.floor(refIndex / POSITIONING_BOARD_REFERENCE_COLUMNS)
+      const position = {
+        x: POSITIONING_BOARD_PADDING_X + column * (POSITIONING_BOARD_REFERENCE_NODE_WIDTH + POSITIONING_BOARD_REFERENCE_NODE_GAP_X),
+        y: POSITIONING_BOARD_HEADER_HEIGHT + row * (POSITIONING_BOARD_REFERENCE_NODE_HEIGHT + POSITIONING_BOARD_REFERENCE_NODE_GAP_Y),
+      }
+      const style = { width: POSITIONING_BOARD_REFERENCE_NODE_WIDTH, height: POSITIONING_BOARD_REFERENCE_NODE_HEIGHT }
+      if (canvasNodeLayoutEqual(node, position, style)) return
+      replaceNode(withCanvasNodeLayout(node, position, style))
+    })
+
+    generations.forEach((node, generationIndex) => {
+      const position = {
+        x: POSITIONING_BOARD_GENERATION_NODE_X,
+        y: POSITIONING_BOARD_HEADER_HEIGHT + generationIndex * (POSITIONING_BOARD_GENERATION_NODE_HEIGHT + POSITIONING_BOARD_REFERENCE_NODE_GAP_Y),
+      }
+      const style = { width: POSITIONING_BOARD_GENERATION_NODE_WIDTH }
+      let nextNode = canvasNodeLayoutEqual(node, position, style) ? node : withCanvasNodeLayout(node, position, style)
+      const data = nextNode.data && typeof nextNode.data === 'object' && !Array.isArray(nextNode.data)
+        ? nextNode.data as Record<string, unknown>
+        : {}
+      const mode = data.positioningBoardMode === 'positioning' ? 'positioning' : 'storyboard'
+      const storyboardPrompt = String(data.storyboardPrompt || '')
+      const positioningPrompt = String(data.positioningPrompt || '')
+      const activePrompt = String(data.prompt || data.finalPrompt || '')
+      if (mode === 'storyboard' && isCanvasStoryboardPrompt(storyboardPrompt) && (!isCanvasStoryboardPrompt(activePrompt) || isCanvasPositioningPrompt(activePrompt))) {
+        nextNode = {
+          ...nextNode,
+          data: {
+            ...data,
+            title: String(data.title || '').replace(/定位板$/, '故事板') || `${String(data.clipId || 'Clip')} 故事板`,
+            prompt: storyboardPrompt,
+            finalPrompt: storyboardPrompt,
+            manualFinalPrompt: true,
+            status: isCanvasPositioningPrompt(activePrompt) ? 'waiting' : data.status,
+            outputImage: isCanvasPositioningPrompt(activePrompt) ? '' : data.outputImage,
+            outputImageAssetId: isCanvasPositioningPrompt(activePrompt) ? '' : data.outputImageAssetId,
+            outputImages: isCanvasPositioningPrompt(activePrompt) ? [] : data.outputImages,
+            submittedPrompt: isCanvasPositioningPrompt(activePrompt) ? '' : data.submittedPrompt,
+            revisedPrompt: isCanvasPositioningPrompt(activePrompt) ? '' : data.revisedPrompt,
+            generationStartedAt: isCanvasPositioningPrompt(activePrompt) ? '' : data.generationStartedAt,
+          },
+        }
+      }
+      if (mode === 'positioning' && positioningPrompt && activePrompt !== positioningPrompt) {
+        nextNode = {
+          ...nextNode,
+          data: {
+            ...data,
+            prompt: positioningPrompt,
+            finalPrompt: positioningPrompt,
+            manualFinalPrompt: true,
+          },
+        }
+      }
+      if (nextNode === node) return
+      replaceNode(nextNode)
+    })
+  }
+
+  return changed ? nextNodes : nodes
+}
+
 function dedupeCanvasNodes(nodes: Node[]): Node[] {
   const seen = new Set<string>()
   let changed = false
@@ -307,7 +517,7 @@ function dedupeCanvasEdges(edges: Edge[], nodeIds: Set<string>): Edge[] {
 }
 
 function sanitizeCanvasNodes(nodes: Node[]): Node[] {
-  return dedupeCanvasNodes(nodes.map(stripTransientNodeState).map(normalizeCanvasNodeImageUrls))
+  return normalizePositioningBoardLayouts(dedupeCanvasNodes(nodes.map(stripTransientNodeState).map(normalizeCanvasNodeImageUrls)))
 }
 
 function sanitizeCanvasEdges(edges: Edge[], nodes: Node[]): Edge[] {
@@ -346,19 +556,6 @@ function saveLocalScene(nodes: Node[], edges: Edge[], projectId = 'local', scene
   }
 }
 
-function loadDefaultFallbackScene(projectId: string): { nodes: Node[]; edges: Edge[] } | null {
-  if (projectId === 'local') return null
-  try {
-    const migratedProjectId = localStorage.getItem(DEFAULT_CANVAS_MIGRATED_PROJECT_KEY)
-    if (migratedProjectId && migratedProjectId !== projectId) return null
-    const scene = loadLocalScene()
-    if (scene) localStorage.setItem(DEFAULT_CANVAS_MIGRATED_PROJECT_KEY, projectId)
-    return scene
-  } catch {
-    return loadLocalScene()
-  }
-}
-
 const savedScene = loadLocalScene()
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
@@ -372,10 +569,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   lastSavedRevision: 0,
 
   loadScene: async (projectId, sceneId = 'default') => {
+    const loadSeq = ++remoteLoadSeq
     const remote = await apiClient.loadCanvasScene(projectId, sceneId)
+    if (loadSeq !== remoteLoadSeq) return
     const local = remote
-      ?? (projectId === 'local' ? loadLocalScene(projectId, sceneId) : null)
-      ?? loadDefaultFallbackScene(projectId)
+      ?? loadLocalScene(projectId, sceneId)
     if (local) {
       const clean = sanitizeCanvasScene(local.nodes, local.edges)
       set({ nodes: clean.nodes, edges: clean.edges, activeProjectId: projectId, activeSceneId: sceneId, remoteUpdatedAt: remote?.updatedAt ?? '', deletedNodeIds: new Set(), localRevision: 0, lastSavedRevision: 0 })
@@ -570,6 +768,17 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
                         answer: '',
                         status: 'waiting',
                         modelId: '',
+                        ...data,
+                      }
+                  : type === 'agent'
+                    ? {
+                        title: '智能体',
+                        request: '',
+                        status: 'waiting',
+                        error: '',
+                        modelId: '',
+                        linkedNodeCount: 0,
+                        linkedNodeLabels: '',
                         ...data,
                       }
                   : type === 'section'

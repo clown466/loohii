@@ -531,12 +531,76 @@ export function preserveExistingClipStoryboardSections(
   return { nodes: nextNodes, edges: nextEdges, changed: true };
 }
 
+export function removeCanvasStoryboardNodesForMultiReference(
+  rawNodes: unknown[],
+  rawEdges: unknown[],
+): { nodes: CanvasNode[]; edges: CanvasEdge[]; changed: boolean } {
+  const nodes = rawNodes.filter(isCanvasNode);
+  const edges = rawEdges.filter(isCanvasEdge);
+  const removeNodeIds = new Set<string>();
+
+  for (const node of nodes) {
+    if (isMultiReferenceStoryboardNode(node)) {
+      removeNodeIds.add(node.id);
+    }
+  }
+
+  let changed = nodes.length !== rawNodes.length || edges.length !== rawEdges.length || removeNodeIds.size > 0;
+  if (!removeNodeIds.size) return { nodes, edges, changed };
+
+  let foundDescendant = true;
+  while (foundDescendant) {
+    foundDescendant = false;
+    for (const node of nodes) {
+      if (removeNodeIds.has(node.id)) continue;
+      if (node.parentId && removeNodeIds.has(node.parentId)) {
+        removeNodeIds.add(node.id);
+        foundDescendant = true;
+      }
+    }
+  }
+
+  const nextNodes = nodes.filter((node) => !removeNodeIds.has(node.id));
+  const nextNodeIds = new Set(nextNodes.map((node) => node.id));
+  const nextEdges = edges.filter((edge) => edge.source && edge.target && nextNodeIds.has(edge.source) && nextNodeIds.has(edge.target));
+  if (nextEdges.length !== edges.length) changed = true;
+
+  return { nodes: nextNodes, edges: nextEdges, changed };
+}
+
 function isCanvasNode(value: unknown): value is CanvasNode {
   return isRecord(value) && typeof value.id === "string";
 }
 
 function isCanvasEdge(value: unknown): value is CanvasEdge {
   return isRecord(value) && typeof value.source === "string" && typeof value.target === "string";
+}
+
+function isMultiReferenceStoryboardNode(node: CanvasNode): boolean {
+  const data = node.data ?? {};
+  const role = stringValue(data.clipSyncRole);
+  const nodeId = stringValue(node.id);
+  return (
+    isClipStoryboardAssetSection(node) ||
+    isStoryboardSlotLikeNode(node) ||
+    role === "storyboard" ||
+    role === "storyboard-slot" ||
+    role.startsWith("previous:") ||
+    data.storyboardForClip === true ||
+    data.storyboardSlotForClip === true ||
+    data.clipNodeKind === "storyboard" ||
+    data.clipNodeKind === "storyboard-reference" ||
+    nodeId.startsWith("episode-sync-storyboard-") ||
+    nodeId.startsWith("episode-sync-story-ref-") ||
+    nodeId.startsWith("episode-sync-video-storyboard-slot-")
+  );
+}
+
+function isStoryboardSlotLikeNode(node: CanvasNode): boolean {
+  return node.type === "imageInput" && (
+    node.data?.storyboardSlotForClip === true ||
+    node.data?.clipSyncRole === "storyboard-slot"
+  );
 }
 
 function workflowClipsFromMetadata(metadata: unknown, episodeId = ""): WorkflowClip[] {

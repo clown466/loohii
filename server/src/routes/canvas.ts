@@ -5,12 +5,15 @@ import { asyncRoute } from "../lib/asyncRoute";
 import {
   normalizeCanvasStoryboardReferencesForScene,
   preserveExistingClipStoryboardSections,
+  removeCanvasStoryboardNodesForMultiReference,
   storyboardReferencesFromGenerationRecords,
 } from "../lib/canvasStoryboardReferences";
+import { restoreSucceededCanvasVideoNodes } from "../lib/canvasSucceededVideoNodes";
 import { buildEpisodeCanvasSyncScene, writeEpisodeCanvasSyncMetadata } from "../lib/episodeCanvasSync";
 import { HttpError, notFound, routeParam } from "../lib/httpErrors";
 import { isRecord } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
+import { isSeedanceMultiReferenceStrategy, metadataWithProjectSettings, projectGenerationStrategyFromMetadata } from "../lib/projectGenerationStrategy";
 import { ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 
@@ -38,21 +41,33 @@ router.get(
     const projectId = routeParam(req.params.projectId, "projectId");
     const sceneId = routeParam(req.params.sceneId, "sceneId");
     const project = await findOwnedProject(projectId, req.user!.id);
-    const metadata = isRecord(project.metadata) ? project.metadata : {};
-    const canvasScenes = getCanvasScenes(metadata);
+    const baseMetadata = isRecord(project.metadata) ? project.metadata : {};
+    const metadata = metadataWithProjectSettings(baseMetadata, project.settings);
+    const canvasScenes = getCanvasScenes(baseMetadata);
     const scene = canvasScenes[sceneId];
     const episodeId = resolveCanvasEpisodeId(metadata, sceneId);
-    const storyboardRefs = await getStoryboardGenerationReferences(project.id, metadata, episodeId);
-    const normalized = normalizeCanvasStoryboardReferencesForScene(
-      Array.isArray(scene?.nodes) ? scene.nodes : [],
-      Array.isArray(scene?.edges) ? scene.edges : [],
-      metadata,
-      storyboardRefs,
-      episodeId,
-    );
+    const useMultiReferenceStrategy = isSeedanceMultiReferenceStrategy(projectGenerationStrategyFromMetadata(metadata));
+    const normalized = useMultiReferenceStrategy
+      ? removeCanvasStoryboardNodesForMultiReference(
+          Array.isArray(scene?.nodes) ? scene.nodes : [],
+          Array.isArray(scene?.edges) ? scene.edges : [],
+        )
+      : normalizeCanvasStoryboardReferencesForScene(
+          Array.isArray(scene?.nodes) ? scene.nodes : [],
+          Array.isArray(scene?.edges) ? scene.edges : [],
+          metadata,
+          await getStoryboardGenerationReferences(project.id, metadata, episodeId),
+          episodeId,
+        );
     const stable = sanitizeCanvasGraph(normalized.nodes, normalized.edges);
     const stableNodes = normalizeCanvasSectionChildren(stable.nodes);
-    const normalizedChanged = normalized.changed || stable.changed || stableNodes !== stable.nodes;
+    const restored = await restoreSucceededCanvasVideoNodes({
+      projectId: project.id,
+      userId: req.user!.id,
+      nodes: stableNodes,
+    });
+    const responseNodes = restored.nodes;
+    const normalizedChanged = normalized.changed || stable.changed || stableNodes !== stable.nodes || restored.changed;
     let updatedAt = scene?.updatedAt;
     if (normalizedChanged) {
       updatedAt = new Date().toISOString();
@@ -60,11 +75,11 @@ router.get(
         where: { id: project.id },
         data: {
           metadata: {
-            ...metadata,
+            ...baseMetadata,
             canvasScenes: {
-              ...canvasScenes,
-              [sceneId]: {
-                nodes: stableNodes,
+            ...canvasScenes,
+            [sceneId]: {
+                nodes: responseNodes,
                 edges: stable.edges,
                 updatedAt,
               },
@@ -76,7 +91,7 @@ router.get(
     ok(res, {
       projectId: project.id,
       sceneId,
-      nodes: stableNodes,
+      nodes: responseNodes,
       edges: stable.edges,
       updatedAt,
     });
@@ -90,36 +105,55 @@ router.put(
     const projectId = routeParam(req.params.projectId, "projectId");
     const sceneId = routeParam(req.params.sceneId, "sceneId");
     const project = await findOwnedProject(projectId, req.user!.id);
-    const metadata = isRecord(project.metadata) ? project.metadata : {};
-    const canvasScenes = getCanvasScenes(metadata);
+    const baseMetadata = isRecord(project.metadata) ? project.metadata : {};
+    const metadata = metadataWithProjectSettings(baseMetadata, project.settings);
+    const canvasScenes = getCanvasScenes(baseMetadata);
     const existingScene = canvasScenes[sceneId];
     if (isStaleCanvasSave(input.baseUpdatedAt, existingScene?.updatedAt)) {
       throw new HttpError(409, "画布已在其他页面更新。请刷新后再保存，避免旧页面把已删除节点写回来。");
     }
-    const preserved = preserveExistingClipStoryboardSections(
-      input.nodes,
-      input.edges,
-      Array.isArray(existingScene?.nodes) ? existingScene.nodes : [],
-      Array.isArray(existingScene?.edges) ? existingScene.edges : [],
-      input.deletedNodeIds ?? [],
-    );
     const episodeId = resolveCanvasEpisodeId(metadata, sceneId);
-    const storyboardRefs = await getStoryboardGenerationReferences(project.id, metadata, episodeId);
-    const normalized = normalizeCanvasStoryboardReferencesForScene(preserved.nodes, preserved.edges, metadata, storyboardRefs, episodeId);
-    const stable = sanitizeCanvasGraph(normalized.nodes, normalized.edges);
+    const useMultiReferenceStrategy = isSeedanceMultiReferenceStrategy(projectGenerationStrategyFromMetadata(metadata));
+    const normalized = useMultiReferenceStrategy
+      ? removeCanvasStoryboardNodesForMultiReference(input.nodes, input.edges)
+      : (() => {
+          const preserved = preserveExistingClipStoryboardSections(
+            input.nodes,
+            input.edges,
+            Array.isArray(existingScene?.nodes) ? existingScene.nodes : [],
+            Array.isArray(existingScene?.edges) ? existingScene.edges : [],
+            input.deletedNodeIds ?? [],
+          );
+          return preserved;
+        })();
+    const storyboardNormalized = useMultiReferenceStrategy
+      ? normalized
+      : normalizeCanvasStoryboardReferencesForScene(
+          normalized.nodes,
+          normalized.edges,
+          metadata,
+          await getStoryboardGenerationReferences(project.id, metadata, episodeId),
+          episodeId,
+        );
+    const stable = sanitizeCanvasGraph(storyboardNormalized.nodes, storyboardNormalized.edges);
     const stableNodes = normalizeCanvasSectionChildren(stable.nodes);
+    const restored = await restoreSucceededCanvasVideoNodes({
+      projectId: project.id,
+      userId: req.user!.id,
+      nodes: stableNodes,
+    });
 
     const nextScene = {
-      nodes: stableNodes,
+      nodes: restored.nodes,
       edges: stable.edges,
       updatedAt: new Date().toISOString(),
     };
 
     await prisma.project.update({
-      where: { id: project.id },
-      data: {
-        metadata: {
-          ...metadata,
+        where: { id: project.id },
+        data: {
+          metadata: {
+          ...baseMetadata,
           canvasScenes: {
             ...canvasScenes,
             [sceneId]: nextScene,
@@ -156,10 +190,11 @@ router.post(
       await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${project.id} FOR UPDATE`;
       const currentProject = await tx.project.findUnique({
         where: { id: project.id },
-        select: { metadata: true },
+        select: { metadata: true, settings: true },
       });
-      const metadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
-      const canvasScenes = getCanvasScenes(metadata);
+      const baseMetadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
+      const metadata = metadataWithProjectSettings(baseMetadata, currentProject?.settings);
+      const canvasScenes = getCanvasScenes(baseMetadata);
       const targetEpisodeId = input.episodeId || stringValue(metadata.activeEpisodeId) || resolveCanvasEpisodeId(metadata, "");
       const sync = buildEpisodeCanvasSyncScene({
         metadata,
@@ -168,7 +203,7 @@ router.post(
         existingScene: canvasScenes[targetEpisodeId] ?? canvasScenes[resolveCanvasEpisodeId(metadata, targetEpisodeId)] ?? undefined,
         records,
       });
-      const nextMetadata = writeEpisodeCanvasSyncMetadata({ metadata, sync, makeActive: true });
+      const nextMetadata = writeEpisodeCanvasSyncMetadata({ metadata: baseMetadata, sync, makeActive: true });
       await tx.project.update({
         where: { id: project.id },
         data: { metadata: nextMetadata as Prisma.InputJsonValue },

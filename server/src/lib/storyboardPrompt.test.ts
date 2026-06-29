@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { ensureClipStoryboardBoardLayoutPrompt, finalizeClipStoryboardImagePrompt } from "./storyboardPrompt";
+import { clipStoryboardBoardLayoutStrategy, ensureClipStoryboardBoardLayoutPrompt, finalizeClipStoryboardImagePrompt } from "./storyboardPrompt";
 
 test("legacy director-board prompt is rewritten into comic storyboard prompt", () => {
   const legacyPrompt = readFileSync(new URL("./__fixtures__/legacyStoryboardPrompt.txt", import.meta.url), "utf8");
@@ -125,4 +125,32 @@ test("final storyboard prompt keeps repeated panel actions but does not repeat t
   assert.equal((cleaned.match(/speech bubble: Tiffany: Is that stupid pan all you have\? You ugly chef!/g) ?? []).length, 1);
   assert.equal((cleaned.match(/speech bubble: Leo: It is a non-stick defense system\./g) ?? []).length, 1);
   assert.equal((cleaned.match(/\bPanel\s+\d{1,2}:[^\n.]*no speech bubble/g) ?? []).length, 3);
+});
+
+test("clipStoryboardBoardLayoutStrategy uses provided aspect ratio", () => {
+  const landscape = clipStoryboardBoardLayoutStrategy(6, "16:9");
+  assert.match(landscape, /one 16:9 compact multi-panel comic page/i);
+
+  const portrait = clipStoryboardBoardLayoutStrategy(6, "9:16");
+  assert.match(portrait, /one 9:16 compact multi-panel comic page/i);
+
+  const square = clipStoryboardBoardLayoutStrategy(6, "1:1");
+  assert.match(square, /one 1:1 compact multi-panel comic page/i);
+});
+
+test("clipStoryboardBoardLayoutStrategy defaults to 16:9 without aspect ratio", () => {
+  const result = clipStoryboardBoardLayoutStrategy(6);
+  assert.match(result, /one 16:9 compact multi-panel comic page/i);
+});
+
+test("ensureClipStoryboardBoardLayoutPrompt passes aspect ratio through", () => {
+  const prompt = "Panel 1: show action; Panel 2: reaction.";
+  const result = ensureClipStoryboardBoardLayoutPrompt(prompt, 6, "9:16");
+  assert.match(result, /one 9:16 compact multi-panel comic page/i);
+});
+
+test("finalizeClipStoryboardImagePrompt passes aspect ratio through", () => {
+  const prompt = "Panel 1: show action; Panel 2: reaction.";
+  const result = finalizeClipStoryboardImagePrompt(prompt, 6, "9:16");
+  assert.match(result, /one 9:16 compact multi-panel comic page/i);
 });

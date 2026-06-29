@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { callConfiguredVisionTextModel } from "../ai/textModel";
 import { asyncRoute } from "../lib/asyncRoute";
+import { applyWorkflowAssetImageToCanvasScenes, canvasSyncableImageUrl, fillMissingAssetImageAcrossEpisodes } from "../lib/canvasAssetImageSync";
 import { badRequest, notFound, routeParam } from "../lib/httpErrors";
 import { isRecord } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
@@ -89,7 +90,7 @@ router.get(
   "/projects/:projectId/characters",
   asyncRoute(async (req, res) => {
     const projectId = routeParam(req.params.projectId, "projectId");
-    await assertProject(projectId, req.user!.id);
+    await assertProjectExists(projectId, req.user!.id);
     const characters = await prisma.character.findMany({
       where: { projectId, deletedAt: null },
       orderBy: { updatedAt: "desc" },
@@ -103,7 +104,7 @@ router.post(
   "/projects/:projectId/characters",
   asyncRoute(async (req, res) => {
     const projectId = routeParam(req.params.projectId, "projectId");
-    await assertProject(projectId, req.user!.id);
+    await assertProjectExists(projectId, req.user!.id);
     const input = characterSchema.parse(req.body);
     const character = await prisma.character.create({
       data: {
@@ -387,6 +388,15 @@ async function assertProject(projectId: string, ownerId: string) {
   return project;
 }
 
+async function assertProjectExists(projectId: string, ownerId: string) {
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, ownerId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!project) notFound("Project not found");
+  return project;
+}
+
 async function findOwnedCharacter(characterId: string, ownerId: string) {
   const character = await prisma.character.findFirst({
     where: { id: characterId, deletedAt: null, project: { ownerId, deletedAt: null } },
@@ -514,12 +524,19 @@ async function syncWorkflowCharacterReference(
 
     const targetEpisodeId = episodeId || workflowEpisodeIdForWorkflow(metadata, nextWorkflowCenter);
     const nextMetadata = writeWorkflowEpisode(metadata, targetEpisodeId, nextWorkflowCenter, true);
+    const currentImageUrl = stringFrom(nextCharacter.referenceImageUrl, "");
+    const canvasImageUrl = canvasSyncableImageUrl(currentImageUrl);
+    let finalMetadata = nextMetadata;
+    if (canvasImageUrl) {
+      const filledMetadata = fillMissingAssetImageAcrossEpisodes(nextMetadata, { assetKind: "characters", assetName: characterName, field: "referenceImageUrl", imageUrl: currentImageUrl, imageAssetId: asset.id }).metadata;
+      finalMetadata = applyWorkflowAssetImageToCanvasScenes(filledMetadata, { assetKind: "characters", assetName: characterName, imageUrl: canvasImageUrl, imageAssetId: asset.id }, nextWorkflowCenter.updatedAt).metadata;
+    }
     await tx.project.update({
       where: { id: project.id },
-      data: { metadata: nextMetadata as Prisma.InputJsonValue },
+      data: { metadata: finalMetadata as Prisma.InputJsonValue },
     });
 
-    return { ...nextWorkflowCenter, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(nextMetadata) };
+    return { ...nextWorkflowCenter, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
   });
 }
 
@@ -741,7 +758,14 @@ function writeWorkflowEpisode(metadata: Record<string, unknown>, episodeId: stri
   return {
     ...metadata,
     workflowCenter: workflow,
-    ...(makeActive ? { activeEpisodeId: id } : {}),
+    ...(makeActive
+      ? {
+          activeEpisodeId: id,
+          currentEpisodeId: id,
+          selectedEpisodeId: id,
+          activeCanvasSceneId: workflowEpisodeCanvasSceneId(id),
+        }
+      : {}),
     episodes: {
       ...episodes,
       [id]: {

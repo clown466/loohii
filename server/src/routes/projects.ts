@@ -10,6 +10,17 @@ import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
+const projectSummarySelect = {
+  id: true,
+  name: true,
+  aspectRatio: true,
+  description: true,
+  settings: true,
+  createdAt: true,
+  coverAsset: { select: { url: true } },
+  _count: { select: { scenes: true } },
+} as const;
+
 const projectInputSchema = z.object({
   title: z.string().min(1).max(160).optional(),
   name: z.string().min(1).max(160).optional(),
@@ -46,10 +57,7 @@ router.get(
         ownerId: req.user!.id,
         deletedAt: null,
       },
-      include: {
-        coverAsset: true,
-        _count: { select: { scenes: true } },
-      },
+      select: projectSummarySelect,
       orderBy: { updatedAt: "desc" },
     });
     ok(res, projects.map(mapProject));
@@ -80,10 +88,7 @@ router.post(
         status: "ACTIVE",
         settings,
       },
-      include: {
-        coverAsset: true,
-        _count: { select: { scenes: true } },
-      },
+      select: projectSummarySelect,
     });
     created(res, mapProject(project));
   }),
@@ -120,10 +125,7 @@ router.patch(
           ...(input.completedScenes !== undefined ? { completedScenes: input.completedScenes } : {}),
         },
       },
-      include: {
-        coverAsset: true,
-        _count: { select: { scenes: true } },
-      },
+      select: projectSummarySelect,
     });
     ok(res, mapProject(project));
   }),
@@ -144,10 +146,7 @@ router.delete(
 async function findOwnedProject(projectId: string, ownerId: string) {
   const project = await prisma.project.findFirst({
     where: { id: projectId, ownerId, deletedAt: null },
-    include: {
-      coverAsset: true,
-      _count: { select: { scenes: true } },
-    },
+    select: projectSummarySelect,
   });
   if (!project) notFound("Project not found");
   return project;

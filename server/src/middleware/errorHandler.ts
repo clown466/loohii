@@ -13,6 +13,10 @@ export function errorHandler(
   }
 
   if (isPrismaKnownRequestError(error)) {
+    console.error(`[prisma-error] ${req.method} ${req.originalUrl} ${error.code}: ${error.message}`, {
+      code: error.code,
+      meta: "meta" in error ? (error as { meta?: unknown }).meta : undefined,
+    });
     return res.status(400).json({
       message: "Database request failed",
       code: error.code,
@@ -36,7 +40,7 @@ export function errorHandler(
   return res.status(500).json({ message });
 }
 
-function isPrismaKnownRequestError(error: unknown): error is { code: string } {
+function isPrismaKnownRequestError(error: unknown): error is { code: string; message: string } {
   return (
     error instanceof Error &&
     error.name === "PrismaClientKnownRequestError" &&

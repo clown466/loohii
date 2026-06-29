@@ -5,6 +5,7 @@ export { SectionNode } from './SectionNode';
 export { TranslationNode } from './TranslationNode';
 export { PromptOptimizerNode } from './PromptOptimizerNode';
 export { PromptInspectorNode } from './PromptInspectorNode';
+export { AgentNode } from './AgentNode';
 export { VideoNode } from './VideoNode';
 export { ImageInputNode } from './ImageInputNode';
 export { AudioInputNode } from './AudioInputNode';
@@ -17,6 +18,7 @@ import { SectionNode } from './SectionNode';
 import { TranslationNode } from './TranslationNode';
 import { PromptOptimizerNode } from './PromptOptimizerNode';
 import { PromptInspectorNode } from './PromptInspectorNode';
+import { AgentNode } from './AgentNode';
 import { VideoNode } from './VideoNode';
 import { ImageInputNode } from './ImageInputNode';
 import { AudioInputNode } from './AudioInputNode';
@@ -36,5 +38,6 @@ export const nodeTypes = {
   translation: TranslationNode,
   promptOptimizer: PromptOptimizerNode,
   promptInspector: PromptInspectorNode,
+  agent: AgentNode,
   section: SectionNode,
 };

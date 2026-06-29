@@ -26,17 +26,16 @@ const PRESETS = [
 ];
 
 const GENERATION_STRATEGIES = [
-  { id: "standard", title: "普通", desc: "分镜图、资产图、单图生成" },
-  { id: "first-frame", title: "首帧衔接", desc: "适合短视频连续镜头" },
   { id: "seedance-multi-ref", title: "Seedance 多参", desc: "角色/场景/导演板多参考" },
   { id: "chapter-board", title: "章节导演板", desc: "默认推荐，先用导演板统一空间与连续性" },
+  { id: "first-frame", title: "首帧衔接", desc: "暂未开发，请先使用 Seedance 多参或章节导演板", disabled: true },
 ];
 
 const SCRIPT_RULE_TEMPLATES = [
-  { id: "continuity", title: "人物与气质一致性", hint: "角色外观、性格、服装、表演状态不得随镜头漂移。" },
-  { id: "world", title: "叙事与世界观", hint: "明确故事背景、时代、地点、科技/魔法/现实规则。" },
-  { id: "camera", title: "镜头与节奏", hint: "短剧节奏明确，镜头切换快，动作和对白要能落到画面。" },
-  { id: "safety", title: "边界与禁用元素", hint: "避免水印、乱码文字、低质量、血腥猎奇和破坏风格的元素。" },
+  { id: "continuity", title: "人物与气质一致性", hint: "Keep character appearance, personality, carried items, wardrobe state, and performance state continuous across shots and clips." },
+  { id: "world", title: "叙事与世界观", hint: "Respect the story world, era, location, technology level, and physical rules established by the source text and assets." },
+  { id: "camera", title: "镜头与节奏", hint: "Use fast short-drama pacing with clear camera changes, visible actions, readable dialogue timing, and 1-3 second shots unless the story requires otherwise." },
+  { id: "safety", title: "边界与禁用元素", hint: "Avoid watermarks, random text, low quality output, identity drift, and visual details that conflict with locked assets." },
 ];
 
 const DEFAULT_GLOBAL_PROMPT = "masterpiece, best quality, highly detailed, cinematic lighting, consistent character design";
@@ -239,9 +238,9 @@ export function ProjectSetupPage() {
   const contentMaxWidth = step === 4 ? "max-w-[980px]" : "max-w-[640px]";
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#09090b] text-[14px]">
+    <div className="flex h-full flex-col overflow-hidden bg-background text-[14px]">
       {isEditMode && isLoadingProject && (
-        <div className="border-b border-[#1f1f23] bg-[#18181b] px-4 py-2 text-center text-[12px] text-[#a1a1aa]">
+        <div className="border-b border-[#1f1f23] bg-card px-4 py-2 text-center text-[12px] text-muted-foreground">
           正在从后端加载项目全局设定...
         </div>
       )}
@@ -249,37 +248,37 @@ export function ProjectSetupPage() {
         {/* Stepper */}
         <div className={cn("mb-8 w-full sm:mb-10", contentMaxWidth)}>
           <div className="flex items-center justify-between relative">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 h-px w-full bg-[#1f1f23] -z-10" />
-            <div 
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-px bg-[#6366f1] -z-10 transition-all duration-500" 
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 h-px w-full bg-layer-4 -z-10" />
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-px bg-primary -z-10 transition-all duration-500"
               style={{ width: `${((step - 1) / 3) * 100}%` }}
             />
-            
+
             {["基本信息", "画面比例", "风格预设", "导演指导"].map((label, i) => {
               const num = i + 1;
               const isCompleted = step > num;
               const isActive = step === num;
               const canClick = isEditMode || isCompleted || isActive;
-              
+
               return (
-                <div 
-                  key={num} 
+                <div
+                  key={num}
                   className={cn("flex min-w-0 flex-1 flex-col items-center gap-2", canClick ? "cursor-pointer" : "cursor-not-allowed opacity-70")}
                   onClick={() => canClick && setStep(num)}
                 >
-                  <button 
+                  <button
                     className={cn(
                       "h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium border transition-colors",
-                      isCompleted 
-                        ? "bg-[#6366f1] border-[#6366f1] text-white" 
-                        : isActive 
-                          ? "bg-[#1f1f23] border-[#6366f1] text-[#6366f1]" 
-                          : "bg-[#09090b] border-[#27272a] text-[#71717a]"
+                      isCompleted
+                        ? "bg-primary border-primary text-white"
+                        : isActive
+                          ? "bg-layer-4 border-primary text-primary"
+                          : "bg-background border-border text-[#71717a]"
                     )}
                   >
                     {isCompleted ? <Check className="h-3 w-3" /> : num}
                   </button>
-                  <span className={cn("max-w-[72px] truncate text-[11px] font-medium min-[420px]:max-w-none min-[420px]:text-[12px]", isActive ? "text-[#fafafa]" : "text-[#71717a]")}>{label}</span>
+                  <span className={cn("max-w-[72px] truncate text-[11px] font-medium min-[420px]:max-w-none min-[420px]:text-[12px]", isActive ? "text-foreground" : "text-[#71717a]")}>{label}</span>
                 </div>
               );
             })}
@@ -296,31 +295,31 @@ export function ProjectSetupPage() {
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-[#fafafa] sm:text-[24px]">给项目起个名字</h2>
-                <p className="text-[#a1a1aa]">好的开始是成功的一半</p>
+                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">给项目起个名字</h2>
+                <p className="text-muted-foreground">好的开始是成功的一半</p>
               </div>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">项目名称 <span className="text-[#ef4444]">*</span></label>
+                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目名称 <span className="text-[#ef4444]">*</span></label>
                   <Input
                     placeholder="例如：赛博朋克 2077 第一季"
-                    className={cn("h-10 text-[14px] bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]", nameError && "border-[#ef4444] focus-visible:ring-[#ef4444]")}
+                    className={cn("h-10 text-[14px] bg-layer-4 border-border focus-visible:ring-primary", nameError && "border-[#ef4444] focus-visible:ring-[#ef4444]")}
                     value={projectName}
                     onChange={(e) => { setProjectName(e.target.value); setNameError(false); }}
                   />
                   {nameError && <p className="text-[12px] text-[#ef4444] mt-1">项目名称不能为空</p>}
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">项目描述 <span className="text-[#71717a] font-normal">(选填)</span></label>
+                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目描述 <span className="text-[#71717a] font-normal">(选填)</span></label>
                   <Textarea
                     placeholder="一句话描述这个项目的故事背景..."
-                    className="h-20 resize-none bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+                    className="h-20 resize-none bg-layer-4 border-border focus-visible:ring-primary"
                     value={projectDescription}
                     onChange={(e) => setProjectDescription(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">项目封面 <span className="text-[#71717a] font-normal">(选填)</span></label>
+                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目封面 <span className="text-[#71717a] font-normal">(选填)</span></label>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -329,15 +328,15 @@ export function ProjectSetupPage() {
                     onChange={handleFileUpload}
                   />
                   <div
-                    className="border-2 border-dashed border-[#27272a] rounded-xl p-6 flex flex-col items-center justify-center text-[#71717a] hover:border-[#6366f1]/50 hover:bg-[#6366f1]/5 transition-all cursor-pointer bg-[#18181b] overflow-hidden"
+                    className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center text-[#71717a] hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer bg-card overflow-hidden"
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {coverPreview ? (
                       <img src={coverPreview} alt="Cover preview" className="w-full h-32 object-cover rounded-lg" />
                     ) : (
                       <>
-                        <UploadCloud className="h-8 w-8 mb-2 text-[#a1a1aa]" />
-                        <p className="font-medium text-[#fafafa] mb-1">点击或拖拽上传封面图</p>
+                        <UploadCloud className="h-8 w-8 mb-2 text-muted-foreground" />
+                        <p className="font-medium text-foreground mb-1">点击或拖拽上传封面图</p>
                         <p className="text-[12px]">支持 JPG, PNG, WEBP，最大 5MB</p>
                       </>
                     )}
@@ -350,8 +349,8 @@ export function ProjectSetupPage() {
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-[#fafafa] sm:text-[24px]">选择画面比例</h2>
-                <p className="text-[#a1a1aa]">设定全局的默认输出尺寸</p>
+                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">选择画面比例</h2>
+                <p className="text-muted-foreground">设定全局的默认输出尺寸</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6">
                 {[
@@ -361,28 +360,28 @@ export function ProjectSetupPage() {
                 ].map((item, i) => {
                   const isActive = selectedRatio === item.ratio;
                   return (
-                    <div 
-                      key={i} 
+                    <div
+                      key={i}
                       onClick={() => setSelectedRatio(item.ratio)}
                       className={cn(
                         "relative flex h-[148px] w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 p-4 transition-all sm:h-[200px]",
-                        isActive 
-                          ? "border-[#6366f1] bg-[#6366f1]/10 text-[#6366f1] scale-[1.02] shadow-[0_0_0_2px_rgba(99,102,241,0.2)]" 
-                          : "border-[#27272a] bg-[#18181b] text-[#71717a] hover:border-[#6366f1]/50 hover:bg-[#27272a]"
+                        isActive
+                          ? "border-primary bg-primary/10 text-primary scale-[1.02] shadow-[0_0_0_2px_rgba(245,166,35,0.2)]"
+                          : "border-border bg-card text-[#71717a] hover:border-primary/50 hover:bg-accent"
                       )}
                     >
                       {isActive && (
-                        <div className="absolute top-3 right-3 h-5 w-5 bg-[#6366f1] rounded-full flex items-center justify-center text-white">
+                        <div className="absolute top-3 right-3 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white">
                           <Check className="h-3 w-3" />
                         </div>
                       )}
                       <div className="mb-2 flex h-14 items-center justify-center sm:h-20">
                         <div 
-                          className="bg-[#6366f1]/30 border border-[#6366f1] rounded-sm transition-all"
+                          className="bg-primary/30 border border-primary rounded-sm transition-all"
                           style={{ width: item.boxW, height: item.boxH }}
                         />
                       </div>
-                      <div className="mb-1 text-lg font-bold text-[#fafafa]">{item.ratio}</div>
+                      <div className="mb-1 text-lg font-bold text-foreground">{item.ratio}</div>
                       <div className="text-[14px] font-medium mb-0.5">{item.label}</div>
                       <div className="text-[12px] opacity-70">{item.desc}</div>
                     </div>
@@ -395,8 +394,8 @@ export function ProjectSetupPage() {
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-[#fafafa] sm:text-[24px]">风格预设</h2>
-                <p className="text-[#a1a1aa]">选择一个基础的艺术风格</p>
+                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">风格预设</h2>
+                <p className="text-muted-foreground">选择一个基础的艺术风格</p>
               </div>
               
               <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
@@ -412,7 +411,7 @@ export function ProjectSetupPage() {
                     variant={activeStyleTab === tab ? "default" : "secondary"}
                     className={cn(
                       "px-3 py-1 cursor-pointer rounded-md font-normal text-[12px]",
-                      activeStyleTab === tab ? "bg-[#6366f1] hover:bg-[#6366f1]" : "bg-[#1f1f23] text-[#a1a1aa] hover:bg-[#27272a] border-0"
+                      activeStyleTab === tab ? "bg-primary hover:bg-primary" : "bg-layer-4 text-muted-foreground hover:bg-accent border-0"
                     )}
                   >
                     {tab}
@@ -429,18 +428,18 @@ export function ProjectSetupPage() {
                       onClick={() => setSelectedStyle(style.name)}
                       className={cn(
                         "group relative rounded-xl border-2 overflow-hidden cursor-pointer transition-all",
-                        isActive ? "border-[#6366f1] shadow-[0_0_0_2px_rgba(99,102,241,0.2)] scale-[1.02]" : "border-[#27272a] hover:border-[#6366f1]/50"
+                        isActive ? "border-primary shadow-[0_0_0_2px_rgba(245,166,35,0.2)] scale-[1.02]" : "border-border hover:border-primary/50"
                       )}
                     >
-                      <div className="aspect-square bg-[#09090b] relative">
+                      <div className="aspect-square bg-background relative">
                         <img src={style.cover} alt={style.name} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                         {isActive && (
-                          <div className="absolute top-2 right-2 h-5 w-5 bg-[#6366f1] rounded-full flex items-center justify-center text-white shadow-md">
+                          <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white shadow-md">
                             <Check className="h-3 w-3" />
                           </div>
                         )}
                       </div>
-                      <div className={cn("p-1.5 text-center text-[12px] font-medium bg-[#18181b]", isActive ? "text-[#fafafa]" : "text-[#a1a1aa]")}>
+                      <div className={cn("p-1.5 text-center text-[12px] font-medium bg-card", isActive ? "text-foreground" : "text-muted-foreground")}>
                         {style.name}
                       </div>
                     </div>
@@ -455,41 +454,41 @@ export function ProjectSetupPage() {
                     if (event.key === "Enter" || event.key === " ") setSelectedStyle("自定义");
                   }}
                   className={cn(
-                    "group relative rounded-xl border-2 border-dashed overflow-hidden cursor-pointer transition-all bg-[#18181b] hover:border-[#6366f1]/50 hover:bg-[#6366f1]/5 flex flex-col",
-                    selectedStyle === "自定义" ? "border-[#6366f1] bg-[#6366f1]/10 shadow-[0_0_0_2px_rgba(99,102,241,0.2)]" : "border-[#27272a]"
+                    "group relative rounded-xl border-2 border-dashed overflow-hidden cursor-pointer transition-all bg-card hover:border-primary/50 hover:bg-primary/5 flex flex-col",
+                    selectedStyle === "自定义" ? "border-primary bg-primary/10 shadow-[0_0_0_2px_rgba(245,166,35,0.2)]" : "border-border"
                   )}
                 >
                   <div className="aspect-square flex items-center justify-center relative">
-                    <Plus className="h-6 w-6 text-[#71717a] group-hover:text-[#6366f1]" />
+                    <Plus className="h-6 w-6 text-[#71717a] group-hover:text-primary" />
                     {selectedStyle === "自定义" && (
-                      <div className="absolute top-2 right-2 h-5 w-5 bg-[#6366f1] rounded-full flex items-center justify-center text-white shadow-md">
+                      <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white shadow-md">
                         <Check className="h-3 w-3" />
                       </div>
                     )}
                   </div>
-                  <div className={cn("p-1.5 text-center text-[12px] font-medium bg-[#18181b] border-t border-[#27272a]", selectedStyle === "自定义" ? "text-[#fafafa]" : "text-[#71717a]")}>
+                  <div className={cn("p-1.5 text-center text-[12px] font-medium bg-card border-t border-border", selectedStyle === "自定义" ? "text-foreground" : "text-[#71717a]")}>
                     + 自定义
                   </div>
                 </div>
               </div>
               {selectedStyle === "自定义" && (
-                <div className="grid gap-3 rounded-xl border border-[#27272a] bg-[#18181b] p-4 sm:grid-cols-2">
+                <div className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-[#fafafa]">自定义风格名称</label>
+                    <label className="mb-1.5 block text-[13px] font-medium text-foreground">自定义风格名称</label>
                     <Input
                       value={customStyleName}
                       onChange={(event) => setCustomStyleName(event.target.value)}
                       placeholder="例如：拟人水果美剧"
-                      className="h-10 border-[#27272a] bg-[#1f1f23] text-[14px]"
+                      className="h-10 border-border bg-layer-4 text-[14px]"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-[#fafafa]">风格关键词</label>
+                    <label className="mb-1.5 block text-[13px] font-medium text-foreground">风格关键词</label>
                     <Input
                       value={customStylePrompt}
                       onChange={(event) => setCustomStylePrompt(event.target.value)}
                       placeholder="例如：黑色幽默、3D 美式动画、夸张表演"
-                      className="h-10 border-[#27272a] bg-[#1f1f23] text-[14px]"
+                      className="h-10 border-border bg-layer-4 text-[14px]"
                     />
                   </div>
                 </div>
@@ -500,34 +499,39 @@ export function ProjectSetupPage() {
           {step === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-[#fafafa] sm:text-[24px]">导演指导</h2>
-                <p className="text-[#a1a1aa]">设定全局生成策略、调性和剧本规则</p>
+                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">导演指导</h2>
+                <p className="text-muted-foreground">设定全局生成策略、调性和剧本规则</p>
               </div>
               <div className="space-y-5">
-                <div className="rounded-xl border border-[#27272a] bg-[#18181b] p-4">
+                <div className="rounded-xl border border-border bg-card p-4">
                   <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[14px] font-medium text-[#fafafa]">默认生成策略</div>
+                      <div className="text-[14px] font-medium text-foreground">默认生成策略</div>
                       <div className="mt-1 text-[12px] text-[#71717a]">后续分镜图、导演板、视频生成会优先使用该策略</div>
                     </div>
-                    <Badge className="w-fit border border-[#6366f1]/30 bg-[#6366f1]/10 text-[#a5b4fc] hover:bg-[#6366f1]/10">{selectedRatio}</Badge>
+                    <Badge className="w-fit border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">{selectedRatio}</Badge>
                   </div>
                   <div className="grid gap-2 md:grid-cols-4">
                     {GENERATION_STRATEGIES.map((strategy) => {
                       const active = generationStrategy === strategy.id;
+                      const disabled = Boolean(strategy.disabled);
                       return (
                         <button
                           key={strategy.id}
                           type="button"
-                          onClick={() => setGenerationStrategy(strategy.id)}
+                          disabled={disabled}
+                          onClick={() => {
+                            if (!disabled) setGenerationStrategy(strategy.id);
+                          }}
                           className={cn(
                             "min-h-[88px] rounded-lg border p-3 text-left transition-colors",
-                            active ? "border-[#d6a200] bg-[#d6a200]/10" : "border-[#27272a] bg-[#111113] hover:border-[#3f3f46]"
+                            disabled && "cursor-not-allowed opacity-55",
+                            active ? "border-[#d6a200] bg-[#d6a200]/10" : "border-border bg-[#111113] hover:border-[#3f3f46]"
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[13px] font-medium text-[#fafafa]">{strategy.title}</span>
-                            {active && <Check className="h-4 w-4 text-[#facc15]" />}
+                            <span className="text-[13px] font-medium text-foreground">{strategy.title}</span>
+                            {disabled ? <span className="text-[10px] text-amber-300">暂未开发</span> : active && <Check className="h-4 w-4 text-[#facc15]" />}
                           </div>
                           <div className="mt-1 text-[12px] leading-5 text-[#71717a]">{strategy.desc}</div>
                         </button>
@@ -538,70 +542,70 @@ export function ProjectSetupPage() {
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div>
-                    <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">项目调性</label>
+                    <label className="block text-[14px] font-medium text-foreground mb-1.5">项目调性</label>
                     <Textarea
                       placeholder="例如：黑色幽默、快节奏美剧短剧、角色反应夸张但世界观保持一致。"
-                      className="h-24 resize-none text-[13px] text-[#fafafa] bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+                      className="h-24 resize-none text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
                       value={projectTone}
                       onChange={(e) => setProjectTone(e.target.value)}
                     />
                   </div>
 	                  <div>
-	                    <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">导演人工指导</label>
+	                    <label className="block text-[14px] font-medium text-foreground mb-1.5">导演人工指导</label>
 	                    <Textarea
 	                      placeholder="例如：每个角色保持统一造型；重要动作先给近景反应，再给环境关系；导演板优先表达空间、站位和镜头推进。"
-	                      className="h-24 resize-none text-[13px] text-[#fafafa] bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+	                      className="h-24 resize-none text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
 	                      value={directorNotes}
 	                      onChange={(e) => setDirectorNotes(e.target.value)}
 	                    />
 	                  </div>
 	                  <div>
-	                    <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">角色身份约束</label>
+	                    <label className="block text-[14px] font-medium text-foreground mb-1.5">角色身份约束</label>
 	                    <Textarea
 	                      placeholder="例如：本项目所有角色都是拟人化水果，必须推理并锁定具体水果身份；Chloe 是水蜜桃，Leo 是黄色柠檬。"
-	                      className="h-24 resize-none text-[13px] text-[#fafafa] bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+	                      className="h-24 resize-none text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
 	                      value={characterIdentityRules}
 	                      onChange={(e) => setCharacterIdentityRules(e.target.value)}
 	                    />
 	                  </div>
 	                  <div>
-	                    <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">全局画面提示词</label>
+	                    <label className="block text-[14px] font-medium text-foreground mb-1.5">全局画面提示词</label>
                     <Textarea
                       placeholder="例如：最高画质，大师杰作，极其详细的细节。所有人物都要有边缘光..."
-                      className="h-24 resize-none font-mono text-[13px] text-[#fafafa] bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+                      className="h-24 resize-none font-mono text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
                       value={globalPrompt}
                       onChange={(e) => setGlobalPrompt(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-[14px] font-medium text-[#fafafa] mb-1.5">负面约束</label>
+                    <label className="block text-[14px] font-medium text-foreground mb-1.5">负面约束</label>
                     <Textarea
                       placeholder="例如：不要生成带有血腥暴力的画面..."
-                      className="h-24 resize-none font-mono text-[13px] text-[#fafafa] bg-[#1f1f23] border-[#27272a] focus-visible:ring-[#6366f1]"
+                      className="h-24 resize-none font-mono text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
                       value={negativePrompt}
                       onChange={(e) => setNegativePrompt(e.target.value)}
                     />
                   </div>
                 </div>
                 <div>
-                  <div className="mb-3 text-[14px] font-medium text-[#fafafa]">详细剧本规则</div>
+                  <div className="mb-3 text-[14px] font-medium text-foreground">详细剧本规则</div>
                   <div className="grid gap-3 md:grid-cols-2">
                     {SCRIPT_RULE_TEMPLATES.map((rule) => (
-                      <div key={rule.id} className="rounded-xl border border-[#27272a] bg-[#18181b] p-4">
+                      <div key={rule.id} className="rounded-xl border border-border bg-card p-4">
                         <div className="mb-2 flex items-center gap-2">
                           <Badge className="border border-[#d6a200]/30 bg-[#d6a200]/10 text-[#facc15] hover:bg-[#d6a200]/10">{rule.id.slice(0, 2).toUpperCase()}</Badge>
-                          <div className="text-[13px] font-medium text-[#fafafa]">{rule.title}</div>
+                          <div className="text-[13px] font-medium text-foreground">{rule.title}</div>
                         </div>
                         <Textarea
                           value={scriptRules[rule.id] ?? ""}
                           onChange={(event) => setScriptRules((current) => ({ ...current, [rule.id]: event.target.value }))}
-                          className="h-28 resize-none border-[#27272a] bg-[#111113] text-[12px] leading-5 text-[#d4d4d8]"
+                          className="h-28 resize-none border-border bg-[#111113] text-[12px] leading-5 text-[#d4d4d8]"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="rounded-lg border border-[#27272a] bg-[#18181b] p-3 text-[12px] leading-5 text-[#71717a]">
+                <div className="rounded-lg border border-border bg-card p-3 text-[12px] leading-5 text-[#71717a]">
                   这些设定会保存到项目全局提示词中，影响后续资产、分镜、导演板和视频生成。
                 </div>
               </div>
@@ -611,7 +615,7 @@ export function ProjectSetupPage() {
       </div>
 
       {/* Footer Actions (Sticky bottom) */}
-      <div className="sticky bottom-0 left-0 z-10 flex w-full shrink-0 justify-center border-t border-[#1f1f23] bg-[#09090b]/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4">
+      <div className="sticky bottom-0 left-0 z-10 flex w-full shrink-0 justify-center border-t border-[#1f1f23] bg-background/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4">
         <div className={cn("flex w-full flex-col gap-3", contentMaxWidth)}>
           {saveError && (
             <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
@@ -629,12 +633,12 @@ export function ProjectSetupPage() {
               if (isEditMode && id) navigate(`/app/project/${id}/canvas`);
             }}
             disabled={step === 1 && !isEditMode}
-            className="flex-1 text-[#a1a1aa] hover:bg-[#18181b] hover:text-[#fafafa] sm:flex-none"
+            className="flex-1 text-muted-foreground hover:bg-card hover:text-foreground sm:flex-none"
           >
             {step === 1 && isEditMode ? "返回画布" : "上一步"}
           </Button>
           <Button 
-            className="flex-1 gap-2 rounded-md border-0 bg-gradient-to-r from-[#6366f1] to-[#818cf8] px-4 text-white hover:opacity-90 sm:flex-none sm:px-8"
+            className="flex-1 gap-2 rounded-md border-0 bg-gradient-to-r from-primary to-primary/80 px-4 text-white hover:opacity-90 sm:flex-none sm:px-8"
             onClick={handleNext}
             disabled={isSaving}
           >

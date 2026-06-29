@@ -8,6 +8,7 @@ const leoUrl = "https://loohii.com/api/uploads/public/project/leo.png";
 const tiffanyUrl = "https://loohii.com/api/uploads/public/project/tiffany.png";
 const eugeneUrl = "https://loohii.com/api/uploads/public/project/eugene.png";
 const sceneUrl = "https://loohii.com/api/uploads/public/project/boss-room.png";
+const positioningBoardUrl = "https://loohii.com/api/uploads/public/project/positioning-board.png";
 const tiffanyAudioUrl = "https://loohii.com/api/uploads/public/project/tiffany.wav";
 const leoAudioUrl = "https://loohii.com/api/uploads/public/project/leo.wav";
 const eugeneAudioPath = "/api/uploads/public/project/eugene.wav";
@@ -175,6 +176,55 @@ test("uses persisted video node image refs as fallback after canvas sync", () =>
   assert.deepEqual(result.referenceImageUrls, [storyboardUrl, chloeUrl, leoUrl]);
   assert.equal(result.storyboardImageUrl, storyboardUrl);
   assert.equal(result.source, "canvas");
+});
+
+test("uses positioning board, scene, and prop image refs from Seedance multi-reference canvas", () => {
+  const propUrl = "https://loohii.com/api/uploads/public/project/pizza-box.png";
+  const result = normalizeCanvasVideoReferenceInputs({
+    metadata: {
+      canvasScenes: {
+        "episode-010": {
+          nodes: [
+            {
+              id: "positioning-board",
+              type: "imageInput",
+              data: {
+                assetKind: "positioning-board",
+                clipNodeKind: "positioning-board-reference",
+                positioningBoardForClip: true,
+                spatialAuthority: true,
+                clipId: "clip-012",
+                imageUrl: positioningBoardUrl,
+              },
+            },
+            characterNode("chloe", "Chloe", chloeUrl),
+            {
+              id: "scene-ref",
+              type: "imageInput",
+              data: { assetKind: "scenes", assetName: "Sanctuary Cafeteria", imageUrl: sceneUrl },
+            },
+            {
+              id: "prop-ref",
+              type: "imageInput",
+              data: { assetKind: "props", assetName: "Pizza box", imageUrl: propUrl },
+            },
+            { id: "video", type: "video", data: { clipId: "clip-012", workflowKind: "video", includeAudio: false, generationStrategy: "seedance-multi-ref" } },
+          ],
+          edges: [
+            edge("board-video", "positioning-board", "video"),
+            edge("chloe-video", "chloe", "video"),
+            edge("scene-video", "scene-ref", "video"),
+            edge("prop-video", "prop-ref", "video"),
+          ],
+        },
+      },
+    },
+    requestMetadata: { nodeId: "video", sourceEpisodeId: "episode-010", clipId: "clip-012" },
+    maxImageReferences: 9,
+  });
+
+  assert.deepEqual(result.referenceImageUrls, [positioningBoardUrl, chloeUrl, sceneUrl, propUrl]);
+  assert.deepEqual(result.imageSourceNodeIds, ["positioning-board", "chloe", "scene-ref", "prop-ref"]);
 });
 
 test("falls back to request refs when no matching canvas video node exists", () => {

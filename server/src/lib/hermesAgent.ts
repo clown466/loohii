@@ -9,6 +9,7 @@ export type HermesAgentContext = {
   project: Record<string, unknown>;
   workflow?: Record<string, unknown>;
   recentMessages: Array<{ role: string; content: string; createdAt: string }>;
+  modelId?: string;
   clientContext?: Record<string, unknown>;
 };
 
@@ -123,6 +124,7 @@ function buildHermesPayload(context: HermesAgentContext) {
     projectId: context.projectId,
     userId: context.userId,
     conversationId: context.conversationId ?? `${context.projectId}:${context.userId}`,
+    preferredTextModelId: context.modelId || "",
     memory: {
       provider: config.hermesAgent.honchoMemoryConfigured ? "honcho" : "none",
       projectId: `${config.hermesAgent.honchoProjectPrefix}:${context.projectId}`,

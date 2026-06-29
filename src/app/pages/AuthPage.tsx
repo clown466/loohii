@@ -48,14 +48,14 @@ export function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#09090b]">
+    <div className="flex min-h-screen bg-background">
       {/* Brand Side - Hidden on Mobile */}
       <div className="hidden lg:flex flex-1 flex-col justify-between p-12 relative overflow-hidden bg-[#141416] border-r border-zinc-800">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-transparent to-transparent" />
-        <div className="absolute -left-48 top-1/4 w-96 h-96 bg-indigo-500/20 blur-[128px] rounded-full" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent" />
+        <div className="absolute -left-48 top-1/4 w-96 h-96 bg-primary/20 blur-[128px] rounded-full" />
 
         <Link to="/" className="flex items-center gap-2 font-bold text-xl tracking-tight relative z-10 text-white">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500 text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/90 text-white">
             L
           </div>
           鹿绘AI
@@ -112,7 +112,7 @@ export function AuthPage() {
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-zinc-300">密码</label>
                 {isLogin && (
-                  <button type="button" onClick={handleForgotPassword} className="text-xs text-indigo-400 hover:underline">
+                  <button type="button" onClick={handleForgotPassword} className="text-xs text-primary hover:underline">
                     忘记密码？
                   </button>
                 )}
@@ -136,7 +136,7 @@ export function AuthPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-11 mt-6 bg-indigo-600 hover:bg-indigo-500 text-base disabled:opacity-50"
+              className="w-full h-11 mt-6 bg-primary hover:bg-primary/90 text-base disabled:opacity-50"
             >
               {loading ? "处理中..." : (isLogin ? "登录" : "注册")}
             </Button>
@@ -146,16 +146,16 @@ export function AuthPage() {
                 <div className="w-full border-t border-zinc-800" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-[#09090b] px-2 text-zinc-500">或使用以下方式</span>
+                <span className="bg-background px-2 text-zinc-500">或使用以下方式</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-zinc-800 hover:bg-zinc-800">
+              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-zinc-800 hover:bg-layer-4">
                 <Github className="h-4 w-4 mr-2" />
                 GitHub
               </Button>
-              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-zinc-800 hover:bg-zinc-800">
+              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-zinc-800 hover:bg-layer-4">
                 Google
               </Button>
             </div>
@@ -163,7 +163,7 @@ export function AuthPage() {
 
           <p className="text-center text-sm text-zinc-400 mt-8">
             {isLogin ? "没有账号？" : "已有账号？"}
-            <Link to={isLogin ? "/register" : "/login"} className="text-indigo-400 hover:underline ml-1 font-medium">
+            <Link to={isLogin ? "/register" : "/login"} className="text-primary hover:underline ml-1 font-medium">
               {isLogin ? "去注册" : "去登录"}
             </Link>
           </p>

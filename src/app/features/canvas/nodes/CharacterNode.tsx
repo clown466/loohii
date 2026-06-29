@@ -6,11 +6,12 @@ import { Button } from '../../../components/ui/button';
 import '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
 import { useProjectStore } from '../../../stores/useProjectStore';
-import { apiClient, type ModelConfig } from '../../../lib/apiClient';
+import { apiClient } from '../../../lib/apiClient';
 import {
   type CanvasNodeProps,
   CanvasNodeResizer,
   CanvasHandle,
+  PromptTextarea,
   publicImageUrl,
   previewCanvasImage,
   downloadCanvasImagePreview,
@@ -31,11 +32,12 @@ import {
   buildCanvasCharacterFinalPrompt,
   isRawCharacterAssetPrompt,
   finalPromptSatisfiesProjectIdentity,
+  stripLegacyCanvasAssetPromptScaffold,
   modelOptionLabel,
-  isWorkflowImageModel,
   CANVAS_IMAGE_RATIO_OPTIONS,
   CANVAS_GENERATION_STALE_MS,
 } from './shared';
+import { useImageModelOptions } from './modelOptions';
 
 export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -49,7 +51,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
     () => currentProject ? compactProjectPromptContext(currentProject) : (data.projectPromptContext || {}),
     [currentProject, data.projectPromptContext],
   );
-  const [imageModels, setImageModels] = useState<ModelConfig[]>([]);
+  const { imageModels } = useImageModelOptions();
 
   const referenceImages = useMemo(() => {
     const incomingEdges = edges.filter((e) => e.target === id);
@@ -65,7 +67,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   }, [edges, nodes, id]);
 
   const autoFinalPrompt = useMemo(() => buildCanvasCharacterFinalPrompt(data, referenceImages.length, projectPromptContext), [data, referenceImages.length, projectPromptContext]);
-  const rawFinalPrompt = typeof data.finalPrompt === 'string' ? data.finalPrompt : '';
+  const rawFinalPrompt = stripLegacyCanvasAssetPromptScaffold(data.finalPrompt);
   const finalPrompt =
     rawFinalPrompt &&
     !isRawCharacterAssetPrompt(data, rawFinalPrompt) &&
@@ -81,21 +83,6 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   const generationInFlightRef = useRef(false);
   const generationAbortRef = useRef<AbortController | null>(null);
   const generationRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiClient.listModelConfigs()
-      .then((result) => {
-        if (cancelled) return;
-        setImageModels(result.models.filter(isWorkflowImageModel));
-      })
-      .catch(() => {
-        if (!cancelled) setImageModels([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => () => {
     generationAbortRef.current?.abort();
@@ -238,13 +225,15 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={320} minHeight={320} />
-      <div className="scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-zinc-700 bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
+      <div className="scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
       <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
-        <div className="h-10 w-10 rounded-full bg-zinc-800 overflow-hidden shrink-0">
+        <div className="h-10 w-10 rounded-full bg-layer-4 overflow-hidden shrink-0">
           {data.avatar ? (
             <img
               src={data.avatar}
               alt="Character"
+              loading="lazy"
+              decoding="async"
               className="h-full w-full cursor-zoom-in object-cover"
               onClick={(event) => previewCanvasImage(event, { url: data.avatar, title: data.name || '角色图', subtitle: '头像预览' })}
               onDoubleClick={(event) => previewCanvasImage(event, { url: data.avatar, title: data.name || '角色图', subtitle: '头像预览' })}
@@ -268,7 +257,9 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
                 <img
                   src={ref.url}
                   alt={ref.label}
-                  className="h-8 w-8 cursor-zoom-in rounded border border-zinc-700 object-cover"
+                  loading="lazy"
+                  decoding="async"
+                  className="h-8 w-8 cursor-zoom-in rounded border border-border object-cover"
                   onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                   onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                 />
@@ -295,19 +286,21 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
             重置
           </button>
         </div>
-        <textarea
-          className="w-full resize-y rounded border border-zinc-700 bg-[#09090b] px-2.5 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-indigo-500 focus:outline-none min-h-[80px]"
+        <PromptTextarea
+          className="w-full resize-y rounded border border-border bg-background px-2.5 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none min-h-[80px]"
           rows={8}
           placeholder="输入最终发送给图片模型的提示词..."
           value={finalPrompt}
-          onChange={(e) => updateNodeData(id, { finalPrompt: e.target.value })}
+          onChange={(value) => updateNodeData(id, { finalPrompt: value })}
+          modalTitle={`${data.name || '角色'} · 最终生图提示词`}
+          modalSubtitle="完整提示词"
           onClick={(e) => e.stopPropagation()}
         />
       </div>
 
       <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[10px]">
         <select
-          className="h-7 min-w-0 flex-1 truncate rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
+          className="h-7 min-w-0 flex-1 truncate rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
           value={data.modelId || ''}
           onChange={(e) => updateNodeData(id, { modelId: e.target.value })}
           onClick={(e) => e.stopPropagation()}
@@ -323,7 +316,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
           ))}
         </select>
         <select
-          className="h-7 w-[66px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
+          className="h-7 w-[66px] shrink-0 rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
           value={selectedRatio}
           onChange={(e) => updateNodeData(id, { ratio: e.target.value })}
           onClick={(e) => e.stopPropagation()}
@@ -331,7 +324,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
           {CANVAS_IMAGE_RATIO_OPTIONS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
         </select>
         <select
-          className="h-7 w-[52px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
+          className="h-7 w-[52px] shrink-0 rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
           value={selectedResolution}
           onChange={(e) => updateNodeData(id, { resolution: e.target.value })}
           onClick={(e) => e.stopPropagation()}
@@ -341,7 +334,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
           <option value="4k">4K</option>
         </select>
         <select
-          className="h-7 w-[60px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
+          className="h-7 w-[60px] shrink-0 rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
           value={selectedQuality}
           onChange={(e) => updateNodeData(id, { quality: e.target.value })}
           onClick={(e) => e.stopPropagation()}
@@ -351,7 +344,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
           <option value="low">Low</option>
         </select>
         <select
-          className="h-7 w-[52px] shrink-0 rounded bg-zinc-800 border border-zinc-700 px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-indigo-500"
+          className="h-7 w-[52px] shrink-0 rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
           value={data.count || '1'}
           onChange={(e) => updateNodeData(id, { count: e.target.value })}
           onClick={(e) => e.stopPropagation()}
@@ -365,7 +358,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="border-t border-zinc-800 px-3 py-2">
         <Button
           size="sm"
-          className="w-full h-8 text-[12px] bg-indigo-600 hover:bg-indigo-500 text-white gap-1.5"
+          className="w-full h-8 text-[12px] bg-primary hover:bg-primary/90 text-white gap-1.5"
           onClick={handleGenerate}
           disabled={data.genStatus === 'generating' && !generationStalled}
         >
@@ -376,9 +369,9 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
 
       {data.genStatus === 'generating' && !generationStalled && (
         <div className="px-3 pb-3">
-          <div className="aspect-square rounded border border-zinc-700 bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
-            <div className="h-1.5 w-24 bg-zinc-800 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 animate-pulse w-[60%]" />
+          <div className="aspect-square rounded border border-border bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
+            <div className="h-1.5 w-24 bg-layer-4 rounded-full overflow-hidden">
+              <div className="h-full bg-primary/90 animate-pulse w-[60%]" />
             </div>
             <span className="px-3 text-center text-[11px] text-zinc-500">
               {canvasGenerationWaitLabel(data.generationStartedAt)}
@@ -398,10 +391,12 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
 
       {data.genStatus === 'completed' && data.generatedImage && (
         <div className="px-3 pb-3">
-          <div className="relative group overflow-hidden rounded border border-zinc-700 bg-zinc-950">
+          <div className="relative group overflow-hidden rounded border border-border bg-zinc-950">
             <img
               src={data.generatedImage}
               alt="Generated"
+              loading="lazy"
+              decoding="async"
               className="w-full cursor-zoom-in object-contain"
               style={{ aspectRatio: String(generatedImageAspectRatio) }}
               onClick={(event) => previewCanvasImage(event, { url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' })}
@@ -422,7 +417,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-7 text-[10px] bg-zinc-800/80 hover:bg-zinc-700"
+                className="h-7 text-[10px] bg-layer-4/80 hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
                   void downloadCanvasImagePreview({ url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' });
@@ -433,7 +428,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-7 text-[10px] bg-zinc-800/80 hover:bg-zinc-700"
+                className="h-7 text-[10px] bg-layer-4/80 hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
                   handleSetAsAvatar();
@@ -461,4 +456,3 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
     </>
   );
 };
-
