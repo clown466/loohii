@@ -228,7 +228,7 @@ async function executeImageRequest(
     throw new Error(`Image model request failed (${response.status} ${response.statusText || "Error"}): ${summarizeImageError(raw, rawText)}`);
   }
 
-  const finalRaw = shouldUseSub2ApiResponsesImageGeneration(model) ? await resolveResponsesImageGenerationResult(request.endpoint, apiKey, raw) : raw;
+  const finalRaw = shouldUseSub2ApiResponsesImageGeneration(model, request.body) ? await resolveResponsesImageGenerationResult(request.endpoint, apiKey, raw) : raw;
   const images = normalizeGeneratedImages(finalRaw);
   if (images.length === 0) {
     throw new Error(`Image model returned no image URL or base64 image.${imageResponseShapeSuffix(finalRaw)}`);
@@ -275,6 +275,7 @@ function buildImageRequestBody(model: ImageAiModelLike, prompt: string, params: 
     prompt: preparedPrompt,
     n: numberFrom(params.n, 1),
   };
+  if (body.background === false) delete body.background;
   applyReferenceImageAliases(model, body);
   const outputFormat = normalizeImageOutputFormat(body.output_format ?? body.format);
   if (outputFormat) {
@@ -300,7 +301,7 @@ function buildImageRequestBody(model: ImageAiModelLike, prompt: string, params: 
 }
 
 function buildImageHttpRequest(model: ImageAiModelLike, generationsEndpoint: URL, body: Record<string, unknown>) {
-  if (shouldUseSub2ApiResponsesImageGeneration(model)) {
+  if (shouldUseSub2ApiResponsesImageGeneration(model, body)) {
     return {
       endpoint: resolveResponsesEndpoint(generationsEndpoint),
       body: buildSub2ApiResponsesImageBody(body),
@@ -387,11 +388,11 @@ function buildSub2ApiResponsesImageBody(body: Record<string, unknown>) {
 
 function shouldSubmitResponsesImageInBackground(body: Record<string, unknown>): boolean {
   if (body.responses_background !== undefined || body.responsesBackground !== undefined) {
-    return booleanFrom(body.responses_background ?? body.responsesBackground, true);
+    return booleanFrom(body.responses_background ?? body.responsesBackground, false);
   }
   const configured = process.env.SUB2API_RESPONSES_BACKGROUND;
-  if (configured !== undefined) return booleanFrom(configured, true);
-  return true;
+  if (configured !== undefined) return booleanFrom(configured, false);
+  return false;
 }
 
 function sub2ApiResponsesModelFromBody(body: Record<string, unknown>): string {
@@ -435,7 +436,6 @@ function buildResponsesImageTool(body: Record<string, unknown>) {
   for (const key of [
     "size",
     "quality",
-    "background",
     "output_format",
     "output_compression",
     "moderation",
@@ -519,8 +519,8 @@ function shouldUseSub2ApiImageEditsReferences(model: ImageAiModelLike, body: Rec
   return isSub2ApiGptImage2Provider(model) && referenceImageUrlsFromBody(body).length > 0;
 }
 
-function shouldUseSub2ApiResponsesImageGeneration(model: ImageAiModelLike): boolean {
-  return isAizahuoGptImage2Provider(model);
+function shouldUseSub2ApiResponsesImageGeneration(model: ImageAiModelLike, body: Record<string, unknown>): boolean {
+  return isAizahuoGptImage2Provider(model) && referenceImageUrlsFromBody(body).length > 0;
 }
 
 function isSub2ApiGptImage2Provider(model: ImageAiModelLike): boolean {
@@ -550,7 +550,7 @@ function imageProviderBaseUrlMatches(model: ImageAiModelLike, pattern: RegExp): 
 }
 
 function imageProviderQueueKey(model: ImageAiModelLike, body: Record<string, unknown>): string {
-  if (!shouldUseSub2ApiImageEditsReferences(model, body) && !(shouldUseSub2ApiResponsesImageGeneration(model) && referenceImageUrlsFromBody(body).length > 0)) return "";
+  if (!shouldUseSub2ApiImageEditsReferences(model, body) && !shouldUseSub2ApiResponsesImageGeneration(model, body)) return "";
   return [
     model.providerConfigId || model.providerConfig?.id || "",
     model.providerConfig?.baseUrl || "",

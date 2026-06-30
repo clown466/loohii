@@ -1813,6 +1813,56 @@ test("composeSeedancePrompt requires explicit beat blocking and physical state",
   assert.match(prompt, /carried-forward physical state only when it affects that shot/);
 });
 
+test("workflow asset history includes the current workflow asset id even when metadata matching is missing", () => {
+  const matched = internals.workflowAssetHistoryRecordsForAsset(
+    {
+      referenceImageAssetId: "asset-current",
+      referenceImageUrl: "https://example.com/current.png",
+    },
+    "characters",
+    "Bob",
+    [
+      {
+        id: "asset-current",
+        title: "Bob selected canvas image",
+        url: "https://example.com/current.png",
+        metadata: { source: "canvas-image-generation" },
+      },
+      {
+        id: "asset-other",
+        title: "Other image",
+        url: "https://example.com/other.png",
+        metadata: { workflowAssetKind: "characters", assetName: "Other" },
+      },
+    ] as any[],
+  );
+
+  assert.deepEqual(matched.map((asset: any) => asset.id), ["asset-current"]);
+});
+
+test("workflow asset history builds current asset lookup filters", () => {
+  const filters = internals.workflowAssetCurrentRecordFilters({
+    referenceImageAssetId: "asset-current",
+    generatedImageAssetId: "asset-current",
+    referenceImageUrl: "https://example.com/current.png",
+    generatedImageUrl: "https://example.com/current.png",
+  });
+
+  assert.deepEqual(filters, [
+    { id: { in: ["asset-current"] } },
+    { url: { in: ["https://example.com/current.png"] } },
+  ]);
+});
+
+test("workflow asset history keeps current records before recent records when merging", () => {
+  const records = internals.mergeAssetRecordsById(
+    [{ id: "old-current", title: "Current image" }],
+    [{ id: "new-recent", title: "Recent image" }, { id: "old-current", title: "Duplicate current" }],
+  );
+
+  assert.deepEqual(records.map((asset: any) => asset.title), ["Current image", "Recent image"]);
+});
+
 test("video prompt camera-plan enforcement restores camera language after refinement", () => {
   const prompt = internals.enforceShotCameraPlansInVideoPrompt(
     [

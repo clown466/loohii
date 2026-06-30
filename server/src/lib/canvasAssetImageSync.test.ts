@@ -172,6 +172,22 @@ test("applyWorkflowAssetImageToCanvasScenes skips manually overridden nodes", ()
   assert.equal((sceneNodes(result.metadata)[0].data as Record<string, unknown>).imageUrl, "https://example.com/manual.png");
 });
 
+test("applyWorkflowAssetImageToCanvasScenes force overwrites manually overridden nodes", () => {
+  const node = emptyCharacterNode("chloe-ref", "Chloe");
+  (node.data as Record<string, unknown>).imageUrl = "https://example.com/manual.png";
+  (node.data as Record<string, unknown>).clipSyncUrl = "https://loohii.com/api/uploads/public/project/old.png";
+  const metadata = canvasMetadata([node]);
+  const result = applyWorkflowAssetImageToCanvasScenes(
+    metadata,
+    { assetKind: "characters", assetName: "Chloe", imageUrl: chloeUrl, imageAssetId: "media-1", force: true },
+    "2026-06-12T08:00:00.000Z",
+  );
+  assert.equal(result.changedNodeCount, 1);
+  const data = sceneNodes(result.metadata)[0].data as Record<string, unknown>;
+  assert.equal(data.imageUrl, chloeUrl);
+  assert.equal(data.clipSyncUrl, chloeUrl);
+});
+
 test("applyWorkflowAssetImageToCanvasScenes overwrites synced nodes whose imageUrl equals clipSyncUrl", () => {
   const node = emptyCharacterNode("chloe-ref", "Chloe");
   (node.data as Record<string, unknown>).imageUrl = "https://loohii.com/api/uploads/public/project/old.png";

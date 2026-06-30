@@ -81,6 +81,7 @@ export function AssetMiniList({
   const [editingPromptValue, setEditingPromptValue] = useState('');
   const [editingPromptTarget, setEditingPromptTarget] = useState<{ kind: WorkflowAssetKind; item: WorkflowAssetItem; title: string } | null>(null);
   const [savingPromptKey, setSavingPromptKey] = useState('');
+  const [sceneImageModeByKey, setSceneImageModeByKey] = useState<Record<string, NonNullable<GenerateAssetImageOptions['sceneImageMode']>>>({});
 
   const startPromptEdit = (promptKey: string, item: WorkflowAssetItem, prompt: string) => {
     if (!onUpdateAssetPrompt) return;
@@ -141,6 +142,7 @@ export function AssetMiniList({
         const promptKey = assetPromptEditKey(assetKind, item, index);
         const assetPromptText = getEditableAssetPromptText(assetKind, item, buildAssetFinalPrompt);
         const isSavingPrompt = savingPromptKey === promptKey;
+        const selectedSceneImageMode = sceneImageModeByKey[promptKey] ?? 'single';
         const propPickerOpen = Boolean(
           assetKind === 'characters' &&
           propPickerCharacter &&
@@ -262,6 +264,29 @@ export function AssetMiniList({
               ) : null}
 
               <div className="mt-2 flex flex-wrap gap-1.5">
+                {assetKind === 'scenes' && onGenerateImage && item.name ? (
+                  <div className="flex h-7 overflow-hidden rounded-md border border-zinc-800 bg-zinc-950" title="场景全新生成模式">
+                    {([
+                      ['single', '单图'],
+                      ['quad-grid', '4宫格'],
+                    ] as const).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={cn(
+                          "px-2 text-[11px] transition-colors",
+                          selectedSceneImageMode === mode
+                            ? "bg-primary/15 text-primary"
+                            : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+                        )}
+                        disabled={generationDisabled || generating}
+                        onClick={() => setSceneImageModeByKey((current) => ({ ...current, [promptKey]: mode }))}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {onGenerateImage && item.name ? (
                   <Button
                     type="button"
@@ -269,7 +294,7 @@ export function AssetMiniList({
                     size="sm"
                     className="h-7 px-2 text-[11px] text-primary hover:bg-primary/10 hover:text-primary"
                     disabled={generationDisabled || generating}
-                    onClick={() => onGenerateImage(item)}
+                    onClick={() => onGenerateImage(item, assetKind === 'scenes' ? { sceneImageMode: selectedSceneImageMode } : undefined)}
                   >
                     <ImageIcon className="h-3.5 w-3.5" />
                     {generating ? '生成中...' : '全新生成'}

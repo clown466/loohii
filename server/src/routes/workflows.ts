@@ -686,8 +686,32 @@ router.get(
       orderBy: { createdAt: "desc" },
       take: 500,
     });
-    const images = records
-      .filter((asset: any) => matchesWorkflowAssetImage(asset, input.assetKind, input.assetName))
+    const currentRecordFilters = workflowAssetCurrentRecordFilters(currentAsset);
+    const currentRecords = currentRecordFilters.length > 0
+      ? await prisma.asset.findMany({
+          where: {
+            projectId: project.id,
+            type: "IMAGE",
+            deletedAt: null,
+            OR: currentRecordFilters,
+          },
+          include: {
+            generation: {
+              select: {
+                id: true,
+                prompt: true,
+                status: true,
+                input: true,
+                parameters: true,
+                aiModelId: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+    const images = workflowAssetHistoryRecordsForAsset(currentAsset, input.assetKind, input.assetName, mergeAssetRecordsById(currentRecords, records))
       .slice(0, 80)
       .map((asset: any) => workflowAssetImageHistoryItem(asset, currentAssetIds, currentUrls));
     ok(res, { images });
@@ -3082,7 +3106,7 @@ async function syncWorkflowSelectedAssetImage(
   let finalMetadata = nextMetadata;
   if (canvasImageUrl) {
     const filledMetadata = fillMissingAssetImageAcrossEpisodes(nextMetadata, { assetKind, assetName, field: "generatedImageUrl", imageUrl: currentImageUrl, imageAssetId: asset.id }).metadata;
-    finalMetadata = applyWorkflowAssetImageToCanvasScenes(filledMetadata, { assetKind, assetName, imageUrl: canvasImageUrl, imageAssetId: asset.id, episodeId: targetEpisodeId }, nextWorkflow.updatedAt).metadata;
+    finalMetadata = applyWorkflowAssetImageToCanvasScenes(filledMetadata, { assetKind, assetName, imageUrl: canvasImageUrl, imageAssetId: asset.id, episodeId: targetEpisodeId, force: true }, nextWorkflow.updatedAt).metadata;
   }
   await prisma.project.update({
     where: { id: project.id },
@@ -3178,6 +3202,55 @@ function matchesWorkflowAssetImage(asset: any, assetKind: "characters" | "scenes
   const workflowKind = stringFrom(metadata.workflowAssetKind, "");
   const metadataName = stringFrom(metadata.assetName, "");
   return workflowKind === assetKind && Boolean(metadataName) && workflowAssetNamesMatch(assetKind, metadataName, assetName);
+}
+
+function workflowAssetHistoryRecordsForAsset(
+  currentAsset: Record<string, unknown> | undefined,
+  assetKind: "characters" | "scenes" | "props",
+  assetName: string,
+  records: any[],
+): any[] {
+  const currentAssetIds = new Set([
+    stringFrom(currentAsset?.referenceImageAssetId, ""),
+    stringFrom(currentAsset?.generatedImageAssetId, ""),
+  ].filter(Boolean));
+  const currentUrls = new Set([
+    stringFrom(currentAsset?.referenceImageUrl, ""),
+    stringFrom(currentAsset?.generatedImageUrl, ""),
+  ].filter(Boolean));
+
+  return records.filter((asset: any) => {
+    if (currentAssetIds.has(asset.id)) return true;
+    if (currentUrls.has(stringFrom(asset.url, ""))) return true;
+    return matchesWorkflowAssetImage(asset, assetKind, assetName);
+  });
+}
+
+function workflowAssetCurrentRecordFilters(currentAsset: Record<string, unknown> | undefined): Prisma.AssetWhereInput[] {
+  const ids = [
+    stringFrom(currentAsset?.referenceImageAssetId, ""),
+    stringFrom(currentAsset?.generatedImageAssetId, ""),
+  ].filter(Boolean);
+  const urls = [
+    stringFrom(currentAsset?.referenceImageUrl, ""),
+    stringFrom(currentAsset?.generatedImageUrl, ""),
+  ].filter(Boolean);
+  const filters: Prisma.AssetWhereInput[] = [];
+  if (ids.length > 0) filters.push({ id: { in: Array.from(new Set(ids)) } });
+  if (urls.length > 0) filters.push({ url: { in: Array.from(new Set(urls)) } });
+  return filters;
+}
+
+function mergeAssetRecordsById(...recordGroups: any[][]): any[] {
+  const merged = new Map<string, any>();
+  for (const records of recordGroups) {
+    for (const record of records) {
+      const id = stringFrom(record?.id, "");
+      if (!id || merged.has(id)) continue;
+      merged.set(id, record);
+    }
+  }
+  return Array.from(merged.values());
 }
 
 function workflowAssetImageHistoryItem(asset: any, currentAssetIds: Set<string>, currentUrls: Set<string>) {
@@ -11437,6 +11510,9 @@ export const workflowsTestInternals = {
   sourceDialogueLockLines,
   unwrapJsonWrappedPromptText,
   workflowClipContext,
+  workflowAssetHistoryRecordsForAsset,
+  workflowAssetCurrentRecordFilters,
+  mergeAssetRecordsById,
   workflowAssetsWithSceneVisualBiblesForStoryboard,
   workflowBreakdownScenesFromNormalizedStoryboard,
   writeWorkflowEpisode,

@@ -61,6 +61,7 @@ import {
 } from '../lib/apiClient';
 import { nodeTypes } from '../features/canvas/nodes';
 import { PromptTextarea } from '../features/canvas/nodes/shared';
+import { sceneImageModeInstruction } from '../features/canvas/sceneImageMode';
 import {
   type AssetHistoryLoadKind,
   type AssetHistoryTarget,
@@ -2275,22 +2276,18 @@ function CanvasInner() {
     }
 
     setAssetHistoryLoadBusy(true);
-    setAssetGenerationStatus(`正在检查 ${candidates.length} 个资产当前图片是否可访问...`);
+    setAssetGenerationStatus(`正在为 ${candidates.length} 个资产重新匹配可用历史图...`);
     const reachableChecks = await Promise.all(candidates.map(async (target) => ({
       ...target,
       currentReachable: target.currentUrl ? await browserImageLooksReachable(target.currentUrl) : false,
     })));
-    const targets = reachableChecks.filter((target) => !target.currentReachable);
-    if (targets.length === 0) {
-      setAssetGenerationStatus('当前资产图片都可正常访问，未重新加载历史图。');
-      setAssetHistoryLoadBusy(false);
-      return;
-    }
+    const targets = reachableChecks;
     setAssetGenerationBusyKeys((current) => Array.from(new Set([
       ...current,
       ...targets.map((target) => workflowAssetBusyKey(target.kind, target.name)),
     ])));
-    setAssetGenerationStatus(`正在为 ${targets.length} 个缺失或失效图片的资产查找可用历史图...`);
+    const missingOrBrokenCount = targets.filter((target) => !target.currentReachable).length;
+    setAssetGenerationStatus(`正在查找可用历史图 ${targets.length} 个资产${missingOrBrokenCount ? `，其中 ${missingOrBrokenCount} 个当前图缺失或失效` : ''}...`);
     try {
       let latestWorkflow: WorkflowState | null = null;
       let matched = 0;
@@ -2327,7 +2324,7 @@ function CanvasInner() {
         await refreshCanvasAfterAssetReferenceChange();
       }
       setAssetGenerationStatus(matched > 0
-        ? `已从可访问历史图片加载 ${matched}/${targets.length} 个资产。${missed.length ? `未匹配：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}`
+        ? `已从可访问历史图片重新匹配 ${matched}/${targets.length} 个资产，并同步画布引用。${missed.length ? `未匹配：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}`
         : `没有匹配到可访问的历史图片。${missed.length ? `检查过：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}`);
     } catch (error) {
       setAssetGenerationStatus(error instanceof Error ? error.message : '历史图片加载失败');
@@ -2550,7 +2547,7 @@ function CanvasInner() {
     }
   };
 
-  const buildWorkflowAssetFinalPromptForItem = useCallback((kind: WorkflowAssetKind, item: WorkflowAssetItem, referenceCount = 0, options: { variant?: 'clean' | 'with-props'; customPrompt?: string; boundPropNames?: string[] } = {}) => {
+  const buildWorkflowAssetFinalPromptForItem = useCallback((kind: WorkflowAssetKind, item: WorkflowAssetItem, referenceCount = 0, options: { variant?: 'clean' | 'with-props'; customPrompt?: string; boundPropNames?: string[]; sceneImageMode?: GenerateAssetImageOptions['sceneImageMode'] } = {}) => {
     const assetName = workflowAssetName(item);
     const assetPrompt = firstCleanAssetPromptSeed(item.visualPrompt, item.lockedVisualIdentity, item.description);
     return buildCanvasAssetFinalPrompt(kind, {
@@ -2574,6 +2571,7 @@ function CanvasInner() {
       sceneVisualLock: item.sceneVisualLock,
       sceneZone: item.sceneZone,
       sceneAnchors: item.sceneAnchors,
+      sceneImageMode: kind === 'scenes' ? options.sceneImageMode : undefined,
     }, referenceCount, projectPromptContext);
   }, [projectPromptContext]);
 
@@ -2673,12 +2671,14 @@ function CanvasInner() {
       const manualFinalPrompt = stripLegacyCanvasAssetPromptScaffold(item.manualFinalPrompt);
       const useManualFinalPrompt = Boolean(!useExactCustomPrompt && manualFinalPrompt);
       const referenceCount = referenceImageUrls.length;
+      const sceneLayoutInstruction = kind === 'scenes' ? sceneImageModeInstruction(options.sceneImageMode) : '';
       const prompt = useExactCustomPrompt
         ? customPrompt
         : useManualFinalPrompt
-          ? manualFinalPrompt
+          ? [manualFinalPrompt, sceneLayoutInstruction].filter(Boolean).join('\n\n')
           : buildWorkflowAssetFinalPromptForItem(kind, item, referenceCount, {
               variant,
+              sceneImageMode: kind === 'scenes' ? options.sceneImageMode : undefined,
               customPrompt: customPrompt || undefined,
               boundPropNames: variant === 'with-props' ? linkedPropRefs.map((reference) => reference.name) : selectedPropNamesFromCharacter(item),
             });
@@ -6577,7 +6577,7 @@ function CanvasInner() {
                       onUploadAudioReference={item.key === 'characters' ? handleUploadAudioReference : undefined}
                       onClearAudioReference={item.key === 'characters' ? handleClearAudioReference : undefined}
                       onOpenCharacterPropPicker={item.key === 'characters' ? openCharacterPropPicker : undefined}
-                      onGenerateImage={(asset) => handleGenerateAssetImage(item.key, asset)}
+                      onGenerateImage={(asset, options) => handleGenerateAssetImage(item.key, asset, options)}
                       onOpenHistory={(asset, variantFilter) => handleOpenAssetHistory(item.key, asset, variantFilter)}
                       onPreviewImage={setAssetImagePreview}
                       onAddToCanvas={handleAddAssetToCanvas}

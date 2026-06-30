@@ -23,6 +23,7 @@ import {
 import { cn } from '../../utils/cn';
 import { CanvasNodeKind, useCanvasStore } from '../../stores/useCanvasStore';
 import { useProjectStore } from '../../stores/useProjectStore';
+import { type SceneImageMode, sceneImageModeInstruction } from './sceneImageMode';
 import {
   apiClient,
   type ModelConfig,
@@ -659,6 +660,7 @@ export type GenerateAssetImageOptions = {
   useCurrentReference?: boolean;
   referenceImageUrl?: string;
   extraReferenceImageUrls?: string[];
+  sceneImageMode?: SceneImageMode;
   variant?: 'clean' | 'with-props';
   customPrompt?: string;
   preservePromptExact?: boolean;
@@ -3011,6 +3013,7 @@ export function buildCanvasSceneFinalPrompt(data: any, referenceImageCount: numb
   const name = String(data?.assetName || data?.name || data?.title || 'scene').trim();
   const description = String(data?.description || '').trim();
   const shortPrompt = firstCleanAssetPromptSeed(data?.visualPrompt, data?.prompt);
+  const layoutInstruction = sceneImageModeInstruction(data?.sceneImageMode);
   return [
     ...buildCanvasSceneProjectAuthority(projectContext),
     'Asset kind: scenes',
@@ -3033,7 +3036,7 @@ export function buildCanvasSceneFinalPrompt(data: any, referenceImageCount: numb
     'Keep the visual style consistent across all scene assets.',
     'Show the full usable location clearly with a stable camera angle and enough depth to understand blocking zones.',
     'Do not add characters. Do not turn this into a poster or title card.',
-    'Single image only. No captions, no UI, no watermark, no decorative text, no random labels unless explicitly required by the asset facts.',
+    layoutInstruction || 'Single image only. No captions, no UI, no watermark, no decorative text, no random labels unless explicitly required by the asset facts.',
     'Make it useful as a reusable AI video/image reference asset.',
   ].filter(Boolean).join('\n');
 }

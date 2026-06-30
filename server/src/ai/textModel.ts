@@ -76,15 +76,7 @@ async function callConfiguredChatModel(messages: ChatModelMessage[], aiModelId: 
   const provider = model.providerConfig;
   const endpoint = resolveChatCompletionsEndpoint(provider.baseUrl);
   const apiKey = resolveApiKey(model);
-  const defaultParams = isRecord(model.defaultParams) ? model.defaultParams : {};
-  const baseBody = {
-    temperature: 0.2,
-    max_tokens: defaultMaxTokensForModel(model),
-    ...(preferJsonMode ? { response_format: { type: "json_object" } } : {}),
-    ...defaultParams,
-    model: model.model,
-    messages,
-  };
+  const baseBody = buildTextModelRequestBody(model, messages, preferJsonMode);
   const maxAttempts = Math.max(1, config.textModelMaxAttempts);
   const timeoutMs = Math.max(30000, config.textModelTimeoutMs);
   let expandOutputBudget = false;
@@ -125,7 +117,7 @@ async function callConfiguredChatModel(messages: ChatModelMessage[], aiModelId: 
           await sleep(config.textModelRetryDelayMs);
           continue;
         }
-        badRequest(formatEmptyTextModelResponse(lastEmptyFinishReason));
+        badRequest(formatEmptyTextModelResponse(lastEmptyFinishReason, result.rawText));
       }
 
       return {
@@ -207,6 +199,63 @@ function retryTextModelBody<T extends Record<string, unknown>>(body: T, model: A
     ...next,
     max_tokens: expandedMaxTokensForModel(model, Number(next.max_tokens)),
   };
+}
+
+function buildTextModelRequestBody(model: AiModelLike, messages: ChatModelMessage[], preferJsonMode: boolean): Record<string, unknown> {
+  const defaultParams = isRecord(model.defaultParams) ? model.defaultParams : {};
+  const anthropicProvider = isAnthropicProvider(model);
+  const body: Record<string, unknown> = {
+    temperature: 0.2,
+    max_tokens: defaultMaxTokensForModel(model),
+    ...(preferJsonMode && !anthropicProvider ? { response_format: { type: "json_object" } } : {}),
+    ...defaultParams,
+    model: model.model,
+    messages,
+  };
+
+  if (!anthropicProvider) return body;
+
+  const { system, messages: nextMessages } = normalizeAnthropicMessages(messages);
+  const { response_format: _responseFormat, ...rest } = body;
+  return {
+    ...rest,
+    ...(system ? { system } : {}),
+    messages: nextMessages,
+  };
+}
+
+function normalizeAnthropicMessages(messages: ChatModelMessage[]): { system: string; messages: ChatModelMessage[] } {
+  const systemParts: string[] = [];
+  const nextMessages: ChatModelMessage[] = [];
+
+  for (const message of messages) {
+    if (message.role === "system") {
+      const text = messageContentToPlainText(message.content);
+      if (text) systemParts.push(text);
+      continue;
+    }
+    nextMessages.push(message);
+  }
+
+  return {
+    system: systemParts.join("\n\n"),
+    messages: nextMessages,
+  };
+}
+
+function messageContentToPlainText(content: ChatModelMessage["content"]): string {
+  if (typeof content === "string") return content.trim();
+  return content
+    .map((part) => part.type === "text" ? part.text : "")
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+function isAnthropicProvider(model: AiModelLike): boolean {
+  const provider = model.providerConfig;
+  const value = `${model.provider} ${provider?.providerType ?? ""} ${provider?.displayName ?? ""}`.toLowerCase();
+  return value.includes("anthropic") || value.includes("claude");
 }
 
 function omitResponseFormat<T extends Record<string, unknown>>(body: T): T {
@@ -313,11 +362,29 @@ function isLengthFinishReason(value: string): boolean {
   return /^(length|max_tokens|token_limit)$/i.test(value);
 }
 
-function formatEmptyTextModelResponse(finishReason: string): string {
+function formatEmptyTextModelResponse(finishReason: string, responseText = ""): string {
   if (isLengthFinishReason(finishReason)) {
     return "文本模型输出达到长度上限但没有返回可用内容。系统已自动重试并扩大输出预算，仍失败时请减少本次文本/资产复杂度，或切换到输出更稳定的文本模型。";
   }
+  if (looksLikeHtml(responseText)) {
+    return "Text model provider returned HTML instead of API JSON. Check the model provider Base URL; it should point to an OpenAI-compatible API endpoint, not the provider website homepage.";
+  }
+  if (responseText.trim() && parseJsonOrRaw(responseText)?.raw) {
+    return `Text model returned a non-JSON response: ${summarizeNonJsonResponse(responseText)}`;
+  }
   return "Text model returned an empty response.";
+}
+
+function looksLikeHtml(text: string): boolean {
+  return /^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text);
+}
+
+export function formatEmptyTextModelResponseForTest(finishReason: string, responseText = ""): string {
+  return formatEmptyTextModelResponse(finishReason, responseText);
+}
+
+export function buildTextModelRequestBodyForTest(model: AiModelLike, messages: ChatModelMessage[], preferJsonMode: boolean): Record<string, unknown> {
+  return buildTextModelRequestBody(model, messages, preferJsonMode);
 }
 
 function formatTextModelHttpError(status: number, statusText: string, payload: any, rawText: string, context?: { attempt: number; maxAttempts: number; durationMs: number }): string {

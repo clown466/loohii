@@ -5,6 +5,7 @@ import { Badge } from "../../components/ui/badge";
 import { Input } from "../../components/ui/input";
 import { cn } from "../../components/ui/utils";
 import { apiClient, type ModelConfig, type ModelProviderConfig } from "../../lib/apiClient";
+import { findRemovedModelConfigIds, type PersistedModelEntry } from "./modelFormPersistence";
 
 type ModelModalMode = "provider" | "model" | null;
 
@@ -16,6 +17,7 @@ type ProviderFormState = {
 
 type ModelFormEntry = {
   id: string;
+  configId?: string;
   model: string;
   displayName: string;
   expanded: boolean;
@@ -239,9 +241,10 @@ function parseModelNameInput(value: string): string[] {
     .filter(Boolean);
 }
 
-function createModelFormEntry(model: string, displayName = model, expanded = true): ModelFormEntry {
+function createModelFormEntry(model: string, displayName = model, expanded = true, configId?: string): ModelFormEntry {
   return {
-    id: `${model.toLowerCase()}-${Math.random().toString(36).slice(2)}`,
+    id: configId ?? `${model.toLowerCase()}-${Math.random().toString(36).slice(2)}`,
+    configId,
     model,
     displayName,
     expanded,
@@ -271,6 +274,24 @@ function entriesForModality(form: ModelFormState, modality: ModelModalityId): Mo
 
 function allModelEntriesByModality(form: ModelFormState): Array<{ modality: ModelModalityId; entries: ModelFormEntry[] }> {
   return form.modalities.map((modality) => ({ modality, entries: entriesForModality(form, modality) }));
+}
+
+function persistedEntriesForModelGroup(group: ModelConfigGroup | null): PersistedModelEntry[] {
+  return (group?.models ?? []).map((model) => ({
+    configId: model.id,
+    model: model.model,
+    modality: normalizeModelKindStrict(model.modality),
+  }));
+}
+
+function persistedEntriesForModelForm(form: ModelFormState): PersistedModelEntry[] {
+  return allModelEntriesByModality(form).flatMap(({ modality, entries }) =>
+    entries.map((entry) => ({
+      configId: entry.configId,
+      model: entry.model,
+      modality,
+    })),
+  );
 }
 
 function modelFormEntryKey(modality: ModelModalityId, entryId: string) {
@@ -511,7 +532,7 @@ export function ModelsSettings() {
     const modelDraftByModality = emptyModelDraftByModality();
     for (const item of groupModels) {
       const modality = normalizeModelKindStrict(item.modality);
-      modelEntriesByModality[modality].push(createModelFormEntry(item.model, item.displayName, true));
+      modelEntriesByModality[modality].push(createModelFormEntry(item.model, item.displayName, true, item.id));
     }
     setEditingModel(model ?? null);
     setEditingModelGroup(group);
@@ -567,11 +588,6 @@ export function ModelsSettings() {
 
   const removeModelEntry = async (modality: ModelModalityId, entryId: string) => {
     setRemovingModelId(entryId);
-    try {
-      await apiClient.disableModelConfig(entryId);
-    } catch {
-      // Backend returns 200 even if not found — ignore and always remove locally
-    }
     setModelForm((current) => ({
       ...current,
       modelEntriesByModality: {
@@ -665,6 +681,13 @@ export function ModelsSettings() {
         ...(payloadApiKey ? { apiKey: payloadApiKey } : {}),
         isActive: true,
       };
+      const removedModelConfigIds = findRemovedModelConfigIds(
+        persistedEntriesForModelGroup(editingModelGroup),
+        persistedEntriesForModelForm(modelForm),
+      );
+      for (const modelId of removedModelConfigIds) {
+        await apiClient.disableModelConfig(modelId);
+      }
       for (const { modality, entries } of modalityEntries) {
         for (const entry of entries) {
           await apiClient.upsertModelConfig({

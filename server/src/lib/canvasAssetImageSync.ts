@@ -6,6 +6,7 @@ export interface WorkflowAssetCanvasImageChange {
   imageUrl: string;
   imageAssetId: string;
   episodeId?: string;
+  force?: boolean;
 }
 
 export interface WorkflowAssetCanvasImageResult {
@@ -62,7 +63,7 @@ export function applyWorkflowAssetImageToCanvasScenes(
         if (nodeEpisodeId && !canvasSceneMatchesEpisode(nodeEpisodeId, change.episodeId)) return node;
       }
       const currentImageUrl = stringValue(data.imageUrl);
-      if (currentImageUrl && currentImageUrl !== stringValue(data.clipSyncUrl)) return node;
+      if (!change.force && currentImageUrl && currentImageUrl !== stringValue(data.clipSyncUrl)) return node;
       const patch: Record<string, unknown> = {
         imageUrl: nextImageUrl,
         clipSyncUrl: nextImageUrl,

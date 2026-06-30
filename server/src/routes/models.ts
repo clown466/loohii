@@ -602,6 +602,18 @@ async function testTextModel(model: AiModelLike) {
         latencyMs,
       };
     }
+    const payload = parseJsonMaybe(rawText);
+    if (!isRecord(payload) || !extractChatCompletionText(payload)) {
+      return {
+        ok: false,
+        status: "error",
+        message: looksLikeHtml(rawText)
+          ? "文本模型测试失败：供应商返回了 HTML 页面，不是 API JSON。请检查 Base URL，应填写 OpenAI-compatible API 地址而不是网站首页。"
+          : `文本模型测试失败：供应商没有返回可读的 chat completion 内容。${summarizeNonJsonResponse(rawText) || ""}`.trim(),
+        error: rawText.slice(0, 500),
+        latencyMs,
+      };
+    }
     return {
       ok: true,
       status: "ok",
@@ -779,6 +791,28 @@ function summarizeNonJsonResponse(text: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 180);
+}
+
+function looksLikeHtml(text: string): boolean {
+  return /^\s*<!doctype\s+html/i.test(text) || /^\s*<html[\s>]/i.test(text);
+}
+
+function extractChatCompletionText(payload: Record<string, unknown>): string {
+  const choices = payload.choices;
+  if (!Array.isArray(choices)) return "";
+  const first = choices[0];
+  if (!isRecord(first)) return "";
+  const message = first.message;
+  if (!isRecord(message)) return "";
+  const content = message.content;
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => isRecord(part) && typeof part.text === "string" ? part.text : "")
+      .join("\n")
+      .trim();
+  }
+  return "";
 }
 
 function parseJsonMaybe(text: string): unknown {

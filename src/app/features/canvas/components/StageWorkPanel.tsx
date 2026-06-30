@@ -181,7 +181,7 @@ export function StageWorkPanel({
                     onUploadAudioReference={item.key === 'characters' ? onUploadAudioReference : undefined}
                     onClearAudioReference={item.key === 'characters' ? onClearAudioReference : undefined}
                     onOpenCharacterPropPicker={item.key === 'characters' ? onOpenCharacterPropPicker : undefined}
-                    onGenerateImage={(asset) => onGenerateAssetImage(item.key, asset)}
+                    onGenerateImage={(asset, options) => onGenerateAssetImage(item.key, asset, options)}
                     onOpenHistory={(asset, variantFilter) => onOpenAssetHistory(item.key, asset, variantFilter)}
                     onPreviewImage={onPreviewAssetImage}
                     onAddToCanvas={onAddAssetToCanvas}
