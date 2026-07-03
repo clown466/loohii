@@ -40,6 +40,8 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
     return edge ? nodes.find((node) => node.id === edge.source) : undefined;
   }, [edges, id, nodes]);
   const incomingPrompt = useMemo(() => canvasNodePromptText(incomingSource), [incomingSource]);
+  const incomingSourceId = incomingSource?.id || '';
+  const incomingSourceLabel = useMemo(() => canvasNodePromptLabel(incomingSource), [incomingSource]);
   const answer = String(data.answer || '').trim();
   const status = String(data.status || 'waiting');
   const isInspecting = status === 'inspecting';
@@ -48,8 +50,8 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
   useEffect(() => {
     if (!incomingPrompt || data.sourcePrompt) return;
-    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
-  }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
+    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSourceId, sourceNodeLabel: incomingSourceLabel });
+  }, [data.sourcePrompt, id, incomingPrompt, incomingSourceId, incomingSourceLabel, updateNodeData]);
 
   useEffect(() => () => {
     inspectAbortRef.current?.abort();
@@ -83,8 +85,8 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
   const refreshFromIncoming = () => {
     updateNodeData(id, {
       sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource?.id || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
+      sourceNodeId: incomingSourceId,
+      sourceNodeLabel: incomingSourceLabel,
       status: incomingPrompt ? 'waiting' : 'failed',
       error: incomingPrompt ? '' : '左侧没有可读取的提示词。',
     });

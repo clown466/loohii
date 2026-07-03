@@ -10,9 +10,9 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   SelectionMode,
-  useOnSelectionChange,
   NodeChange,
   EdgeChange,
+  type Node,
   type Connection,
   type Edge,
   type OnConnectEnd,
@@ -146,6 +146,7 @@ import {
   canvasNodeAbsolutePosition,
   canvasNodeVisualSize,
   canvasNodeChangeSignature,
+  canvasNodeChangesForStore,
   canvasNodeListsEqual,
   canvasNodeReferenceUrl,
   canvasNodesBoundingBox,
@@ -206,17 +207,12 @@ import {
   getClipScenes,
   getImageFileAspectRatio,
   imageLabelFromUrl,
-  isAutoCanvasLayoutChange,
-  isAutoCanvasLayoutChangeBatch,
   isCanvasPromptWithinApiLimit,
   isImageDropFile,
-  isInteractiveCanvasResizeChange,
-  isMeasurementCanvasNodeChange,
   isProjectNotFoundError,
   isRecentGenerationRecord,
   isFirstFrameStrategy,
   isSeedanceMultiReferenceStrategy,
-  isTransientCanvasNodeChange,
   isVideoCanvasNode,
   isWorkflowImageModel,
   isWorkflowTextModel,
@@ -251,6 +247,7 @@ import {
   selectedPropNamesFromCharacter,
   setImageDragData,
   shouldAllowMissingBackendTaskRecovery,
+  shouldFitViewAfterCanvasLoad,
   shouldIgnoreStoppedCanvasGenerationRecord,
   shouldRecoverWorkflowAfterRequestError,
   shouldSkipCanvasGenerationReference,
@@ -297,6 +294,9 @@ const BATCH_TRANSLATION_SELECTED_NODE_TYPES = new Set([
   'workflow',
   'directorBoard',
 ]);
+
+const EMPTY_REACT_FLOW_NODES: Node[] = [];
+const EMPTY_REACT_FLOW_EDGES: Edge[] = [];
 
 function batchTranslationModelSearchText(model: ModelConfig): string {
   const looseModel = model as ModelConfig & {
@@ -531,7 +531,14 @@ function CanvasInner() {
   const canvasAutoNormalizeTransitionRef = useRef('');
   const reactFlowNodeSignatureRef = useRef('');
   const reactFlowEdgeSignatureRef = useRef('');
+  const reactFlowNodeSyncSignatureRef = useRef('');
+  const reactFlowEdgeSyncSignatureRef = useRef('');
   const activeCanvasSceneId = useMemo(() => workflowEpisodeCanvasSceneId(activeEpisodeId), [activeEpisodeId]);
+  const fitCanvasAfterLoadIfNeeded = useCallback((previousNodeCount: number) => {
+    const nextNodeCount = useCanvasStore.getState().nodes.length;
+    if (!shouldFitViewAfterCanvasLoad(previousNodeCount, nextNodeCount)) return;
+    window.setTimeout(() => fitView({ padding: 0.2, duration: 250 }), 0);
+  }, [fitView]);
   const activeEpisodeSummary = useMemo(
     () => episodeList.episodes.find((episode) => episode.id === activeEpisodeId) ?? episodeList.episodes[0],
     [activeEpisodeId, episodeList.episodes],
@@ -908,9 +915,11 @@ function CanvasInner() {
       }
       const nextCanvasSceneId = workflowEpisodeCanvasSceneId(resolvedEpisodeId);
       episodeWorkspaceCanvasLoadSceneRef.current = nextCanvasSceneId;
+      const previousNodeCount = useCanvasStore.getState().nodes.length;
       await loadCanvasScene(projectId, nextCanvasSceneId);
       if (loadSeq !== episodeWorkspaceLoadSeqRef.current) return;
       canvasLoadedRef.current = true;
+      fitCanvasAfterLoadIfNeeded(previousNodeCount);
       setGenerationRecords([]);
     } catch (error) {
       if (loadSeq === episodeWorkspaceLoadSeqRef.current) {
@@ -922,7 +931,7 @@ function CanvasInner() {
         setWorkflowLoading(false);
       }
     }
-  }, [loadCanvasScene, projectId, setEdgesTransient, setNodesTransient]);
+  }, [fitCanvasAfterLoadIfNeeded, loadCanvasScene, projectId, setEdgesTransient, setNodesTransient]);
 
   const createNextEpisodeWorkspace = useCallback(async () => {
     if (!projectId || projectId === 'local' || episodeCreating) return;
@@ -1003,9 +1012,13 @@ function CanvasInner() {
     }
     let cancelled = false;
     canvasLoadedRef.current = false;
+    const previousNodeCount = useCanvasStore.getState().nodes.length;
     loadCanvasScene(projectId || 'local', activeCanvasSceneId)
       .then(() => {
-        if (!cancelled) canvasLoadedRef.current = true;
+        if (!cancelled) {
+          canvasLoadedRef.current = true;
+          fitCanvasAfterLoadIfNeeded(previousNodeCount);
+        }
       })
       .catch((error) => {
         if (!cancelled) setWorkflowError(error instanceof Error ? error.message : '画布加载失败');
@@ -1013,7 +1026,7 @@ function CanvasInner() {
     return () => {
       cancelled = true;
     };
-  }, [activeCanvasSceneId, loadCanvasScene, projectId, workflowInitialLoaded]);
+  }, [activeCanvasSceneId, fitCanvasAfterLoadIfNeeded, loadCanvasScene, projectId, workflowInitialLoaded]);
 
   useEffect(() => {
     if (!canvasLoadedRef.current || projectUnavailable || !projectId || projectId === 'local') return;
@@ -1672,24 +1685,19 @@ function CanvasInner() {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      const currentNodes = useCanvasStore.getState().nodes;
-      if (isAutoCanvasLayoutChangeBatch(changes)) {
-        const layoutChanges = changes.filter((change) => !isMeasurementCanvasNodeChange(change));
-        if (layoutChanges.length === 0 || layoutChanges.every(isTransientCanvasNodeChange)) return;
-        const nextNodes = applyNodeChanges(layoutChanges, currentNodes);
-        if (changes.some(isInteractiveCanvasResizeChange)) {
-          setNodes(nextNodes);
-        } else {
-          setNodesTransient(nextNodes);
+      if (reactFlowNodeSyncSignatureRef.current) {
+        const nextSignature = changes.map((change) => [
+          change.type,
+          'id' in change ? change.id : '',
+          change.type === 'replace' || change.type === 'add' ? canvasNodeChangeSignature(change.item) : '',
+        ].join('|')).join('\n');
+        if (nextSignature === reactFlowNodeSyncSignatureRef.current) {
+          reactFlowNodeSyncSignatureRef.current = '';
+          return;
         }
-        return;
       }
-      const actionableChanges = changes.filter((change) => !isMeasurementCanvasNodeChange(change) && !isAutoCanvasLayoutChange(change));
-      if (actionableChanges.length === 0) return;
-      if (actionableChanges.every(isTransientCanvasNodeChange)) {
-        return;
-      }
-      const durableChanges = actionableChanges.filter((change) => !isTransientCanvasNodeChange(change));
+      const currentNodes = useCanvasStore.getState().nodes;
+      const { durableChanges, persist } = canvasNodeChangesForStore(changes);
       if (durableChanges.length === 0) return;
       const removedIds = new Set(
         durableChanges
@@ -1705,13 +1713,39 @@ function CanvasInner() {
       }
       if (removedIds.size > 0) markCanvasNodesDeleted(removedIds);
       const changedNodes = applyNodeChanges(durableChanges, currentNodes);
-      setNodes(detachNodesFromRemovedParents(changedNodes, removedIds, currentNodes));
+      const nextNodes = detachNodesFromRemovedParents(changedNodes, removedIds, currentNodes);
+      if (persist) {
+        setNodes(nextNodes);
+      } else {
+        setNodesTransient(nextNodes);
+      }
     },
     [markCanvasNodesDeleted, setNodes, setNodesTransient]
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
+      if (reactFlowEdgeSyncSignatureRef.current) {
+        const nextSignature = changes.map((change) => [
+          change.type,
+          'id' in change ? change.id : '',
+          change.type === 'replace' || change.type === 'add' ? [
+            change.item.id,
+            change.item.source,
+            change.item.target,
+            change.item.sourceHandle || '',
+            change.item.targetHandle || '',
+            change.item.type || '',
+            change.item.animated ? '1' : '0',
+            stableCanvasValue(change.item.style),
+            stableCanvasValue(change.item.data),
+          ].join('|') : '',
+        ].join('|')).join('\n');
+        if (nextSignature === reactFlowEdgeSyncSignatureRef.current) {
+          reactFlowEdgeSyncSignatureRef.current = '';
+          return;
+        }
+      }
       const currentEdges = useCanvasStore.getState().edges;
       if (changes.every((change) => change.type === 'select')) {
         return;
@@ -4168,14 +4202,12 @@ function CanvasInner() {
   const [connectionCreateMenu, setConnectionCreateMenu] = useState<ConnectionCreateMenu | null>(null);
   const connectionStartRef = useRef<ConnectionStartSnapshot | null>(null);
   const connectionMenuJustOpenedRef = useRef(false);
-  useOnSelectionChange({
-    onChange: useCallback(({ nodes: selectedNodes, edges: selectedEdges }) => {
-      const nextNodeIds = selectedNodes.map((node) => node.id).sort();
-      const nextEdgeIds = selectedEdges.map((edge) => edge.id).sort();
-      setSelectedCanvasNodeIds((current) => canvasIdListsEqual(current, nextNodeIds) ? current : nextNodeIds);
-      setSelectedCanvasEdgeIds((current) => canvasIdListsEqual(current, nextEdgeIds) ? current : nextEdgeIds);
-    }, []),
-  });
+  const handleSelectionChange = useCallback(({ nodes: selectedNodes, edges: selectedEdges }: { nodes: any[]; edges: any[] }) => {
+    const nextNodeIds = selectedNodes.map((node) => node.id).sort();
+    const nextEdgeIds = selectedEdges.map((edge) => edge.id).sort();
+    setSelectedCanvasNodeIds((current) => canvasIdListsEqual(current, nextNodeIds) ? current : nextNodeIds);
+    setSelectedCanvasEdgeIds((current) => canvasIdListsEqual(current, nextEdgeIds) ? current : nextEdgeIds);
+  }, []);
 
   // --- Node editing drawer ---
   const [editingNode, setEditingNode] = useState<string | null>(null);
@@ -5240,6 +5272,9 @@ function CanvasInner() {
     const signature = flowNodes.map(canvasNodeChangeSignature).join('\n');
     if (reactFlowNodeSignatureRef.current === signature) return;
     reactFlowNodeSignatureRef.current = signature;
+    reactFlowNodeSyncSignatureRef.current = flowNodes
+      .map((node) => ['replace', node.id, canvasNodeChangeSignature(node)].join('|'))
+      .join('\n');
     setReactFlowNodes(flowNodes);
   }, [flowNodes, setReactFlowNodes]);
 
@@ -5259,6 +5294,23 @@ function CanvasInner() {
       .join('\n');
     if (reactFlowEdgeSignatureRef.current === signature) return;
     reactFlowEdgeSignatureRef.current = signature;
+    reactFlowEdgeSyncSignatureRef.current = styledEdges
+      .map((edge) => [
+        'replace',
+        edge.id,
+        [
+          edge.id,
+          edge.source,
+          edge.target,
+          edge.sourceHandle || '',
+          edge.targetHandle || '',
+          edge.type || '',
+          edge.animated ? '1' : '0',
+          stableCanvasValue(edge.style),
+          stableCanvasValue(edge.data),
+        ].join('|'),
+      ].join('|'))
+      .join('\n');
     setReactFlowEdges(styledEdges);
   }, [styledEdges, setReactFlowEdges]);
 
@@ -5394,15 +5446,15 @@ function CanvasInner() {
         onDrop={handleCanvasDrop}
       >
         <ReactFlow
-          key={activeCanvasSceneId}
-          nodes={flowNodes}
-          edges={styledEdges}
+          defaultNodes={EMPTY_REACT_FLOW_NODES}
+          defaultEdges={EMPTY_REACT_FLOW_EDGES}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onConnectStart={handleConnectStart}
           onConnectEnd={handleConnectEnd}
           nodeTypes={nodeTypes}
+          onSelectionChange={handleSelectionChange}
           onPaneContextMenu={handlePaneContextMenu}
           onNodeContextMenu={handleNodeContextMenu}
           onEdgeClick={handleEdgeClick}
@@ -5413,7 +5465,6 @@ function CanvasInner() {
           minZoom={0.08}
           maxZoom={2.5}
           onlyRenderVisibleElements
-          fitView
           className="bg-background"
           colorMode="dark"
         >

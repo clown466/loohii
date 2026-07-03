@@ -49,6 +49,8 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
       .filter((node): node is NonNullable<typeof node> => Boolean(node))
   ), [edges, id, nodes]);
   const incomingPrompt = useMemo(() => canvasNodePromptText(incomingSource), [incomingSource]);
+  const incomingSourceId = incomingSource?.id || '';
+  const incomingSourceLabel = useMemo(() => canvasNodePromptLabel(incomingSource), [incomingSource]);
   const optimizedPrompt = String(data.optimizedPrompt || '').trim();
   const status = String(data.status || 'waiting');
   const isOptimizing = status === 'optimizing';
@@ -57,8 +59,8 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
   useEffect(() => {
     if (!incomingPrompt || data.sourcePrompt) return;
-    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
-  }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
+    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSourceId, sourceNodeLabel: incomingSourceLabel });
+  }, [data.sourcePrompt, id, incomingPrompt, incomingSourceId, incomingSourceLabel, updateNodeData]);
 
   useEffect(() => () => {
     optimizeAbortRef.current?.abort();
@@ -92,8 +94,8 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
   const refreshFromIncoming = () => {
     updateNodeData(id, {
       sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource?.id || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
+      sourceNodeId: incomingSourceId,
+      sourceNodeLabel: incomingSourceLabel,
       status: incomingPrompt ? 'waiting' : 'failed',
       error: incomingPrompt ? '' : '左侧没有可读取的提示词。',
     });

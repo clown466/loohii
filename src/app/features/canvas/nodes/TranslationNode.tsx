@@ -48,6 +48,8 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
       .filter((node): node is NonNullable<typeof node> => Boolean(node))
   ), [edges, id, nodes]);
   const incomingPrompt = useMemo(() => canvasNodePromptText(incomingSource), [incomingSource]);
+  const incomingSourceId = incomingSource?.id || '';
+  const incomingSourceLabel = useMemo(() => canvasNodePromptLabel(incomingSource), [incomingSource]);
   const translatedPrompt = String(data.translatedPrompt || '').trim();
   const targetLanguage = data.targetLanguage === 'Chinese' ? 'Chinese' : 'English';
   const sourceLanguage = data.sourceLanguage === 'Chinese' || data.sourceLanguage === 'English' ? data.sourceLanguage : 'auto';
@@ -58,26 +60,26 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
 
   useEffect(() => {
     if (!incomingPrompt || data.sourcePrompt) return;
-    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSource?.id || '', sourceNodeLabel: canvasNodePromptLabel(incomingSource) });
-  }, [data.sourcePrompt, id, incomingPrompt, incomingSource, updateNodeData]);
+    updateNodeData(id, { sourcePrompt: incomingPrompt, sourceNodeId: incomingSourceId, sourceNodeLabel: incomingSourceLabel });
+  }, [data.sourcePrompt, id, incomingPrompt, incomingSourceId, incomingSourceLabel, updateNodeData]);
 
   useEffect(() => {
-    if (!incomingPrompt || !incomingSource || isTranslating) return;
+    if (!incomingPrompt || !incomingSourceId || isTranslating) return;
     const storedSourcePrompt = String(data.sourcePrompt || '').trim();
     if (!storedSourcePrompt || storedSourcePrompt === incomingPrompt) return;
     const storedSourceNodeId = String(data.sourceNodeId || '');
-    const shouldFollowSource = data.batchTranslation === true || !storedSourceNodeId || storedSourceNodeId === incomingSource.id;
+    const shouldFollowSource = data.batchTranslation === true || !storedSourceNodeId || storedSourceNodeId === incomingSourceId;
     if (!shouldFollowSource) return;
     updateNodeData(id, {
       sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource.id,
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
+      sourceNodeId: incomingSourceId,
+      sourceNodeLabel: incomingSourceLabel,
       translatedPrompt: '',
       status: 'waiting',
       error: '左侧提示词已更新，旧译文已清空，请重新翻译。',
       translationStartedAt: '',
     });
-  }, [data.batchTranslation, data.sourceNodeId, data.sourcePrompt, id, incomingPrompt, incomingSource, isTranslating, updateNodeData]);
+  }, [data.batchTranslation, data.sourceNodeId, data.sourcePrompt, id, incomingPrompt, incomingSourceId, incomingSourceLabel, isTranslating, updateNodeData]);
 
   useEffect(() => () => {
     translationAbortRef.current?.abort();
@@ -111,8 +113,8 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
   const refreshFromIncoming = () => {
     updateNodeData(id, {
       sourcePrompt: incomingPrompt,
-      sourceNodeId: incomingSource?.id || '',
-      sourceNodeLabel: canvasNodePromptLabel(incomingSource),
+      sourceNodeId: incomingSourceId,
+      sourceNodeLabel: incomingSourceLabel,
       status: incomingPrompt ? 'waiting' : 'failed',
       error: incomingPrompt ? '' : '左侧没有可读取的提示词。',
     });

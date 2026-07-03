@@ -1589,6 +1589,10 @@ export function uniqueCanvasNodesById<T extends { id?: string }>(nodes: T[]): T[
   return changed ? next : nodes;
 }
 
+export function shouldFitViewAfterCanvasLoad(previousNodeCount: number, nextNodeCount: number): boolean {
+  return previousNodeCount === 0 && nextNodeCount > 0;
+}
+
 export function canvasGraphChangeSignature(nodes: any[], edges: any[]) {
   return [
     nodes.map(canvasNodeChangeSignature).join('\n'),
@@ -1631,6 +1635,24 @@ export function isAutoCanvasLayoutChangeBatch(changes: NodeChange[]) {
 
 export function isInteractiveCanvasResizeChange(change: NodeChange) {
   return change.type === 'dimensions' && change.resizing === true;
+}
+
+export function canvasNodeChangesForStore(changes: NodeChange[]): {
+  durableChanges: NodeChange[];
+  persist: boolean;
+} {
+  if (isAutoCanvasLayoutChangeBatch(changes)) {
+    return { durableChanges: [], persist: false };
+  }
+  const durableChanges = changes.filter((change) => (
+    !isMeasurementCanvasNodeChange(change) &&
+    !isAutoCanvasLayoutChange(change) &&
+    !isTransientCanvasNodeChange(change)
+  ));
+  return {
+    durableChanges,
+    persist: durableChanges.length > 0,
+  };
 }
 
 export function collectCanvasSectionDescendantIds(nodes: Array<{ id: string; parentId?: string }>, sectionId: string): Set<string> {
