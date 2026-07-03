@@ -1517,7 +1517,7 @@ async function executeDeterministicAgentFallback(context: Omit<AgentActionExecut
   if (!target) return [];
   const data = isRecord(target.data) ? target.data : {};
   const nodeId = stringValue(target.id);
-  const currentPrompt = stringValue(data.finalPrompt) || stringValue(data.prompt) || stringValue(data.seedancePrompt) || "";
+  const currentPrompt = stringValue(data.finalPrompt) || stringValue(data.videoPrompt) || stringValue(data.prompt) || stringValue(data.seedancePrompt) || "";
   if (!nodeId || !currentPrompt) return [];
   const nextPrompt = buildComicBubbleStoryboardPrompt(currentPrompt);
   const actions: AgentAction[] = [
@@ -2688,7 +2688,7 @@ async function removeAssetFromClipForAgent(
     if (!removeNodeIds.size) return node;
     if (!agentClipPromptTargetType(node) || !nodeMatchesClip(node, clipId)) return node;
     const data = isRecord(node.data) ? node.data : {};
-    const prompt = firstNonEmptyForAgent(data.finalPrompt, data.seedancePrompt, data.videoPrompt, data.prompt, data.sourcePrompt);
+    const prompt = firstNonEmptyForAgent(data.finalPrompt, data.videoPrompt, data.prompt, data.seedancePrompt, data.sourcePrompt);
     if (!prompt) return node;
     const nextPrompt = removeNamesFromPrompt(prompt, promptNames);
     if (!nextPrompt || nextPrompt === prompt) return node;
@@ -2722,7 +2722,7 @@ async function removeAssetFromClipForAgent(
     for (const node of patchedNodes) {
       if (!agentClipPromptTargetType(node) || !nodeMatchesClip(node, clipId)) continue;
       const data = isRecord(node.data) ? node.data : {};
-      const prompt = firstNonEmptyForAgent(data.finalPrompt, data.seedancePrompt, data.videoPrompt, data.prompt, data.sourcePrompt);
+      const prompt = firstNonEmptyForAgent(data.finalPrompt, data.videoPrompt, data.prompt, data.seedancePrompt, data.sourcePrompt);
       if (!prompt) continue;
       const type = stringValue(node.type);
       const field = type === "video" || stringValue(data.workflowKind) === "video" ? "video" : type === "generation" ? "storyboard" : "";
@@ -3246,7 +3246,7 @@ function summarizeCanvasForAgent(
     .filter(isRecord)
     .map((node) => {
       const data = isRecord(node.data) ? node.data : {};
-      const prompt = stringValue(data.finalPrompt) || stringValue(data.seedancePrompt) || stringValue(data.videoPrompt) || stringValue(data.prompt);
+      const prompt = stringValue(data.finalPrompt) || stringValue(data.videoPrompt) || stringValue(data.prompt) || stringValue(data.seedancePrompt);
       const isLinkedNode = linkedNodeIds.has(stringValue(node.id));
       return {
         id: stringValue(node.id),

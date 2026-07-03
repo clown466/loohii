@@ -23,6 +23,11 @@ import {
 import { cn } from '../../utils/cn';
 import { CanvasNodeKind, useCanvasStore } from '../../stores/useCanvasStore';
 import { useProjectStore } from '../../stores/useProjectStore';
+import {
+  assetHistoryImageIsWithProps as assetHistoryImageIsWithPropsCore,
+  orderedReusableAssetHistoryImages as orderedReusableAssetHistoryImagesCore,
+  reusableAssetHistoryImages as reusableAssetHistoryImagesCore,
+} from './assetHistorySelection';
 import { type SceneImageMode, sceneImageModeInstruction } from './sceneImageMode';
 import {
   apiClient,
@@ -1547,6 +1552,24 @@ export function isAutoCanvasLayoutChangeBatch(changes: NodeChange[]) {
 
 export function isInteractiveCanvasResizeChange(change: NodeChange) {
   return change.type === 'dimensions' && change.resizing === true;
+}
+
+export function canvasNodeChangesForStore(changes: NodeChange[]): {
+  durableChanges: NodeChange[];
+  persist: boolean;
+} {
+  if (isAutoCanvasLayoutChangeBatch(changes)) {
+    return { durableChanges: [], persist: false };
+  }
+  const durableChanges = changes.filter((change) => (
+    !isMeasurementCanvasNodeChange(change) &&
+    !isAutoCanvasLayoutChange(change) &&
+    !isTransientCanvasNodeChange(change)
+  ));
+  return {
+    durableChanges,
+    persist: durableChanges.length > 0,
+  };
 }
 
 export function collectCanvasSectionDescendantIds(nodes: Array<{ id: string; parentId?: string }>, sectionId: string): Set<string> {
@@ -3794,29 +3817,19 @@ export function propIsBoundToCharacter(character: WorkflowAssetItem, prop: Workf
 }
 
 export function assetHistoryImageIsWithProps(image: WorkflowAssetImageHistoryItem): boolean {
-  if (image.variant === 'with-props') return true;
-  const text = [
-    image.title,
-    image.prompt,
-    image.revisedPrompt,
-  ].filter(Boolean).join('\n').toLowerCase();
-  if (/character image variant:\s*with signature carried props|personal prop continuity|signature carried props|道具版|绑定道具|with-props/.test(text)) return true;
-  return Boolean(image.prompt && image.referenceImageCount && image.referenceImageCount >= 2);
+  return assetHistoryImageIsWithPropsCore(image);
 }
 
 export function reusableAssetHistoryImages(kind: WorkflowAssetKind, images: WorkflowAssetImageHistoryItem[]) {
-  return images
-    .filter((image) => image.id && normalizeReusableImageSource(image.url))
-    .filter((image) => image.status ? !/failed|canceled/i.test(image.status) : true)
-    .filter((image) => kind === 'characters' ? !assetHistoryImageIsWithProps(image) : true);
+  return reusableAssetHistoryImagesCore(kind, images, normalizeReusableImageSource);
+}
+
+export function orderedReusableAssetHistoryImages(kind: WorkflowAssetKind, images: WorkflowAssetImageHistoryItem[]) {
+  return orderedReusableAssetHistoryImagesCore(kind, images, normalizeReusableImageSource);
 }
 
 export async function chooseReachableAssetHistoryImage(kind: WorkflowAssetKind, images: WorkflowAssetImageHistoryItem[]) {
-  const reusable = reusableAssetHistoryImages(kind, images);
-  const ordered = [
-    ...reusable.filter((image) => image.isCurrent),
-    ...reusable.filter((image) => !image.isCurrent),
-  ];
+  const ordered = orderedReusableAssetHistoryImages(kind, images);
   const seen = new Set<string>();
   for (const image of ordered) {
     if (seen.has(image.id)) continue;
@@ -4843,9 +4856,13 @@ export function canvasNodeReferenceUrl(node: { type?: string; data?: any }): str
   return '';
 }
 
+export function canvasVideoPromptText(data: any): string {
+  return String(data?.videoPrompt || data?.prompt || data?.seedancePrompt || '').trim();
+}
+
 export function canvasNodePromptText(node: { type?: string; data?: any } | undefined): string {
   const data = node?.data ?? {};
-  if (node?.type === 'video') return String(data.seedancePrompt || data.videoPrompt || data.prompt || '').trim();
+  if (node?.type === 'video') return canvasVideoPromptText(data);
   if (node?.type === 'generation') return String(data.finalPrompt || data.prompt || data.submittedPrompt || data.visualPrompt || '').trim();
   if (node?.type === 'character') return String(data.finalPrompt || data.visualPrompt || data.prompt || data.traits || '').trim();
   if (node?.type === 'imageInput') return String(data.sourcePrompt || data.prompt || data.label || '').trim();
@@ -4854,7 +4871,7 @@ export function canvasNodePromptText(node: { type?: string; data?: any } | undef
   if (node?.type === 'promptOptimizer') return String(data.optimizedPrompt || data.sourcePrompt || '').trim();
   if (node?.type === 'promptInspector') return String(data.answer || data.sourcePrompt || '').trim();
   if (node?.type === 'agent') return String(data.request || data.lastRequest || '').trim();
-  return String(data.finalPrompt || data.seedancePrompt || data.videoPrompt || data.prompt || data.sourcePrompt || data.description || '').trim();
+  return String(data.finalPrompt || data.videoPrompt || data.prompt || data.seedancePrompt || data.sourcePrompt || data.description || '').trim();
 }
 
 export function canvasNodePromptLabel(node: { type?: string; data?: any } | undefined): string {

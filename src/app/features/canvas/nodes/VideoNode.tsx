@@ -23,6 +23,7 @@ import {
   canvasGenerationStartedAt,
   canvasNodeEpisodeId,
   canvasNodeReferenceUrl,
+  canvasVideoPromptText,
   isCanvasPromptWithinApiLimit,
   isDreaminaWebVideoPromptWithinLimit,
   canvasPromptTooLongError,
@@ -110,7 +111,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
   const sourceEpisodeId = canvasNodeEpisodeId(data);
   const clipId = typeof data.clipId === 'string' ? data.clipId : '';
   const clipTitle = typeof data.title === 'string' ? data.title : '';
-  const prompt = String(data.seedancePrompt || data.videoPrompt || data.prompt || '').trim();
+  const prompt = canvasVideoPromptText(data);
   const selectedResolution = normalizeVideoResolution(data.resolution);
   const selectedDuration = normalizeVideoDuration(data.durationSeconds ?? data.duration);
   const includeAudio = data.includeAudio !== false;

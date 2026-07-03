@@ -43,6 +43,7 @@ const LOCAL_UPLOAD_ROOT = process.env.LOCAL_UPLOAD_ROOT || "/var/lib/loohii/uplo
 const DREAMINA_CLI_PATH = process.env.DREAMINA_CLI_PATH || "dreamina";
 const ACTIVE_IMAGE_GENERATION_LOCK_TTL_MS = 15 * 60 * 1000;
 const IMAGE_GENERATION_RUNNING_TTL_MS = 20 * 60 * 1000;
+const WORKFLOW_METADATA_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 } as const;
 const GENERATED_IMAGE_DOWNLOAD_TIMEOUT_MS = 60 * 1000;
 const GENERATED_IMAGE_DOWNLOAD_RETRY_COUNT = 3;
 const DREAMINA_CLI_TIMEOUT_MS = 180 * 1000;
@@ -2961,7 +2962,7 @@ async function syncWorkflowAssetReference(
     });
 
     return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
-  });
+  }, WORKFLOW_METADATA_TRANSACTION_OPTIONS);
 }
 
 async function syncWorkflowGeneratedAssetImage(
@@ -3046,7 +3047,7 @@ async function syncWorkflowGeneratedAssetImage(
     });
 
     return { ...nextWorkflow, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
-  });
+  }, WORKFLOW_METADATA_TRANSACTION_OPTIONS);
 }
 
 async function syncWorkflowSelectedAssetImage(

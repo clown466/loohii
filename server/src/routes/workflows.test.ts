@@ -1,7 +1,29 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { TEAM_SCENE_PATTERN } from "./workflowPatterns.js";
 import { workflowsTestInternals } from "./workflows";
+
+test("workflow asset metadata writebacks use extended Prisma transaction timeout", () => {
+  const workflowSource = readFileSync(new URL("./workflows.ts", import.meta.url), "utf8");
+
+  for (const functionName of ["syncWorkflowAssetReference", "syncWorkflowGeneratedAssetImage"]) {
+    const start = workflowSource.indexOf(`async function ${functionName}`);
+    assert.notEqual(start, -1, `${functionName} should exist`);
+    const nextFunction = workflowSource.indexOf("\nasync function ", start + 1);
+    const body = workflowSource.slice(start, nextFunction === -1 ? workflowSource.length : nextFunction);
+    assert.match(body, /\}, WORKFLOW_METADATA_TRANSACTION_OPTIONS\);/, `${functionName} must not use Prisma's default 5s transaction timeout`);
+  }
+
+  const characterSource = readFileSync(new URL("./characters.ts", import.meta.url), "utf8");
+  for (const functionName of ["syncWorkflowCharacterReference", "syncWorkflowCharacterAudioReference", "clearWorkflowCharacterAudioReference"]) {
+    const start = characterSource.indexOf(`async function ${functionName}`);
+    assert.notEqual(start, -1, `${functionName} should exist`);
+    const nextFunction = characterSource.indexOf("\nasync function ", start + 1);
+    const body = characterSource.slice(start, nextFunction === -1 ? characterSource.length : nextFunction);
+    assert.match(body, /\}, WORKFLOW_METADATA_TRANSACTION_OPTIONS\);/, `${functionName} must not use Prisma's default 5s transaction timeout`);
+  }
+});
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

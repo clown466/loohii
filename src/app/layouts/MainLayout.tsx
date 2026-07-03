@@ -700,7 +700,7 @@ function buildAgentCanvasContext(projectId: string) {
       clipId: shortAgentContextString(data.clipId),
       clipTitle: shortAgentContextString(data.clipTitle),
       status: shortAgentContextString(data.status || data.videoStatus),
-      prompt: shortAgentContextString(data.finalPrompt || data.seedancePrompt || data.videoPrompt || data.prompt, selectedNodes.length ? 500 : 180),
+      prompt: shortAgentContextString(data.finalPrompt || data.videoPrompt || data.prompt || data.seedancePrompt, selectedNodes.length ? 500 : 180),
       hasImage: Boolean(data.outputImage || data.imageUrl || data.avatar || data.generatedImage),
       hasVideo: Boolean(data.outputVideo),
     };

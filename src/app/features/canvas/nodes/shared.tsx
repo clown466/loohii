@@ -73,6 +73,7 @@ export {
   canvasSectionToneClasses,
   canvasNodeEpisodeId,
   canvasNodePromptText,
+  canvasVideoPromptText,
   canvasNodePromptLabel,
   canvasNodeReferenceUrl,
   translatedPromptPatchForNode,

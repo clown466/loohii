@@ -708,7 +708,7 @@ function CanvasInner() {
       if (node.type === 'video') {
         const videoStatus = String(node.data?.videoStatus || node.data?.status || '');
         if (!['generating', 'submitted'].includes(videoStatus)) return node;
-        const prompt = String(node.data?.videoPrompt || node.data?.seedancePrompt || node.data?.prompt || '');
+        const prompt = String(node.data?.videoPrompt || node.data?.prompt || node.data?.seedancePrompt || '');
         const generationStartedAt = String(node.data?.generationStartedAt || '');
         const generationId = String(node.data?.generationId || '');
         const latestRecord = findLatestCanvasVideoGenerationRecordForNode(
@@ -888,8 +888,11 @@ function CanvasInner() {
     setWorkflowLoading(true);
     setWorkflowError(null);
     canvasLoadedRef.current = false;
-    setNodesTransient([]);
-    setEdgesTransient([]);
+    const canvasState = useCanvasStore.getState();
+    if (canvasState.activeProjectId !== projectId || canvasState.nodes.length === 0) {
+      setNodesTransient([]);
+      setEdgesTransient([]);
+    }
     try {
       const remote = await apiClient.getProjectWorkflow(projectId, { episodeId });
       if (loadSeq !== episodeWorkspaceLoadSeqRef.current) return;
@@ -1059,9 +1062,11 @@ function CanvasInner() {
           .map((result) => String(result?.sceneId || ''))
           .find(Boolean) || activeCanvasSceneId;
         canvasLoadedRef.current = false;
+        const previousNodeCount = useCanvasStore.getState().nodes.length;
         void loadCanvasScene(projectId, refreshedSceneId)
           .then(() => {
             canvasLoadedRef.current = true;
+            fitCanvasAfterLoadIfNeeded(previousNodeCount);
             showCanvasDropStatus(refreshedSceneId === activeCanvasSceneId ? '项目总控已更新画布。' : `项目总控已更新画布场景 ${refreshedSceneId}。`);
           })
           .catch((error) => {
@@ -1381,8 +1386,11 @@ function CanvasInner() {
     setProjectUnavailable(false);
     setWorkflowDraftProjectId(null);
     canvasLoadedRef.current = false;
-    setNodesTransient([]);
-    setEdgesTransient([]);
+    const canvasState = useCanvasStore.getState();
+    if (canvasState.activeProjectId !== projectId || canvasState.nodes.length === 0) {
+      setNodesTransient([]);
+      setEdgesTransient([]);
+    }
 
     async function loadWorkflow() {
       let remote = null;
@@ -2327,27 +2335,34 @@ function CanvasInner() {
       let matched = 0;
       let scanned = 0;
       const missed: string[] = [];
+      const failed: string[] = [];
       for (const target of targets) {
         scanned += 1;
         setAssetGenerationStatus(`正在验证历史图片 ${scanned}/${targets.length}：${target.name}`);
-        const history = await apiClient.listWorkflowAssetImages(projectId, {
-          assetKind: target.kind,
-          assetName: target.name,
-          episodeId: activeEpisodeId,
-        });
-        const image = await chooseReachableAssetHistoryImage(target.kind, history.images);
-        if (!image) {
-          missed.push(target.name);
+        try {
+          const history = await apiClient.listWorkflowAssetImages(projectId, {
+            assetKind: target.kind,
+            assetName: target.name,
+            episodeId: activeEpisodeId,
+          });
+          const image = await chooseReachableAssetHistoryImage(target.kind, history.images);
+          if (!image) {
+            missed.push(target.name);
+            continue;
+          }
+          const selected = await apiClient.selectWorkflowAssetImage(projectId, {
+            episodeId: activeEpisodeId,
+            assetKind: target.kind,
+            assetName: target.name,
+            assetId: image.id,
+          });
+          latestWorkflow = selected.workflow;
+          matched += 1;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '选择失败';
+          failed.push(`${target.name}：${message}`);
           continue;
         }
-        const selected = await apiClient.selectWorkflowAssetImage(projectId, {
-          episodeId: activeEpisodeId,
-          assetKind: target.kind,
-          assetName: target.name,
-          assetId: image.id,
-        });
-        latestWorkflow = selected.workflow;
-        matched += 1;
       }
       if (latestWorkflow) {
         setWorkflowAssets(latestWorkflow.assets ?? defaultWorkflowAssets());
@@ -2358,8 +2373,8 @@ function CanvasInner() {
         await refreshCanvasAfterAssetReferenceChange();
       }
       setAssetGenerationStatus(matched > 0
-        ? `已从可访问历史图片重新匹配 ${matched}/${targets.length} 个资产，并同步画布引用。${missed.length ? `未匹配：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}`
-        : `没有匹配到可访问的历史图片。${missed.length ? `检查过：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}`);
+        ? `已从可访问历史图片重新匹配 ${matched}/${targets.length} 个资产，并同步画布引用。${missed.length ? `未匹配：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}${failed.length ? ` 失败：${failed.slice(0, 3).join('；')}${failed.length > 3 ? '等' : ''}` : ''}`
+        : `没有匹配到可访问的历史图片。${missed.length ? `检查过：${missed.slice(0, 6).join('、')}${missed.length > 6 ? '等' : ''}` : ''}${failed.length ? ` 失败：${failed.slice(0, 3).join('；')}${failed.length > 3 ? '等' : ''}` : ''}`);
     } catch (error) {
       setAssetGenerationStatus(error instanceof Error ? error.message : '历史图片加载失败');
     } finally {
@@ -2740,6 +2755,7 @@ function CanvasInner() {
       if (variant !== 'with-props') {
         await refreshCanvasAfterAssetReferenceChange();
       }
+      window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
       setGenerationMessage(variant === 'with-props'
         ? `${assetName} 道具版资产图已生成到历史图。需要使用时点“道具版”选择并设为当前图。${assetGenerationAspectRatio} / ${assetGenerationResolution.toUpperCase()}`
         : `${assetName}资产图已生成并写回资产，可在历史图中切换当前图。${assetGenerationAspectRatio} / ${assetGenerationResolution.toUpperCase()}`);
@@ -2752,6 +2768,7 @@ function CanvasInner() {
         setAssetHistoryItems(refreshed.images);
       }
     } catch (error) {
+      window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
       setGenerationMessage(error instanceof Error ? error.message : '资产图生成失败');
     } finally {
       setAssetGenerationBusyKeys((current) => current.filter((key) => key !== busyKey));

@@ -12,6 +12,7 @@ import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 const CHARACTER_TRAIT_TEXT_MAX_CHARS = 600;
+const WORKFLOW_METADATA_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 30_000 } as const;
 const COMPACT_CHARACTER_TRAIT_KEYS = new Set([
   "visualAuthority",
   "referenceImageAssetId",
@@ -537,7 +538,7 @@ async function syncWorkflowCharacterReference(
     });
 
     return { ...nextWorkflowCenter, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(finalMetadata) };
-  });
+  }, WORKFLOW_METADATA_TRANSACTION_OPTIONS);
 }
 
 async function syncWorkflowCharacterAudioReference(
@@ -620,7 +621,7 @@ async function syncWorkflowCharacterAudioReference(
     });
 
     return { ...nextWorkflowCenter, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(nextMetadata) };
-  });
+  }, WORKFLOW_METADATA_TRANSACTION_OPTIONS);
 }
 
 async function clearWorkflowCharacterAudioReference(
@@ -687,7 +688,7 @@ async function clearWorkflowCharacterAudioReference(
     });
 
     return { ...nextWorkflowCenter, episodeId: targetEpisodeId, episodes: getWorkflowEpisodeList(nextMetadata) };
-  });
+  }, WORKFLOW_METADATA_TRANSACTION_OPTIONS);
 }
 
 type CharacterRouteWorkflowState = {
