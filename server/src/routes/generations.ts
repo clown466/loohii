@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { notifyGenerationUpdated } from "../events/notifyGenerationUpdated.js";
 import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound, routeParam } from "../lib/httpErrors";
 import { prisma } from "../lib/prisma";
@@ -98,6 +99,7 @@ router.post(
       },
       include: generationIncludeActiveAssets(),
     });
+    notifyGenerationUpdated(req.app, { projectId: generation.projectId, userId: generation.userId, generationId: generation.id, status: generation.status });
     created(res, serializeGeneration(generation));
   }),
 );
@@ -138,6 +140,9 @@ router.patch(
       data: input,
       include: generationIncludeActiveAssets(),
     });
+    if (input.status) {
+      notifyGenerationUpdated(req.app, { projectId: updated.projectId, userId: updated.userId, generationId: updated.id, status: updated.status });
+    }
     ok(res, serializeGeneration(updated));
   }),
 );
@@ -154,6 +159,7 @@ router.post(
       data: { status: "QUEUED", errorMessage: null, queuedAt: new Date(), startedAt: null, completedAt: null },
       include: generationIncludeActiveAssets(),
     });
+    notifyGenerationUpdated(req.app, { projectId: updated.projectId, userId: updated.userId, generationId: updated.id, status: "QUEUED" });
     ok(res, serializeGeneration(updated));
   }),
 );
@@ -169,6 +175,7 @@ router.delete(
       where: { id: generation.id },
       data: { status: "CANCELED" },
     });
+    notifyGenerationUpdated(req.app, { projectId: generation.projectId, userId: generation.userId, generationId: generation.id, status: "CANCELED" });
     ok(res, { deleted: true });
   }),
 );

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Application } from "express";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -8,6 +8,7 @@ import type { Prisma } from "@prisma/client";
 import { TEAM_SCENE_PATTERN } from "./workflowPatterns.js";
 import { callDreaminaWebVideoModel, preflightDreaminaWebVideoUpload, queryDreaminaWebVideoModel } from "../ai/dreaminaWebBridge";
 import { callConfiguredImageModel } from "../ai/imageModel";
+import { notifyGenerationUpdated } from "../events/notifyGenerationUpdated.js";
 import { callConfiguredPlainTextModel, callConfiguredTextModel, callConfiguredVisionTextModel } from "../ai/textModel";
 import { config } from "../config";
 import { asyncRoute } from "../lib/asyncRoute";
@@ -942,7 +943,7 @@ router.post(
       ...(referenceImageUrls.length > 0 ? { image_urls: referenceImageUrls } : {}),
       ...(outputCount > 1 ? { n: outputCount } : {}),
     };
-    await expireStaleImageGenerations(project.id, req.user!.id);
+    await expireStaleImageGenerations(project.id, req.user!.id, req.app);
     const generationLockKey = imageGenerationLockKey({
       kind: "canvas-image-generation",
       userId: req.user!.id,
@@ -978,6 +979,7 @@ router.post(
         },
       });
       generationId = generation.id;
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "RUNNING" });
 
       if (input.submitOnly) {
         backgroundStarted = true;
@@ -1036,6 +1038,7 @@ router.post(
           completedAt: new Date(),
         },
       });
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId, status: "FAILED" });
       logRawImageGenerationFailure(generationId, error, message);
       badRequest(message);
     } finally {
@@ -1050,7 +1053,7 @@ router.post(
   "/projects/:projectId/workflow/canvas/generate-video",
   asyncRoute(async (req, res) => {
     const project = await findOwnedProject(routeParam(req.params.projectId, "projectId"), req.user!.id);
-    await expireStaleVideoGenerations(project.id, req.user!.id);
+    await expireStaleVideoGenerations(project.id, req.user!.id, req.app);
     const input = canvasVideoGenerationSchema.parse(req.body);
     const prompt = input.prompt.trim();
     if (!prompt) badRequest("Video prompt is required.");
@@ -1241,6 +1244,9 @@ router.post(
         startedAt: new Date(),
       },
     });
+    if (!existingGeneration) {
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "RUNNING" });
+    }
 
     try {
       const result = await runCanvasVideoGeneration(req, providerContext, {
@@ -1291,6 +1297,7 @@ router.post(
           },
         },
       });
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: updatedGeneration.status });
 
       let asset: Awaited<ReturnType<typeof prisma.asset.create>> | null = null;
       if (result.video?.url) {
@@ -1344,6 +1351,7 @@ router.post(
           completedAt: new Date(),
         },
       });
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "FAILED" });
       badRequest(message);
     }
   }),
@@ -1552,7 +1560,7 @@ router.post(
     const visualConflictWarning = input.assetKind === "scenes"
       ? sceneVisualConflictWarning(currentBible, prompt)
       : "";
-    await expireStaleImageGenerations(project.id, req.user!.id);
+    await expireStaleImageGenerations(project.id, req.user!.id, req.app);
     const generationLockKey = imageGenerationLockKey({
       kind: "workflow-asset-image",
       userId: req.user!.id,
@@ -1595,6 +1603,7 @@ router.post(
         },
       });
       generationId = generation.id;
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "RUNNING" });
 
       const result = await callConfiguredImageModel({
         prompt,
@@ -1653,6 +1662,7 @@ router.post(
           },
         },
       });
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "SUCCEEDED" });
       const nextWorkflow = input.writeBackToAsset === false
         ? (() => {
             const workflow = getWorkflowState(project.metadata, requestEpisodeId);
@@ -1685,6 +1695,7 @@ router.post(
           completedAt: new Date(),
         },
       });
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId, status: "FAILED" });
       logRawImageGenerationFailure(generationId, error, message);
       badRequest(message);
     } finally {
@@ -9804,7 +9815,7 @@ function releaseActiveImageGeneration(key: string) {
 }
 
 function runCanvasImageGenerationJob(input: {
-  req: { get(name: string): string | undefined; protocol: string };
+  req: { get(name: string): string | undefined; protocol: string; app?: Application };
   userId: string;
   projectId: string;
   generationId: string;
@@ -9832,6 +9843,9 @@ function runCanvasImageGenerationJob(input: {
       }).catch((updateError: unknown) => {
         console.warn(`[image-generation] generation=${input.generationId} failed_to_persist_failure ${rawImageGenerationMessage(updateError)}`);
       });
+      if (input.req.app) {
+        notifyGenerationUpdated(input.req.app, { projectId: input.projectId, userId: input.userId, generationId: input.generationId, status: "FAILED" });
+      }
       logRawImageGenerationFailure(input.generationId, error, message);
     } finally {
       releaseActiveImageGeneration(input.generationLockKey);
@@ -9840,7 +9854,7 @@ function runCanvasImageGenerationJob(input: {
 }
 
 async function completeCanvasImageGenerationJob(input: {
-  req: { get(name: string): string | undefined; protocol: string };
+  req: { get(name: string): string | undefined; protocol: string; app?: Application };
   userId: string;
   projectId: string;
   generationId: string;
@@ -9915,6 +9929,9 @@ async function completeCanvasImageGenerationJob(input: {
       },
     },
   });
+  if (input.req.app) {
+    notifyGenerationUpdated(input.req.app, { projectId: input.projectId, userId: input.userId, generationId: input.generationId, status: "SUCCEEDED" });
+  }
 
   return { generation, asset: assets[0], assets, image: persistedImages[0], images: persistedImages };
 }
@@ -11239,44 +11256,62 @@ function dreaminaWebMissingSubmitIdFailureMessage(): string {
   return "Dreamina Web 视频任务未成功提交：上传/提交/查询超时，未拿到 submit_id；Dreamina 后台没有可查询任务，请重新预检后再生成。";
 }
 
-async function expireStaleImageGenerations(projectId: string, userId: string) {
+async function expireStaleImageGenerations(projectId: string, userId: string, app?: Application) {
   const cutoff = new Date(Date.now() - IMAGE_GENERATION_RUNNING_TTL_MS);
+  const staleWhere = {
+    projectId,
+    userId,
+    status: "RUNNING",
+    startedAt: { lt: cutoff },
+    OR: [
+      { input: { path: ["kind"], equals: "canvas-image-generation" } },
+      { input: { path: ["kind"], equals: "workflow-asset-image" } },
+      { input: { path: ["kind"], equals: "workflow-asset-image-generation" } },
+    ],
+  } as const;
+  const affected = app
+    ? await prisma.generation.findMany({ where: staleWhere, select: { id: true, projectId: true, userId: true } })
+    : [];
   await prisma.generation.updateMany({
-    where: {
-      projectId,
-      userId,
-      status: "RUNNING",
-      startedAt: { lt: cutoff },
-      OR: [
-        { input: { path: ["kind"], equals: "canvas-image-generation" } },
-        { input: { path: ["kind"], equals: "workflow-asset-image" } },
-        { input: { path: ["kind"], equals: "workflow-asset-image-generation" } },
-      ],
-    },
+    where: staleWhere,
     data: {
       status: "FAILED",
       errorMessage: "图片生成请求已超过后台等待时间，已自动清理。若稍后生成记录里出现成功图片，画布会自动恢复结果。",
       completedAt: new Date(),
     },
   });
+  if (app) {
+    for (const record of affected) {
+      notifyGenerationUpdated(app, { projectId: record.projectId, userId: record.userId, generationId: record.id, status: "FAILED" });
+    }
+  }
 }
 
-async function expireStaleVideoGenerations(projectId: string, userId: string) {
+async function expireStaleVideoGenerations(projectId: string, userId: string, app?: Application) {
   const cutoff = new Date(Date.now() - dreaminaVideoRunningTtlMs());
+  const staleWhere = {
+    projectId,
+    userId,
+    status: "RUNNING",
+    startedAt: { lt: cutoff },
+    input: { path: ["kind"], equals: "canvas-video-generation" },
+  } as const;
+  const affected = app
+    ? await prisma.generation.findMany({ where: staleWhere, select: { id: true, projectId: true, userId: true } })
+    : [];
   await prisma.generation.updateMany({
-    where: {
-      projectId,
-      userId,
-      status: "RUNNING",
-      startedAt: { lt: cutoff },
-      input: { path: ["kind"], equals: "canvas-video-generation" },
-    },
+    where: staleWhere,
     data: {
       status: "FAILED",
       errorMessage: "视频生成请求已超过后台等待时间，已自动清理。若第三方稍后完成，请使用 submit_id 查询；没有 submit_id 的任务通常未成功提交。",
       completedAt: new Date(),
     },
   });
+  if (app) {
+    for (const record of affected) {
+      notifyGenerationUpdated(app, { projectId: record.projectId, userId: record.userId, generationId: record.id, status: "FAILED" });
+    }
+  }
 }
 
 function dreaminaVideoRunningTtlMs(): number {
