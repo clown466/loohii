@@ -16,6 +16,7 @@ import { allocateClipDialogueToBeats, extractDialogueSpeakerNames as extractAllo
 import { storyboardReferencesFromGenerationRecords } from "../lib/canvasStoryboardReferences";
 import { normalizeCanvasVideoReferenceInputs } from "../lib/canvasVideoReferences";
 import { HttpError, badRequest, notFound, routeParam } from "../lib/httpErrors";
+import { generateImageThumbnails, logThumbnailError } from "../lib/imageThumbnails";
 import { isRecord } from "../lib/mappers";
 import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
 import { prisma } from "../lib/prisma";
@@ -9987,6 +9988,7 @@ async function persistGeneratedImageBuffer(
 
   await mkdir(path.dirname(resolvedPath), { recursive: true });
   await writeFile(resolvedPath, buffer);
+  void generateImageThumbnails(resolvedPath).catch((err) => logThumbnailError(resolvedPath, err));
 
   return {
     url: localPublicUploadUrl(req, key),
@@ -10195,6 +10197,7 @@ async function persistWorkflowAssetReferenceImageBuffer(
 
   await mkdir(path.dirname(resolvedPath), { recursive: true });
   await writeFile(resolvedPath, buffer);
+  void generateImageThumbnails(resolvedPath).catch((err) => logThumbnailError(resolvedPath, err));
 
   return {
     url: localPublicUploadUrl(req, key),

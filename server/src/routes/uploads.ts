@@ -7,6 +7,7 @@ import { z } from "zod";
 import { config } from "../config";
 import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound } from "../lib/httpErrors";
+import { generateImageThumbnails, logThumbnailError } from "../lib/imageThumbnails";
 import { ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 import { createR2PresignService } from "../storage";
@@ -146,6 +147,7 @@ router.post(
 
     await mkdir(path.dirname(resolvedPath), { recursive: true });
     await writeFile(resolvedPath, parsed.buffer);
+    void generateImageThumbnails(resolvedPath).catch((err) => logThumbnailError(resolvedPath, err));
 
     ok(res, {
       key: finalKey,
@@ -179,6 +181,7 @@ router.post(
 
     await mkdir(path.dirname(resolvedPath), { recursive: true });
     await writeFile(resolvedPath, buffer);
+    void generateImageThumbnails(resolvedPath).catch((err) => logThumbnailError(resolvedPath, err));
 
     ok(res, {
       key: finalKey,
