@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Plus, Search, LayoutGrid, List, Play, Edit2, Copy, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { ThumbImage } from "../components/ThumbImage";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { useProjectStore } from "../stores/useProjectStore";
@@ -130,7 +131,7 @@ export function DashboardPage() {
             <div key={project.id} className="group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary hover:shadow-[0_0_0_1px_rgba(245,166,35,1)] sm:h-[260px]">
               {/* Cover 60% */}
               <div className="h-[60%] w-full bg-background relative overflow-hidden shrink-0">
-                <img loading="lazy" decoding="async" src={project.cover} alt={project.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <ThumbImage src={project.cover} thumbWidth={300} alt={project.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                   <Link to={`/app/project/${project.id}/canvas`} className="h-10 w-10 rounded-full bg-card flex items-center justify-center text-foreground hover:bg-primary transition-colors" title="进入">
                     <Play className="h-4 w-4 ml-0.5" />

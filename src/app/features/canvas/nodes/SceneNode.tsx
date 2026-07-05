@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Position } from '@xyflow/react';
 import { Image as ImageIcon, ImagePlay } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { ThumbImage } from '../../../components/ThumbImage';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
 import {
   publicImageUrl,
@@ -60,11 +61,10 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className="flex gap-1 px-3 pt-2 overflow-x-auto">
           {referenceImages.map((ref, i) => (
             <div key={i} className="relative shrink-0">
-              <img
+              <ThumbImage
                 src={ref.url}
+                thumbWidth={1024}
                 alt={ref.label}
-                loading="lazy"
-                decoding="async"
                 className="h-10 w-10 cursor-zoom-in rounded border border-border object-cover"
                 onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
                 onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
@@ -80,11 +80,10 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="p-3 pb-0">
         <div className="aspect-video bg-zinc-900 rounded border border-zinc-800 flex items-center justify-center overflow-hidden mb-3 relative group">
           {data.status === 'completed' && data.image ? (
-            <img
+            <ThumbImage
               src={data.image}
+              thumbWidth={1024}
               alt="Scene"
-              loading="lazy"
-              decoding="async"
               className="h-full w-full cursor-zoom-in object-cover"
               onClick={(event) => previewCanvasImage(event, { url: data.image, title: data.title || '分镜图', subtitle: data.description || undefined })}
               onDoubleClick={(event) => previewCanvasImage(event, { url: data.image, title: data.title || '分镜图', subtitle: data.description || undefined })}

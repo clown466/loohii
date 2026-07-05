@@ -3,6 +3,7 @@ import { Position } from '@xyflow/react';
 import { Download, Image as ImageIcon, Package, Wand2 } from 'lucide-react';
 import { useParams } from 'react-router';
 import { Button } from '../../../components/ui/button';
+import { ThumbImage } from '../../../components/ThumbImage';
 import { cn } from '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
 import { useProjectStore } from '../../../stores/useProjectStore';
@@ -779,11 +780,10 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
         <div className="h-10 w-10 rounded-full bg-layer-4 overflow-hidden shrink-0">
           {data.outputImage ? (
-            <img
+            <ThumbImage
               src={data.outputImage}
+              thumbWidth={1024}
               alt={nodeAssetName}
-              loading="lazy"
-              decoding="async"
               className="h-full w-full cursor-zoom-in object-cover"
               onClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: `${nodeAssetLabel}生成结果` })}
               onDoubleClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: `${nodeAssetLabel}生成结果` })}
@@ -829,11 +829,10 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
           <div className="flex gap-1 overflow-x-auto">
             {referenceImages.map((ref, i) => (
               <div key={i} className="relative shrink-0">
-                <img
+                <ThumbImage
                   src={ref.url}
+                  thumbWidth={1024}
                   alt={ref.label}
-                  loading="lazy"
-                  decoding="async"
                   className={cn(
                     "h-8 w-8 cursor-zoom-in rounded border object-cover",
                     ref.kind === 'storyboard' ? 'border-amber-400 ring-1 ring-amber-400/40' : 'border-border',
@@ -1062,11 +1061,10 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       {data.status === 'completed' && data.outputImage && (
         <div className="px-3 pb-2">
           <div className="group relative overflow-hidden rounded border border-border bg-zinc-950">
-            <img
+            <ThumbImage
               src={data.outputImage}
+              thumbWidth={1024}
               alt="Generated"
-              loading="lazy"
-              decoding="async"
               className="w-full cursor-zoom-in object-contain"
               style={{ aspectRatio: String(outputImageAspectRatio) }}
               onClick={(event) => previewCanvasImage(event, { url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined })}

@@ -1,5 +1,6 @@
 import { Package, Wand2, X } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { ThumbImage } from '../../../components/ThumbImage';
 import { cn } from '../../../utils/cn';
 import {
   type WorkflowAssetItem,
@@ -90,7 +91,7 @@ export function CharacterPropPickerPanel({
               >
                 <div className="relative aspect-square bg-zinc-950">
                   {imageUrl ? (
-                    <img loading="lazy" decoding="async" src={imageUrl} alt={propName} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <ThumbImage src={imageUrl} thumbWidth={300} alt={propName} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-zinc-600">
                       <Package className="h-5 w-5" />

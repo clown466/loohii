@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check, Image as ImageIcon, Layers3, Mic, Package, Trash2, UploadCloud, X } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { ThumbImage } from '../../../components/ThumbImage';
 import { Badge } from '../../../components/ui/badge';
 import { cn } from '../../../utils/cn';
 import { CharacterPropPickerPanel } from './CharacterPropPickerPanel';
@@ -169,10 +170,9 @@ export function AssetMiniList({
                   subtitle: item.referenceImageUrl ? '当前参考图' : '当前生成图',
                 })}
               >
-                <img
-                  loading="lazy"
-                  decoding="async"
+                <ThumbImage
                   src={currentImageUrl}
+                  thumbWidth={300}
                   alt={item.name || '资产参考图'}
                   draggable
                   className="h-full w-full object-cover transition-transform group-hover:scale-105"

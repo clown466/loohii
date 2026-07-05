@@ -3,6 +3,7 @@ import { Position } from '@xyflow/react';
 import { Image as ImageIcon } from 'lucide-react';
 import { useParams } from 'react-router';
 import { Button } from '../../../components/ui/button';
+import { ThumbImage } from '../../../components/ThumbImage';
 import { cn } from '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
 import {
@@ -172,11 +173,10 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="p-2">
         {displayImageUrl && !imageUnavailable ? (
           <div className="relative group">
-            <img
+            <ThumbImage
               src={displayImageUrl}
+              thumbWidth={1024}
               alt="参考图"
-              loading="lazy"
-              decoding="async"
               className="w-full cursor-zoom-in rounded border border-zinc-800 object-cover"
               style={{ aspectRatio: String(clampedImageAspectRatio) }}
               onClick={(event) => previewCanvasImage(event, {

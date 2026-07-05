@@ -3,6 +3,7 @@ import { Position } from '@xyflow/react';
 import { Download, Wand2 } from 'lucide-react';
 import { useParams } from 'react-router';
 import { Button } from '../../../components/ui/button';
+import { ThumbImage } from '../../../components/ThumbImage';
 import '../../../utils/cn';
 import { useCanvasStore } from '../../../stores/useCanvasStore';
 import { useProjectStore } from '../../../stores/useProjectStore';
@@ -229,11 +230,10 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
         <div className="h-10 w-10 rounded-full bg-layer-4 overflow-hidden shrink-0">
           {data.avatar ? (
-            <img
+            <ThumbImage
               src={data.avatar}
+              thumbWidth={1024}
               alt="Character"
-              loading="lazy"
-              decoding="async"
               className="h-full w-full cursor-zoom-in object-cover"
               onClick={(event) => previewCanvasImage(event, { url: data.avatar, title: data.name || '角色图', subtitle: '头像预览' })}
               onDoubleClick={(event) => previewCanvasImage(event, { url: data.avatar, title: data.name || '角色图', subtitle: '头像预览' })}
@@ -254,11 +254,10 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
           <div className="flex gap-1 overflow-x-auto">
             {referenceImages.map((ref, i) => (
               <div key={i} className="relative shrink-0">
-                <img
+                <ThumbImage
                   src={ref.url}
+                  thumbWidth={1024}
                   alt={ref.label}
-                  loading="lazy"
-                  decoding="async"
                   className="h-8 w-8 cursor-zoom-in rounded border border-border object-cover"
                   onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                   onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
@@ -392,11 +391,10 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
       {data.genStatus === 'completed' && data.generatedImage && (
         <div className="px-3 pb-3">
           <div className="relative group overflow-hidden rounded border border-border bg-zinc-950">
-            <img
+            <ThumbImage
               src={data.generatedImage}
+              thumbWidth={1024}
               alt="Generated"
-              loading="lazy"
-              decoding="async"
               className="w-full cursor-zoom-in object-contain"
               style={{ aspectRatio: String(generatedImageAspectRatio) }}
               onClick={(event) => previewCanvasImage(event, { url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' })}

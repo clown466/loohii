@@ -47,6 +47,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { ThumbImage } from '../components/ThumbImage';
 import { cn } from '../utils/cn';
 import { CanvasNodeKind, detachNodesFromRemovedParents, useCanvasStore } from '../stores/useCanvasStore';
 import { AGENT_ACTIONS_APPLIED_EVENT } from '../stores/useAgentStore';
@@ -5737,10 +5738,9 @@ function CanvasInner() {
                   {editingNodeData.data.avatar && (
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">头像预览</label>
-                      <img
-                        loading="lazy"
-                        decoding="async"
+                      <ThumbImage
                         src={editingNodeData.data.avatar}
+                        thumbWidth={300}
                         alt="avatar"
                         className="h-20 w-20 cursor-zoom-in rounded-full border border-border object-cover"
                         onDoubleClick={(event) => previewCanvasImage(event, { url: editingNodeData.data.avatar, title: editingNodeData.data.name || '角色图', subtitle: '头像预览' })}
@@ -5770,10 +5770,9 @@ function CanvasInner() {
                   {editingNodeData.data.image && (
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">当前图片</label>
-                      <img
-                        loading="lazy"
-                        decoding="async"
+                      <ThumbImage
                         src={editingNodeData.data.image}
+                        thumbWidth={300}
                         alt="scene"
                         className="aspect-video w-full cursor-zoom-in rounded-md border border-border object-cover"
                         onDoubleClick={(event) => previewCanvasImage(event, { url: editingNodeData.data.image, title: editingNodeData.data.title || '分镜图', subtitle: editingNodeData.data.description || undefined })}
@@ -5825,10 +5824,9 @@ function CanvasInner() {
                   {editingNodeData.data.imageUrl && (
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">预览</label>
-                      <img
-                        loading="lazy"
-                        decoding="async"
+                      <ThumbImage
                         src={editingNodeData.data.imageUrl}
+                        thumbWidth={300}
                         alt="参考图"
                         className="w-full cursor-zoom-in rounded-md border border-border object-cover"
                         onDoubleClick={(event) => previewCanvasImage(event, { url: editingNodeData.data.imageUrl, title: editingNodeData.data.label || '图片输入', subtitle: '参考图' })}
@@ -6182,10 +6180,9 @@ function CanvasInner() {
                             subtitle: `${item.episodeTitle} · 导演板`,
                           })}
                         >
-                          <img
-                            loading="lazy"
-                            decoding="async"
+                          <ThumbImage
                             src={item.imageUrl}
+                            thumbWidth={300}
                             alt={item.name}
                             draggable
                             className="h-full w-full object-cover transition-transform group-hover:scale-105"
@@ -6252,10 +6249,9 @@ function CanvasInner() {
                             onClick={() => preview && setAssetImagePreview(preview)}
                             onDoubleClick={() => preview && setAssetImagePreview(preview)}
                           >
-                            <img
-                              loading="lazy"
-                              decoding="async"
+                            <ThumbImage
                               src={item.imageUrl}
+                              thumbWidth={300}
                               alt={item.name}
                               draggable
                               className="h-full w-full object-cover transition-transform group-hover:scale-105"

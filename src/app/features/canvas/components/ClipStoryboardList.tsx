@@ -11,6 +11,7 @@ import {
 import { Image as ImageIcon } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
+import { ThumbImage } from '../../../components/ThumbImage';
 import { cn } from '../../../utils/cn';
 import { StoryboardSceneList } from './StoryboardSceneList';
 import { apiClient } from '../../../lib/apiClient';
@@ -608,12 +609,11 @@ export function ClipStoryboardList({
                               subtitle: '已生成故事板',
                             })}
                           >
-                            <img
+                            <ThumbImage
                               src={reference.url}
+                              thumbWidth={300}
                               alt={reference.title || `${clip.title || 'Clip'} 故事板`}
                               className="aspect-video w-full object-cover"
-                              loading="lazy"
-                              decoding="async"
                             />
                           </button>
                           <div className="space-y-2 p-2">
