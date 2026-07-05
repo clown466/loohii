@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   Copy,
@@ -22,6 +23,7 @@ import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { Textarea } from "../components/ui/textarea";
 import { apiClient, type GenerationRecord } from "../lib/apiClient";
+import { subscribeProjectGenerationUpdates } from "../lib/realtimeClient";
 import { useCanvasStore } from "../stores/useCanvasStore";
 
 type RecordCategory = "全部" | "图片" | "视频" | "音频" | "文本";
@@ -46,32 +48,37 @@ interface RecordItem {
 export function ProjectRecordsPage() {
   const [activeTab, setActiveTab] = useState<RecordCategory>("全部");
   const [searchQuery, setSearchQuery] = useState("");
-  const [records, setRecords] = useState<RecordItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState("");
   const [addedToCanvas, setAddedToCanvas] = useState<Set<string>>(new Set());
   const { id: projectId } = useParams();
   const addNode = useCanvasStore((s) => s.addNode);
+  const client = useQueryClient();
+
+  const recordsQueryKey = useMemo(() => ["generation-records", projectId, "full"] as const, [projectId]);
+  const { data: rawRecords = [], isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: recordsQueryKey,
+    queryFn: () => apiClient.listGenerationRecords(projectId),
+    enabled: !!projectId && projectId !== "local",
+    staleTime: 30_000,
+  });
+  const records = useMemo(() => rawRecords.map(toRecordItem), [rawRecords]);
+  const error = actionError ?? (queryError instanceof Error ? queryError.message : queryError ? "生成记录加载失败" : null);
+
+  const setError = setActionError;
 
   const loadRecords = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await apiClient.listGenerationRecords(projectId);
-      setRecords(result.map(toRecordItem));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "生成记录加载失败");
-      setRecords([]);
-    } finally {
-      setLoading(false);
-    }
+    setActionError(null);
+    await refetch();
   };
 
   useEffect(() => {
-    void loadRecords();
-  }, [projectId]);
+    if (!projectId || projectId === "local") return;
+    return subscribeProjectGenerationUpdates(projectId, () => {
+      void client.invalidateQueries({ queryKey: ["generation-records", projectId, "full"] });
+    });
+  }, [projectId, client]);
 
   const filteredRecords = useMemo(() => records.filter((record) => {
     const query = searchQuery.trim().toLowerCase();
@@ -87,7 +94,7 @@ export function ProjectRecordsPage() {
     if (!window.confirm("确定要删除这条记录吗？")) return;
     try {
       await apiClient.deleteGenerationRecord(id);
-      setRecords((prev) => prev.filter((record) => record.id !== id));
+      client.setQueryData<GenerationRecord[]>(recordsQueryKey, (prev) => prev?.filter((record) => record.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除生成记录失败");
     }
@@ -108,7 +115,8 @@ export function ProjectRecordsPage() {
   };
 
   const handleSavePrompt = (id: string) => {
-    setRecords((prev) => prev.map((record) => record.id === id ? { ...record, prompt: promptDraft } : record));
+    client.setQueryData<GenerationRecord[]>(recordsQueryKey, (prev) =>
+      prev?.map((record) => record.id === id ? { ...record, prompt: promptDraft } : record));
     setEditingPrompt(null);
   };
 
