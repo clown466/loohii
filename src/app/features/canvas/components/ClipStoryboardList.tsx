@@ -613,6 +613,7 @@ export function ClipStoryboardList({
                               alt={reference.title || `${clip.title || 'Clip'} 故事板`}
                               className="aspect-video w-full object-cover"
                               loading="lazy"
+                              decoding="async"
                             />
                           </button>
                           <div className="space-y-2 p-2">

@@ -5738,6 +5738,8 @@ function CanvasInner() {
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">头像预览</label>
                       <img
+                        loading="lazy"
+                        decoding="async"
                         src={editingNodeData.data.avatar}
                         alt="avatar"
                         className="h-20 w-20 cursor-zoom-in rounded-full border border-border object-cover"
@@ -5769,6 +5771,8 @@ function CanvasInner() {
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">当前图片</label>
                       <img
+                        loading="lazy"
+                        decoding="async"
                         src={editingNodeData.data.image}
                         alt="scene"
                         className="aspect-video w-full cursor-zoom-in rounded-md border border-border object-cover"
@@ -5822,6 +5826,8 @@ function CanvasInner() {
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">预览</label>
                       <img
+                        loading="lazy"
+                        decoding="async"
                         src={editingNodeData.data.imageUrl}
                         alt="参考图"
                         className="w-full cursor-zoom-in rounded-md border border-border object-cover"
@@ -6177,6 +6183,8 @@ function CanvasInner() {
                           })}
                         >
                           <img
+                            loading="lazy"
+                            decoding="async"
                             src={item.imageUrl}
                             alt={item.name}
                             draggable
@@ -6245,6 +6253,8 @@ function CanvasInner() {
                             onDoubleClick={() => preview && setAssetImagePreview(preview)}
                           >
                             <img
+                              loading="lazy"
+                              decoding="async"
                               src={item.imageUrl}
                               alt={item.name}
                               draggable
@@ -6484,6 +6494,8 @@ function CanvasInner() {
                                 onDoubleClick={() => setAssetImagePreview(preview)}
                               >
                                 <img
+                                  loading="lazy"
+                                  decoding="async"
                                   src={imageUrl}
                                   alt={image.title || '资产历史图'}
                                   draggable
@@ -6739,6 +6751,7 @@ function CanvasInner() {
               </div>
               <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-3">
                 <img
+                  decoding="async"
                   src={assetImagePreview.url}
                   alt={assetImagePreview.title}
                   className="block h-auto max-h-[calc(100vh-8rem)] w-auto max-w-[calc(100vw-4rem)] rounded-md object-contain"

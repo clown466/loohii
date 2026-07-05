@@ -60,7 +60,7 @@ export function LandingPage() {
         <section className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6 sm:pb-24">
           <div className="rounded-2xl border border-zinc-800 bg-[#141416] p-2 shadow-2xl relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-            <img src="https://images.unsplash.com/photo-1618331835717-801e976710b2?w=1600&q=80" alt="App Interface" className="rounded-xl w-full h-auto object-cover aspect-[16/9]" />
+            <img loading="eager" decoding="async" src="https://images.unsplash.com/photo-1618331835717-801e976710b2?w=1600&q=80" alt="App Interface" className="rounded-xl w-full h-auto object-cover aspect-[16/9]" />
           </div>
         </section>
 

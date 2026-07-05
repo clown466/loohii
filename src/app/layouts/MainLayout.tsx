@@ -196,7 +196,7 @@ export function MainLayout() {
               onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
               className="h-8 w-8 rounded-full border border-border overflow-hidden ml-1 hover:border-primary transition-colors"
             >
-              <img src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User" className="h-full w-full object-cover" />
+              <img loading="lazy" decoding="async" src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User" className="h-full w-full object-cover" />
             </button>
             {isAvatarMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-40 rounded-lg border border-border bg-card shadow-xl z-50 py-1">

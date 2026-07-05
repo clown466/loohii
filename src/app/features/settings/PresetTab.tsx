@@ -46,7 +46,7 @@ export function PresetsSettings() {
         {presets.map((style, i) => (
           <div key={i} className="group rounded-xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-colors">
             <div className="aspect-square bg-background relative overflow-hidden">
-              <img src={style.cover} alt={style.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <img loading="lazy" decoding="async" src={style.cover} alt={style.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                 <Button variant="secondary" size="icon" className="h-8 w-8 rounded-full bg-card text-foreground hover:bg-primary border-0" onClick={() => setShowEditModal(true)}>
                   <span className="text-[12px] font-medium">编辑</span>
@@ -106,7 +106,7 @@ export function PresetsSettings() {
                 <label className="block text-[14px] font-medium text-foreground mb-1.5">参考图 (最多5张)</label>
                 <div className="flex gap-3">
                   <div className="h-16 w-16 rounded-md bg-background border border-border overflow-hidden">
-                    <img src="https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?w=100&q=80" alt="ref" className="w-full h-full object-cover" />
+                    <img loading="lazy" decoding="async" src="https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?w=100&q=80" alt="ref" className="w-full h-full object-cover" />
                   </div>
                   <div className="border-2 border-dashed border-border rounded-md flex flex-col items-center justify-center bg-layer-4 text-[#71717a] cursor-pointer hover:border-primary/50 h-16 w-16">
                     <Plus className="h-5 w-5" />

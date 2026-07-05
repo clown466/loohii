@@ -23,7 +23,7 @@ export function TeamSettings() {
         <div className="divide-y divide-[#1f1f23]">
           <div className="flex flex-col gap-3 p-4 transition-colors hover:bg-layer-4/50 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="张三" className="w-8 h-8 rounded-full border border-border" />
+              <img loading="lazy" decoding="async" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="张三" className="w-8 h-8 rounded-full border border-border" />
               <div>
                 <div className="text-[14px] font-medium text-foreground">张三</div>
                 <div className="text-[12px] text-[#71717a]">admin@xx.com</div>
@@ -34,7 +34,7 @@ export function TeamSettings() {
 
           <div className="flex flex-col gap-3 p-4 transition-colors hover:bg-layer-4/50 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver" alt="李四" className="w-8 h-8 rounded-full border border-border" />
+              <img loading="lazy" decoding="async" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver" alt="李四" className="w-8 h-8 rounded-full border border-border" />
               <div>
                 <div className="text-[14px] font-medium text-foreground">李四</div>
                 <div className="text-[12px] text-[#71717a]">li@xx.com</div>
@@ -52,7 +52,7 @@ export function TeamSettings() {
 
           <div className="flex flex-col gap-3 p-4 transition-colors hover:bg-layer-4/50 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sam" alt="王五" className="w-8 h-8 rounded-full border border-border" />
+              <img loading="lazy" decoding="async" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Sam" alt="王五" className="w-8 h-8 rounded-full border border-border" />
               <div>
                 <div className="text-[14px] font-medium text-foreground">王五</div>
                 <div className="text-[12px] text-[#71717a]">wang@xx.com</div>

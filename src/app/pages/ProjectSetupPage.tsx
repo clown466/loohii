@@ -332,7 +332,7 @@ export function ProjectSetupPage() {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {coverPreview ? (
-                      <img src={coverPreview} alt="Cover preview" className="w-full h-32 object-cover rounded-lg" />
+                      <img loading="lazy" decoding="async" src={coverPreview} alt="Cover preview" className="w-full h-32 object-cover rounded-lg" />
                     ) : (
                       <>
                         <UploadCloud className="h-8 w-8 mb-2 text-muted-foreground" />
@@ -432,7 +432,7 @@ export function ProjectSetupPage() {
                       )}
                     >
                       <div className="aspect-square bg-background relative">
-                        <img src={style.cover} alt={style.name} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                        <img loading="lazy" decoding="async" src={style.cover} alt={style.name} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                         {isActive && (
                           <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white shadow-md">
                             <Check className="h-3 w-3" />

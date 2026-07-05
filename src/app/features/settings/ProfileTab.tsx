@@ -35,7 +35,7 @@ export function ProfileSettings() {
           <label className="block text-[14px] font-medium text-foreground mb-4">头像</label>
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
             <div className="h-20 w-20 rounded-full border border-border overflow-hidden bg-background">
-              <img src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User avatar" className="h-full w-full object-cover" />
+              <img loading="lazy" decoding="async" src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User avatar" className="h-full w-full object-cover" />
             </div>
             <Button variant="outline" className="h-9 w-full border-border text-foreground hover:bg-accent sm:w-auto">更换头像</Button>
           </div>

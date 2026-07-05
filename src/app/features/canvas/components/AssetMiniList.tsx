@@ -170,6 +170,8 @@ export function AssetMiniList({
                 })}
               >
                 <img
+                  loading="lazy"
+                  decoding="async"
                   src={currentImageUrl}
                   alt={item.name || '资产参考图'}
                   draggable

@@ -308,7 +308,7 @@ function RecordCard({
     <div className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-zinc-800 bg-[#141416] transition-colors hover:border-zinc-600">
       <div className="relative aspect-square overflow-hidden bg-zinc-900">
         {item.image ? (
-          <img src={item.image} alt="Generated" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          <img loading="lazy" decoding="async" src={item.image} alt="Generated" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center text-zinc-500">
             <ImageIcon className="h-8 w-8" />
