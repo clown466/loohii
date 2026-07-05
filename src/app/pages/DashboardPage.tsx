@@ -19,6 +19,13 @@ export function DashboardPage() {
     void loadProjects();
   }, [loadProjects]);
 
+  useEffect(() => {
+    // 空闲时预取画布页 chunk，消除路由切换白屏
+    const idle = (cb: () => void) =>
+      'requestIdleCallback' in window ? window.requestIdleCallback(cb) : window.setTimeout(cb, 1500);
+    idle(() => { void import('./ProjectCanvasPage'); });
+  }, []);
+
   const filteredProjects = projects.filter((p) =>
     p.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
