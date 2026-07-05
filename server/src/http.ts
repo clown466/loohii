@@ -46,9 +46,17 @@ export function createHttpApp(corsOrigins: string[]) {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const staticDir = path.resolve(__dirname, "../../dist");
-  app.use(express.static(staticDir));
+  app.use("/assets", express.static(path.join(staticDir, "assets"), { immutable: true, maxAge: "365d" }));
+  app.use(
+    express.static(staticDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-cache");
+      },
+    }),
+  );
   app.use((req, res, next) => {
     if (req.path.startsWith("/api") || req.path.startsWith("/socket.io")) return next();
+    res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.join(staticDir, "index.html"));
   });
 
