@@ -62,6 +62,7 @@ import {
 import { nodeTypes } from '../features/canvas/nodes';
 import { PromptTextarea } from '../features/canvas/nodes/shared';
 import { sceneImageModeInstruction } from '../features/canvas/sceneImageMode';
+import { generationRecordsFingerprint } from '../features/canvas/generationRecordsFingerprint';
 import {
   type AssetHistoryLoadKind,
   type AssetHistoryTarget,
@@ -1109,6 +1110,7 @@ function CanvasInner() {
       return;
     }
     let cancelled = false;
+    let lastFingerprint: string | null = null;
     const loadRecords = () => {
       apiClient.listGenerationRecords(projectId, { limit: 120, compact: true })
         .then((records) => {
@@ -1118,11 +1120,15 @@ function CanvasInner() {
               generationRecordBelongsToEpisode(record, activeEpisodeId, selectedEpisode) ||
               generationRecordMatchesActiveCanvasGeneration(record, activeGenerationKeys)
             ));
-            setGenerationRecords(filtered);
+            const fingerprint = generationRecordsFingerprint(filtered);
+            if (fingerprint !== lastFingerprint) {
+              lastFingerprint = fingerprint;
+              setGenerationRecords(filtered);
+            }
           }
         })
         .catch(() => {
-          if (!cancelled) setGenerationRecords([]);
+          // 网络抖动时保留旧数据，不清空列表
         });
     };
     loadRecords();
