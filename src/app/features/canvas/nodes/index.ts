@@ -11,6 +11,8 @@ export { ImageInputNode } from './ImageInputNode';
 export { AudioInputNode } from './AudioInputNode';
 export { GenerationNode } from './GenerationNode';
 
+import { memo } from 'react';
+
 import { SceneNode } from './SceneNode';
 import { CharacterNode } from './CharacterNode';
 import { WorkflowNode } from './WorkflowNode';
@@ -25,19 +27,19 @@ import { AudioInputNode } from './AudioInputNode';
 import { GenerationNode } from './GenerationNode';
 
 export const nodeTypes = {
-  scene: SceneNode,
-  character: CharacterNode,
-  episode: WorkflowNode,
-  asset: WorkflowNode,
-  workflow: WorkflowNode,
-  directorBoard: WorkflowNode,
-  imageInput: ImageInputNode,
-  generation: GenerationNode,
-  video: VideoNode,
-  audio: AudioInputNode,
-  translation: TranslationNode,
-  promptOptimizer: PromptOptimizerNode,
-  promptInspector: PromptInspectorNode,
-  agent: AgentNode,
-  section: SectionNode,
+  scene: memo(SceneNode),
+  character: memo(CharacterNode),
+  episode: memo(WorkflowNode),
+  asset: memo(WorkflowNode),
+  workflow: memo(WorkflowNode),
+  directorBoard: memo(WorkflowNode),
+  imageInput: memo(ImageInputNode),
+  generation: memo(GenerationNode),
+  video: memo(VideoNode),
+  audio: memo(AudioInputNode),
+  translation: memo(TranslationNode),
+  promptOptimizer: memo(PromptOptimizerNode),
+  promptInspector: memo(PromptInspectorNode),
+  agent: memo(AgentNode),
+  section: memo(SectionNode),
 };
