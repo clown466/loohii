@@ -98,6 +98,13 @@ async function handleConnection(
     void handleGenerationSubscribe(socket, payload);
   });
 
+  socket.on("project:subscribe", (payload: unknown) => {
+    const projectId = getStringField(payload, "projectId");
+    if (projectId) {
+      void socket.join(projectRoom(projectId));
+    }
+  });
+
   socket.emit("realtime:ready", {
     socketId: socket.id,
     userId: authContext?.userId,
