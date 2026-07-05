@@ -430,7 +430,6 @@ export function buildProjectGlobalPromptFromDraft(draft: ProjectGlobalSettingsDr
 
 export const CANVAS_IMAGE_PREVIEW_EVENT = 'loohii:canvas-image-preview';
 export const WORKFLOW_ASSET_SYNC_EVENT = 'loohii:workflow-asset-sync';
-export const CANVAS_GENERATION_RECORDS_REFRESH_EVENT = 'loohii:generation-records-refresh';
 export const CANVAS_GENERATION_STALE_MS = 15 * 60 * 1000;
 export const CANVAS_GENERATION_SUBMIT_CONFIRM_MS = 30 * 1000;
 export const CANVAS_TRANSLATION_STALE_MS = 2 * 60 * 1000;

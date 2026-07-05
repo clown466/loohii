@@ -63,7 +63,7 @@ import {
 import { nodeTypes } from '../features/canvas/nodes';
 import { PromptTextarea } from '../features/canvas/nodes/shared';
 import { sceneImageModeInstruction } from '../features/canvas/sceneImageMode';
-import { generationRecordsFingerprint } from '../features/canvas/generationRecordsFingerprint';
+import { invalidateGenerationRecords, useGenerationRecords } from '../lib/queries/generationRecords';
 import {
   type AssetHistoryLoadKind,
   type AssetHistoryTarget,
@@ -93,7 +93,6 @@ import {
   type WorkflowBreakdownRecoveryOptions,
   type WorkflowStageKey,
   CANVAS_GENERATION_NODE_HEIGHT,
-  CANVAS_GENERATION_RECORDS_REFRESH_EVENT,
   CANVAS_GENERATION_SUBMIT_CONFIRM_MS,
   CANVAS_IMAGE_PREVIEW_EVENT,
   CANVAS_SECTION_HEADER_HEIGHT,
@@ -447,7 +446,15 @@ function CanvasInner() {
   const [workflowInferAllRunning, setWorkflowInferAllRunning] = useState(false);
   const [optimizingClipId, setOptimizingClipId] = useState<string | null>(null);
   const [generatingSeedanceClipId, setGeneratingSeedanceClipId] = useState<string | null>(null);
-  const [generationRecords, setGenerationRecords] = useState<GenerationRecord[]>([]);
+  const { data: allGenerationRecords } = useGenerationRecords(projectId);
+  const generationRecords = useMemo(() => {
+    const records = allGenerationRecords ?? [];
+    const activeGenerationKeys = canvasActiveGenerationRecoveryKeys(useCanvasStore.getState().nodes);
+    return records.filter((record) => (
+      generationRecordBelongsToEpisode(record, activeEpisodeId, selectedEpisode) ||
+      generationRecordMatchesActiveCanvasGeneration(record, activeGenerationKeys)
+    ));
+  }, [allGenerationRecords, activeEpisodeId, selectedEpisode]);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
   const [workflowModels, setWorkflowModels] = useState<ModelConfig[]>([]);
   const [workflowAiModelId, setWorkflowAiModelId] = useState('');
@@ -925,7 +932,6 @@ function CanvasInner() {
       if (loadSeq !== episodeWorkspaceLoadSeqRef.current) return;
       canvasLoadedRef.current = true;
       fitCanvasAfterLoadIfNeeded(previousNodeCount);
-      setGenerationRecords([]);
     } catch (error) {
       if (loadSeq === episodeWorkspaceLoadSeqRef.current) {
         setWorkflowError(error instanceof Error ? error.message : '剧集切换失败');
@@ -1076,7 +1082,7 @@ function CanvasInner() {
           });
       }
       if (shouldRefreshRecords) {
-        window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+        invalidateGenerationRecords(projectId);
       }
       if (shouldRefreshProject) {
         void loadProjects();
@@ -1104,43 +1110,6 @@ function CanvasInner() {
     window.addEventListener(AGENT_ACTIONS_APPLIED_EVENT, handler);
     return () => window.removeEventListener(AGENT_ACTIONS_APPLIED_EVENT, handler);
   }, [activeCanvasSceneId, activeEpisodeId, loadCanvasScene, loadProjects, projectId, showCanvasDropStatus]);
-
-  useEffect(() => {
-    if (!projectId || projectId === 'local') {
-      setGenerationRecords([]);
-      return;
-    }
-    let cancelled = false;
-    let lastFingerprint: string | null = null;
-    const loadRecords = () => {
-      apiClient.listGenerationRecords(projectId, { limit: 120, compact: true })
-        .then((records) => {
-          if (!cancelled) {
-            const activeGenerationKeys = canvasActiveGenerationRecoveryKeys(useCanvasStore.getState().nodes);
-            const filtered = records.filter((record) => (
-              generationRecordBelongsToEpisode(record, activeEpisodeId, selectedEpisode) ||
-              generationRecordMatchesActiveCanvasGeneration(record, activeGenerationKeys)
-            ));
-            const fingerprint = generationRecordsFingerprint(filtered);
-            if (fingerprint !== lastFingerprint) {
-              lastFingerprint = fingerprint;
-              setGenerationRecords(filtered);
-            }
-          }
-        })
-        .catch(() => {
-          // 网络抖动时保留旧数据，不清空列表
-        });
-    };
-    loadRecords();
-    const timer = window.setInterval(loadRecords, 5000);
-    window.addEventListener(CANVAS_GENERATION_RECORDS_REFRESH_EVENT, loadRecords);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener(CANVAS_GENERATION_RECORDS_REFRESH_EVENT, loadRecords);
-    };
-  }, [activeEpisodeId, projectId, selectedEpisode]);
 
   const loadAssetLibrary = useCallback(async () => {
     if (!projectId || projectId === 'local') {
@@ -2762,7 +2731,7 @@ function CanvasInner() {
       if (variant !== 'with-props') {
         await refreshCanvasAfterAssetReferenceChange();
       }
-      window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+      invalidateGenerationRecords(projectId);
       setGenerationMessage(variant === 'with-props'
         ? `${assetName} 道具版资产图已生成到历史图。需要使用时点“道具版”选择并设为当前图。${assetGenerationAspectRatio} / ${assetGenerationResolution.toUpperCase()}`
         : `${assetName}资产图已生成并写回资产，可在历史图中切换当前图。${assetGenerationAspectRatio} / ${assetGenerationResolution.toUpperCase()}`);
@@ -2775,7 +2744,7 @@ function CanvasInner() {
         setAssetHistoryItems(refreshed.images);
       }
     } catch (error) {
-      window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+      invalidateGenerationRecords(projectId);
       setGenerationMessage(error instanceof Error ? error.message : '资产图生成失败');
     } finally {
       setAssetGenerationBusyKeys((current) => current.filter((key) => key !== busyKey));
@@ -2997,7 +2966,7 @@ function CanvasInner() {
           const latestRecords = await apiClient.listGenerationRecords(projectId, { limit: 300, compact: true });
           const targetEpisodeId = override?.episodeId ?? activeEpisodeId;
           const filteredRecords = latestRecords.filter((record) => generationRecordBelongsToEpisode(record, targetEpisodeId, targetEpisode));
-          setGenerationRecords(filteredRecords);
+          invalidateGenerationRecords(projectId);
           latestStoryboardAssetReferences = storyboardReferencesFromGenerationRecords(filteredRecords, targetClips, { episodeId: targetEpisodeId, episode: targetEpisode });
           latestBlockedStoryboardImageUrls = nonStoryboardImageUrlsFromGenerationRecords(filteredRecords);
         } catch {
@@ -3346,7 +3315,7 @@ function CanvasInner() {
         try {
           const latestRecords = await apiClient.listGenerationRecords(projectId, { limit: 300, compact: true });
           const filteredRecords = latestRecords.filter((record) => generationRecordBelongsToEpisode(record, activeEpisodeId, selectedEpisode));
-          setGenerationRecords(filteredRecords);
+          invalidateGenerationRecords(projectId);
           latestStoryboardAssetReferences = storyboardReferencesFromGenerationRecords(filteredRecords, clips, { episodeId: activeEpisodeId, episode: selectedEpisode });
           latestBlockedStoryboardImageUrls = nonStoryboardImageUrlsFromGenerationRecords(filteredRecords);
         } catch {
@@ -4962,7 +4931,7 @@ function CanvasInner() {
             };
           }));
           completed += 1;
-          window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+          invalidateGenerationRecords(projectId);
         } catch (error) {
           failed += 1;
           const message = appendCanvasImageGenerationRetryHint(

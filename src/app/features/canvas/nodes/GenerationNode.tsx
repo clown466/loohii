@@ -69,9 +69,9 @@ import {
   canvasReferenceImageBadgeLabel,
   CANVAS_IMAGE_RATIO_OPTIONS,
   CANVAS_GENERATION_STALE_MS,
-  CANVAS_GENERATION_RECORDS_REFRESH_EVENT,
   WORKFLOW_ASSET_SYNC_EVENT,
 } from './shared';
+import { invalidateGenerationRecords } from '../../../lib/queries/generationRecords';
 import { useImageModelOptions } from './modelOptions';
 
 type GenerationAssetContext = {
@@ -504,7 +504,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
           generationId: backendGenerationId || readObjectString(data, 'generationId'),
         });
         if (isStandaloneGeneration) {
-          window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+          invalidateGenerationRecords(projectId);
         }
         if (result.workflow) syncWorkflowAssetsFromCanvas(result.workflow);
       } else if (isStandaloneGeneration && backendGenerationId) {
@@ -530,7 +530,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
           quality: selectedQuality,
           format: 'png',
         });
-        window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+        invalidateGenerationRecords(projectId);
       } else {
         clearTransientSubmitState();
         updateNodeData(id, { status: 'failed', error: '后端未确认生成任务，请重新生成。', generationStartedAt: '', generationRequestId: '' });
@@ -567,7 +567,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               generationRequestId: '',
               generationId: recoveredGenerationId || readObjectString(data, 'generationId'),
             });
-            window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+            invalidateGenerationRecords(projectId);
             return;
           }
           const runningRecord = findLatestCanvasImageGenerationRecord(records, promptForGeneration, {
@@ -598,7 +598,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               quality: selectedQuality,
               format: 'png',
             });
-            window.dispatchEvent(new Event(CANVAS_GENERATION_RECORDS_REFRESH_EVENT));
+            invalidateGenerationRecords(projectId);
             return;
           }
         } catch {
