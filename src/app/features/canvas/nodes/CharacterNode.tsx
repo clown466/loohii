@@ -226,7 +226,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={320} minHeight={320} />
-      <div className="scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
+      <div className={`scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40] ${selected ? "lh-node-active" : ""}`}>
       <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
         <div className="h-10 w-10 rounded-full bg-layer-4 overflow-hidden shrink-0">
           {data.avatar ? (
@@ -249,8 +249,8 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
       </div>
 
       {referenceImages.length > 0 && (
-        <div className="border-t border-zinc-800 px-3 py-2 flex items-center gap-1.5">
-          <span className="text-[10px] text-sky-400 shrink-0">{referenceImages.length} 参考</span>
+        <div className="border-t border-[#26262B] px-3 py-2 flex items-center gap-1.5">
+          <span className="text-[10px] text-[#F7C24E] shrink-0">{referenceImages.length} 参考</span>
           <div className="flex gap-1 overflow-x-auto">
             {referenceImages.map((ref, i) => (
               <div key={i} className="relative shrink-0">
@@ -262,7 +262,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
                   onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                   onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                 />
-                <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sky-500 text-[8px] font-bold text-white">
+                <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#F5A623] text-[8px] font-bold text-[#0D0D0F]">
                   {i + 1}
                 </span>
               </div>
@@ -271,7 +271,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
         </div>
       )}
 
-      <div className="border-t border-zinc-800 px-3 py-2">
+      <div className="border-t border-[#26262B] px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <span className="text-[10px] font-medium text-zinc-400">最终生图提示词</span>
           <button
@@ -354,7 +354,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
         </select>
       </div>
 
-      <div className="border-t border-zinc-800 px-3 py-2">
+      <div className="border-t border-[#26262B] px-3 py-2">
         <Button
           size="sm"
           className="w-full h-8 text-[12px] bg-primary hover:bg-primary/90 text-white gap-1.5"
@@ -368,9 +368,9 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
 
       {data.genStatus === 'generating' && !generationStalled && (
         <div className="px-3 pb-3">
-          <div className="aspect-square rounded border border-border bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
-            <div className="h-1.5 w-24 bg-layer-4 rounded-full overflow-hidden">
-              <div className="h-full bg-primary/90 animate-pulse w-[60%]" />
+          <div className="aspect-square rounded border border-border bg-[#141417]/50 flex flex-col items-center justify-center gap-2">
+            <div className="h-1.5 w-24 bg-[#26262B] rounded-full overflow-hidden">
+              <div className="h-full bg-[linear-gradient(90deg,#F5A623,#F7C24E)] animate-pulse w-[60%]" />
             </div>
             <span className="px-3 text-center text-[11px] text-zinc-500">
               {canvasGenerationWaitLabel(data.generationStartedAt)}

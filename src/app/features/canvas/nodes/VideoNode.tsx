@@ -617,9 +617,9 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={520} minHeight={300} />
-      <div className="scrollbar-none h-full w-full overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-sky-500/70">
-        <div className="flex items-center gap-3 border-b border-zinc-800 p-3 cursor-grab active:cursor-grabbing">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-sky-500/10 text-sky-300">
+      <div className={cn("scrollbar-none h-full w-full overflow-y-auto overflow-x-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40]", selected && "lh-node-active")}>
+        <div className="flex items-center gap-3 border-b border-[#26262B] p-3 cursor-grab active:cursor-grabbing">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#F5A623]/10 text-[#F7C24E]">
             <MonitorPlay className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -629,27 +629,27 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
             </div>
           </div>
           <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
+            "shrink-0 border text-[10px] hover:bg-[#141417]",
             videoStatus === 'completed'
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : videoStatus === 'failed'
                 ? "border-red-500/30 bg-red-500/10 text-red-300"
                 : videoStatus === 'submitted' || videoStatus === 'generating'
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-border bg-zinc-900 text-zinc-400"
+                  : "border-border bg-[#141417] text-zinc-400"
           )}>
             {statusLabel}
           </Badge>
         </div>
 
-        <div className="border-b border-zinc-800 px-3 py-2">
+        <div className="border-b border-[#26262B] px-3 py-2">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="flex rounded-md border border-border bg-zinc-900 p-0.5 text-[11px]">
+            <div className="flex rounded-md border border-border bg-[#141417] p-0.5 text-[11px]">
               <button type="button" className="rounded bg-zinc-700 px-3 py-1 font-medium text-zinc-100">全能参考</button>
               <button type="button" className="px-3 py-1 font-medium text-zinc-400">首帧视频</button>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-[11px]">
-              <span className="text-sky-300">{referenceImages.length} 参考图</span>
+              <span className="text-[#F7C24E]">{referenceImages.length} 参考图</span>
               <span className={cn(
                 "inline-flex items-center gap-1",
                 includeAudio && referenceAudioUrls.length ? "text-emerald-300" : "text-zinc-500"
@@ -676,11 +676,11 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
               ))}
             </div>
           ) : (
-            <div className="flex h-16 items-center justify-center rounded border border-dashed border-border bg-zinc-900/40 text-[12px] text-zinc-500">
+            <div className="flex h-16 items-center justify-center rounded border border-dashed border-border bg-[#141417]/40 text-[12px] text-zinc-500">
               从左侧连入图片输入、角色图或资产图作为参考
             </div>
           )}
-          <div className="mt-2 rounded-md border border-zinc-800 bg-[#101014] px-2 py-2">
+          <div className="mt-2 rounded-md border border-[#26262B] bg-[#141417] px-2 py-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-zinc-300">
                 <Mic className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
@@ -699,7 +699,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         "inline-flex max-w-full items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]",
                         hasAudio
                           ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-                          : "border-border bg-zinc-900 text-zinc-500"
+                          : "border-border bg-[#141417] text-zinc-500"
                       )}
                       title={hasAudio ? ref.fileName || ref.url : '该台词角色还没有音频参考'}
                     >
@@ -724,7 +724,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
           <div>
             <div className="mb-1.5 text-[11px] font-medium text-zinc-400">视频提示词</div>
             <PromptTextarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-sky-500"
+              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={prompt}
               placeholder="描述你想要生成的内容，并连接参考图。"
               modalTitle={`${data.title || '视频节点'} · 视频提示词`}
@@ -737,17 +737,17 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
             />
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[#101014]">
+          <div className="overflow-hidden rounded-lg border border-[#26262B] bg-[#141417]">
             <button
               type="button"
-              className="nodrag nopan flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-zinc-900/70"
+              className="nodrag nopan flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[#141417]/70"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
                 updateNodeData(id, { videoParametersCollapsed: !parametersCollapsed });
               }}
             >
-              <SlidersHorizontal className="h-4 w-4 shrink-0 text-sky-300" />
+              <SlidersHorizontal className="h-4 w-4 shrink-0 text-[#F7C24E]" />
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-medium text-zinc-300">生成参数</div>
                 <div className="mt-0.5 truncate text-[11px] text-zinc-500">{parameterSummary}</div>
@@ -756,12 +756,12 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
             </button>
 
             {!parametersCollapsed ? (
-              <div className="space-y-3 border-t border-zinc-800 p-3">
+              <div className="space-y-3 border-t border-[#26262B] p-3">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div>
                     <div className="mb-1 text-[11px] text-zinc-500">视频模型</div>
                     <select
-                      className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
+                      className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
                       value={String(data.modelId || '')}
                       onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
                       onPointerDown={(event) => event.stopPropagation()}
@@ -779,7 +779,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                   <div>
                     <div className="mb-1 text-[11px] text-zinc-500">生成数量</div>
                     <select
-                      className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-sky-500"
+                      className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
                       value={selectedCount}
                       onChange={(event) => updateNodeData(id, { count: Number(event.target.value) })}
                       onPointerDown={(event) => event.stopPropagation()}
@@ -801,7 +801,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan h-8 rounded-md text-[11px] transition-colors",
-                          selectedResolution === resolution ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-layer-4"
+                          selectedResolution === resolution ? "bg-zinc-600 text-zinc-50" : "bg-[#141417] text-zinc-400 hover:bg-layer-4"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -824,7 +824,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan h-8 rounded-md text-[11px] transition-colors",
-                          selectedDuration === seconds ? "bg-zinc-600 text-zinc-50" : "bg-zinc-900 text-zinc-400 hover:bg-layer-4"
+                          selectedDuration === seconds ? "bg-zinc-600 text-zinc-50" : "bg-[#141417] text-zinc-400 hover:bg-layer-4"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -840,7 +840,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
 
                 <div>
                   <div className="mb-2 text-[11px] font-medium text-zinc-400">生成视频音频</div>
-                  <div className="grid grid-cols-2 gap-1 rounded-md bg-zinc-900 p-0.5">
+                  <div className="grid grid-cols-2 gap-1 rounded-md bg-[#141417] p-0.5">
                     {[true, false].map((value) => (
                       <button
                         key={String(value)}
@@ -870,7 +870,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
                         type="button"
                         className={cn(
                           "nodrag nopan flex h-11 flex-col items-center justify-center gap-1 rounded-md border text-[10px] transition-colors",
-                          selectedRatio === item.value ? "border-sky-500 bg-sky-500/10 text-sky-200" : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-border"
+                          selectedRatio === item.value ? "border-[#F5A623] bg-[#F5A623]/10 text-[#F7C24E]" : "border-[#26262B] bg-[#141417] text-zinc-400 hover:border-border"
                         )}
                         onPointerDown={(event) => event.stopPropagation()}
                         onClick={(event) => {
@@ -899,9 +899,9 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
           {modelLoadFailed ? <div className="text-[11px] text-amber-300">视频模型列表加载失败。</div> : null}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
+        <div className="flex items-center gap-2 border-t border-[#26262B] px-3 py-2">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[12px] text-zinc-400">
-            <MonitorPlay className="h-3.5 w-3.5 text-sky-300" />
+            <MonitorPlay className="h-3.5 w-3.5 text-[#F7C24E]" />
             <span className="truncate">{selectedResolution} / {selectedDuration}s / {includeAudio ? '是' : '否'} / {ratioLabel}</span>
           </div>
           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[13px] font-semibold text-emerald-300">¥ {videoCost}</span>
@@ -927,7 +927,7 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
             size="sm"
             title="只预检将上传给 Dreamina 的图片和音频，不提交任务"
             disabled={videoStatus === 'generating' || previewInFlight || promptOptimizing}
-            className="nodrag nopan h-9 border-border bg-zinc-900 px-3 text-[12px] text-zinc-200 hover:bg-layer-4 disabled:cursor-not-allowed disabled:opacity-60"
+            className="nodrag nopan h-9 border-border bg-[#141417] px-3 text-[12px] text-zinc-200 hover:bg-layer-4 disabled:cursor-not-allowed disabled:opacity-60"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();

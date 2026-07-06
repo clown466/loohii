@@ -118,29 +118,30 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
     <>
       <CanvasNodeResizer selected={selected} minWidth={isLightweightReference ? 170 : imageIsLandscape ? 340 : 260} minHeight={isLightweightReference ? 86 : 180} />
       <div className={cn(
-        "h-full w-full overflow-hidden rounded-lg border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500",
-        isStoryboardSpecialNode ? "border-amber-500/70 ring-1 ring-amber-500/30" : "border-border",
+        "h-full w-full overflow-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40]",
+        isStoryboardSpecialNode ? "border-amber-500/70 ring-1 ring-amber-500/30" : "",
+        selected && "lh-node-active",
         isLightweightReference ? "min-w-[170px]" : imageIsLandscape ? "min-w-[340px]" : "min-w-[260px]",
       )}>
       <div className={cn(
         "px-3 py-2 text-xs font-medium flex items-center gap-1.5 cursor-grab active:cursor-grabbing",
         isStoryboardSpecialNode ? "bg-amber-500/15 text-amber-100" : "bg-layer-4/50 text-zinc-300",
       )}>
-        <ImageIcon className={cn("h-3.5 w-3.5", isStoryboardSpecialNode ? "text-amber-300" : "text-sky-400")} />
+        <ImageIcon className={cn("h-3.5 w-3.5", isStoryboardSpecialNode ? "text-amber-300" : "text-[#F7C24E]")} />
         {isPreviousStoryboardReference ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">上一板</span> : null}
         {isStoryboardSlot ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">故事板</span> : null}
         {data.label || '图片输入'}
       </div>
       {isLightweightReference ? (
         <div className="p-2">
-          <div className="rounded border border-zinc-800 bg-zinc-950/50 px-2 py-2">
+          <div className="rounded border border-[#26262B] bg-zinc-950/50 px-2 py-2">
             <div className="truncate text-[11px] font-medium text-zinc-200">{data.assetName || data.label || '参考图'}</div>
             <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
               <span className="truncate">{data.assetKind === 'scenes' ? '场景参考' : data.assetKind === 'props' ? '道具参考' : '角色参考'}</span>
               {displayImageUrl && !imageUnavailable ? (
                 <button
                   type="button"
-                  className="nodrag nopan shrink-0 text-sky-400 hover:text-sky-300"
+                  className="nodrag nopan shrink-0 text-[#F5A623] hover:text-[#F7C24E]"
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => previewCanvasImage(event, {
                     url: displayImageUrl,
@@ -177,7 +178,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
               src={displayImageUrl}
               thumbWidth={1024}
               alt="参考图"
-              className="w-full cursor-zoom-in rounded border border-zinc-800 object-cover"
+              className="w-full cursor-zoom-in rounded border border-[#26262B] object-cover"
               style={{ aspectRatio: String(clampedImageAspectRatio) }}
               onClick={(event) => previewCanvasImage(event, {
                 url: displayImageUrl,
@@ -240,7 +241,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
         ) : (
           <div
-            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-border bg-zinc-900/50 hover:border-zinc-500 hover:bg-zinc-900"
+            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-border bg-[#141417]/50 hover:border-[#3A3A40] hover:bg-[#141417]"
             style={{ aspectRatio: imageIsLandscape ? String(clampedImageAspectRatio) : "1" }}
             onClick={() => fileRef.current?.click()}
           >
@@ -248,7 +249,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
             <span className="text-[11px] text-zinc-500">{uploading ? '上传中...' : imageUnavailable ? '图片已失效，重新上传' : isStoryboardSlot ? '等待故事板' : '点击上传'}</span>
             <button
               type="button"
-              className="text-[10px] text-sky-400 hover:text-sky-300"
+              className="text-[10px] text-[#F5A623] hover:text-[#F7C24E]"
               onClick={(e) => { e.stopPropagation(); handleUrlPaste(); }}
             >
               或粘贴 URL

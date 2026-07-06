@@ -209,9 +209,9 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={420} minHeight={300} />
-      <div className="scrollbar-none h-full w-full min-w-[420px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-cyan-500/70">
-        <div className="flex items-center gap-3 border-b border-zinc-800 p-3 cursor-grab active:cursor-grabbing">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-300">
+      <div className={cn("scrollbar-none h-full w-full min-w-[420px] overflow-y-auto overflow-x-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40]", selected && "lh-node-active")}>
+        <div className="flex items-center gap-3 border-b border-[#26262B] p-3 cursor-grab active:cursor-grabbing">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-[#F5A623]/10 text-[#F7C24E]">
             <Languages className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -221,14 +221,14 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
             </div>
           </div>
           <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
+            "shrink-0 border text-[10px] hover:bg-[#141417]",
             status === 'completed'
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : status === 'failed' || translationStalled
                 ? "border-red-500/30 bg-red-500/10 text-red-300"
                 : isTranslating
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-border bg-zinc-900 text-zinc-400"
+                  : "border-border bg-[#141417] text-zinc-400"
           )}>
             {translationStalled ? '已中断' : isTranslating ? '翻译中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待翻译'}
           </Badge>
@@ -237,7 +237,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className="space-y-3 p-3">
           <div className="grid grid-cols-2 gap-2">
             <select
-              className="nodrag nopan h-8 rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
               value={sourceLanguage}
               onChange={(event) => updateNodeData(id, { sourceLanguage: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -248,7 +248,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               <option value="English">英文</option>
             </select>
             <select
-              className="nodrag nopan h-8 rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
               value={targetLanguage}
               onChange={(event) => updateNodeData(id, { targetLanguage: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -260,7 +260,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
 
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-cyan-500"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
@@ -302,7 +302,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
+              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.sourcePrompt || incomingPrompt || '')}
               placeholder="输入要翻译的提示词，或从左侧连入图片/视频/分镜节点。"
               modalTitle={`${data.title || '提示词翻译'} · 原提示词`}
@@ -334,7 +334,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-cyan-500"
+              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={translatedPrompt}
               placeholder="翻译完成后显示在这里。"
               modalTitle={`${data.title || '提示词翻译'} · 翻译结果`}
@@ -350,7 +350,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
           {data.error ? (
             <div className={cn(
               "rounded border px-2 py-1 text-[11px] leading-4",
-              status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
+              status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-[#F5A623]/20 bg-[#F5A623]/10 text-[#F7C24E]",
             )}>
               {data.error}
             </div>
@@ -358,11 +358,11 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
           {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
+        <div className="flex items-center gap-2 border-t border-[#26262B] px-3 py-2">
           <Button
             type="button"
             size="sm"
-            className="nodrag nopan h-8 flex-1 bg-cyan-600 text-[12px] text-white hover:bg-cyan-500"
+            className="nodrag nopan h-8 flex-1 bg-[linear-gradient(135deg,#F5A623,#E08D0C)] text-[12px] font-bold text-[#0D0D0F] hover:opacity-90"
             disabled={isTranslating && !translationStalled}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {

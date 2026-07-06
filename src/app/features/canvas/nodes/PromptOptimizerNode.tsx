@@ -191,8 +191,8 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={460} minHeight={360} />
-      <div className="scrollbar-none h-full w-full min-w-[460px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-primary/70">
-        <div className="flex cursor-grab items-center gap-3 border-b border-zinc-800 p-3 active:cursor-grabbing">
+      <div className={cn("scrollbar-none h-full w-full min-w-[460px] overflow-y-auto overflow-x-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40]", selected && "lh-node-active")}>
+        <div className="flex cursor-grab items-center gap-3 border-b border-[#26262B] p-3 active:cursor-grabbing">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Wand2 className="h-5 w-5" />
           </div>
@@ -203,14 +203,14 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
             </div>
           </div>
           <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-zinc-900",
+            "shrink-0 border text-[10px] hover:bg-[#141417]",
             status === 'completed'
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : status === 'failed' || optimizeStalled
                 ? "border-red-500/30 bg-red-500/10 text-red-300"
                 : isOptimizing
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-border bg-zinc-900 text-zinc-400"
+                  : "border-border bg-[#141417] text-zinc-400"
           )}>
             {optimizeStalled ? '已中断' : isOptimizing ? '优化中' : status === 'completed' ? '已完成' : status === 'failed' ? '失败' : '待优化'}
           </Badge>
@@ -218,7 +218,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
         <div className="space-y-3 p-3">
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
@@ -235,7 +235,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div className="grid grid-cols-2 gap-2">
             <input
-              className="nodrag nopan h-8 rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.targetProvider || 'Dreamina Web Seedance 2.0')}
               placeholder="目标平台"
               onChange={(event) => updateNodeData(id, { targetProvider: event.target.value })}
@@ -243,7 +243,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
               onClick={(event) => event.stopPropagation()}
             />
             <input
-              className="nodrag nopan h-8 rounded-md border border-border bg-zinc-900 px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.failureReason || '')}
               placeholder="失败原因，例如 prompt may violate"
               onChange={(event) => updateNodeData(id, { failureReason: event.target.value })}
@@ -329,7 +329,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-zinc-800 px-3 py-2">
+        <div className="flex items-center gap-2 border-t border-[#26262B] px-3 py-2">
           <Button
             type="button"
             size="sm"

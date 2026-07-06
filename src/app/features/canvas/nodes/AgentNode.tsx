@@ -223,8 +223,8 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={500} minHeight={560} />
-      <div className="scrollbar-none h-full w-full min-w-[440px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-violet-400/70">
-        <div className="flex cursor-grab items-center gap-3 border-b border-zinc-800 p-3 active:cursor-grabbing">
+      <div className={cn("scrollbar-none h-full w-full min-w-[440px] overflow-y-auto overflow-x-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40]", selected && "lh-node-active")}>
+        <div className="flex cursor-grab items-center gap-3 border-b border-[#26262B] p-3 active:cursor-grabbing">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-violet-500/10 text-violet-300">
             <Bot className="h-5 w-5" />
           </div>
@@ -236,14 +236,14 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Badge className={cn(
-              'border text-[10px] hover:bg-zinc-900',
+              'border text-[10px] hover:bg-[#141417]',
               status === 'running'
                 ? 'border-violet-500/30 bg-violet-500/10 text-violet-200'
                 : status === 'failed'
                   ? 'border-red-500/30 bg-red-500/10 text-red-300'
                   : status === 'completed'
                     ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                  : 'border-border bg-zinc-900 text-zinc-400',
+                  : 'border-border bg-[#141417] text-zinc-400',
             )}>
               {status === 'running' ? '处理中' : status === 'failed' ? '失败' : status === 'completed' ? '完成' : '待命'}
             </Badge>
@@ -260,7 +260,7 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
         </div>
 
         <div className="space-y-3 p-3">
-          <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-2">
+          <div className="rounded-md border border-[#26262B] bg-[#0d0d0f] p-2">
             <div className="mb-1 text-[11px] font-medium text-zinc-400">连接上下文</div>
             <div className="line-clamp-3 text-[12px] leading-5 text-zinc-300">
               {linkedNodes.length
@@ -309,7 +309,7 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
           {data.error ? <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-[12px] text-red-200">{String(data.error)}</div> : null}
           {data.lastSentAt ? <div className="text-[11px] text-zinc-500">最近提交：{new Date(String(data.lastSentAt)).toLocaleString()}</div> : null}
 
-          <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-2">
+          <div className="rounded-md border border-[#26262B] bg-[#0d0d0f] p-2">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-[11px] font-medium text-zinc-400">智能体返回草稿</span>
               {data.lastCompletedAt ? <span className="text-[10px] text-zinc-600">{new Date(String(data.lastCompletedAt)).toLocaleString()}</span> : null}

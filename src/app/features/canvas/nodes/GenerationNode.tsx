@@ -776,7 +776,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={320} minHeight={300} />
-      <div className="scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
+      <div className={cn("scrollbar-none h-full w-full min-w-[320px] overflow-y-auto overflow-x-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40]", (selected || data.status === 'generating') && "lh-node-active")}>
       <div className="flex items-center gap-3 p-3 cursor-grab active:cursor-grabbing">
         <div className="h-10 w-10 rounded-full bg-layer-4 overflow-hidden shrink-0">
           {data.outputImage ? (
@@ -800,16 +800,16 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
         </div>
         <span className={cn(
           "shrink-0 text-[10px]",
-          isSubmittingGeneration ? 'animate-pulse text-sky-400' : generationStalled ? 'text-red-400' : data.status === 'generating' ? 'animate-pulse text-yellow-400' : data.status === 'completed' ? 'text-green-400' : data.status === 'failed' ? 'text-red-400' : 'text-zinc-500',
+          isSubmittingGeneration ? 'animate-pulse text-[#F7C24E]' : generationStalled ? 'text-red-400' : data.status === 'generating' ? 'animate-pulse text-yellow-400' : data.status === 'completed' ? 'text-green-400' : data.status === 'failed' ? 'text-red-400' : 'text-zinc-500',
         )}>
           {isSubmittingGeneration ? '提交中' : data.status === 'generating' && !generationStalled ? '生成中' : data.status === 'completed' ? '已完成' : data.status === 'failed' || generationStalled ? '失败' : '等待生成'}
         </span>
       </div>
 
       {!isLightweightGeneration && referenceImages.length > 0 && (
-        <div className="border-t border-zinc-800 px-3 py-2">
+        <div className="border-t border-[#26262B] px-3 py-2">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-sky-400 shrink-0">{referenceImages.length} 参考</span>
+            <span className="text-[10px] text-[#F7C24E] shrink-0">{referenceImages.length} 参考</span>
             {previousStoryboardReference && (
               <button
                 type="button"
@@ -842,7 +842,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 />
                 <span className={cn(
                   "absolute -top-1 -left-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[8px] font-bold text-white",
-                  ref.kind === 'storyboard' ? 'bg-amber-500' : 'bg-sky-500',
+                  ref.kind === 'storyboard' ? 'bg-amber-500' : 'bg-[#F5A623]',
                 )}>
                   {canvasReferenceImageBadgeLabel(ref, i)}
                 </span>
@@ -853,7 +853,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       )}
 
       {!isLightweightGeneration ? (
-      <div className="border-t border-zinc-800 px-3 py-2">
+      <div className="border-t border-[#26262B] px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between gap-2">
           <span className="text-[10px] font-medium text-zinc-400">最终生图提示词</span>
 	          <button
@@ -902,12 +902,12 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
 	        />
       </div>
       ) : (
-        <div className="border-t border-zinc-800 px-3 py-2">
+        <div className="border-t border-[#26262B] px-3 py-2">
           <div className="mb-1.5 flex items-center justify-between gap-2">
             <span className="text-[10px] font-medium text-zinc-400">{positioningBoardLabel}提示词</span>
             {isPositioningBoardGeneration ? (
               <div
-                className="nodrag nopan flex shrink-0 rounded border border-zinc-800 bg-zinc-950 p-0.5 text-[10px]"
+                className="nodrag nopan flex shrink-0 rounded border border-[#26262B] bg-zinc-950 p-0.5 text-[10px]"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -937,7 +937,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
             )}
           </div>
           <PromptTextarea
-            className="nodrag nopan h-[74px] w-full resize-none rounded border border-zinc-800 bg-zinc-950/50 px-2.5 py-2 text-[11px] leading-4 text-zinc-300 placeholder-zinc-600 focus:border-primary focus:outline-none"
+            className="nodrag nopan h-[74px] w-full resize-none rounded border border-[#26262B] bg-zinc-950/50 px-2.5 py-2 text-[11px] leading-4 text-zinc-300 placeholder-zinc-600 focus:border-primary focus:outline-none"
             placeholder={`输入${positioningBoardLabel}生图提示词...`}
             value={promptDraft}
             onChange={(value) => setPromptDraft(value)}
@@ -1019,7 +1019,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
         </select>
       </div>
 
-      <div className="border-t border-zinc-800 px-3 py-2">
+      <div className="border-t border-[#26262B] px-3 py-2">
 	        <Button
 	          size="sm"
 	          className="nodrag nopan w-full h-8 text-[12px] bg-primary hover:bg-primary/90 text-white gap-1.5"
@@ -1034,9 +1034,9 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
 
       {(isSubmittingGeneration || (data.status === 'generating' && !generationStalled)) && (
         <div className="px-3 pb-3">
-          <div className="aspect-square rounded border border-border bg-zinc-900/50 flex flex-col items-center justify-center gap-2">
-            <div className="h-1.5 w-24 bg-layer-4 rounded-full overflow-hidden">
-              <div className="h-full bg-primary/90 animate-pulse w-[60%]" />
+          <div className="aspect-square rounded border border-border bg-[#141417]/50 flex flex-col items-center justify-center gap-2">
+            <div className="h-1.5 w-24 bg-[#26262B] rounded-full overflow-hidden">
+              <div className="h-full bg-[linear-gradient(90deg,#F5A623,#F7C24E)] animate-pulse w-[60%]" />
             </div>
             <span className="px-3 text-center text-[11px] text-zinc-500">
               {isSubmittingGeneration ? String(data.canvasSubmitError || '正在提交到后端...') : canvasGenerationWaitLabel(data.generationStartedAt)}
@@ -1118,7 +1118,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                     type="button"
                     className={cn(
                       "nodrag nopan relative aspect-square overflow-hidden rounded border bg-zinc-950",
-                      active ? "border-primary ring-1 ring-primary/60" : "border-border hover:border-zinc-500",
+                      active ? "border-primary ring-1 ring-primary/60" : "border-border hover:border-[#3A3A40]",
                     )}
                     title={variant.title || `结果 ${index + 1}`}
                     onPointerDown={(event) => event.stopPropagation()}
@@ -1144,7 +1144,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag nopan mt-2 h-7 w-full text-[11px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
+            className="nodrag nopan mt-2 h-7 w-full text-[11px] text-[#F7C24E] hover:bg-[#F5A623]/10 hover:text-[#F5A623]"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -1160,7 +1160,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
             </div>
           ) : null}
           {isStandaloneGeneration && (
-            <div className="mt-2 rounded border border-zinc-800 bg-[#101014] p-2">
+            <div className="mt-2 rounded border border-[#26262B] bg-[#141417] p-2">
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-[10px] font-medium text-zinc-400">写入资产库</span>
                 {data.lastAssignedAssetName ? (
@@ -1171,7 +1171,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </div>
               <div className="flex gap-1.5">
                 <select
-                  className="nodrag nopan h-7 w-[82px] shrink-0 rounded border border-border bg-zinc-900 px-1.5 text-[10px] text-zinc-300 focus:border-primary focus:outline-none"
+                  className="nodrag nopan h-7 w-[82px] shrink-0 rounded border border-border bg-[#141417] px-1.5 text-[10px] text-zinc-300 focus:border-primary focus:outline-none"
                   value={targetAssetKind}
                   onChange={(e) => {
                     const nextKind = e.target.value as WorkflowAssetKind;
@@ -1189,7 +1189,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 </select>
                 {targetAssetOptions.length > 0 ? (
                   <select
-                    className="nodrag nopan h-7 min-w-0 flex-1 rounded border border-border bg-zinc-900 px-2 text-[10px] text-zinc-200 focus:border-primary focus:outline-none"
+                    className="nodrag nopan h-7 min-w-0 flex-1 rounded border border-border bg-[#141417] px-2 text-[10px] text-zinc-200 focus:border-primary focus:outline-none"
                     value={targetAssetCustomMode ? '__custom__' : targetAssetName}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -1213,7 +1213,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </div>
               {(targetAssetCustomMode || targetAssetOptions.length === 0) ? (
                 <input
-                  className="nodrag nopan mt-1.5 h-7 w-full rounded border border-border bg-zinc-900 px-2 text-[10px] text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
+                  className="nodrag nopan mt-1.5 h-7 w-full rounded border border-border bg-[#141417] px-2 text-[10px] text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
                   value={targetAssetName}
                   placeholder="输入资产名"
                   onChange={(e) => setTargetAssetName(e.target.value)}

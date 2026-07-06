@@ -19,10 +19,11 @@ export const AudioInputNode = ({ data, selected }: CanvasNodeProps) => {
     <>
       <CanvasNodeResizer selected={selected} minWidth={240} minHeight={96} />
       <div className={cn(
-        "h-full w-full overflow-hidden rounded-lg border bg-[#141416] shadow-xl transition-colors",
-        missing ? "border-border hover:border-zinc-500" : "border-emerald-500/60 ring-1 ring-emerald-500/20 hover:border-emerald-400",
+        "h-full w-full overflow-hidden rounded-[14px] border lh-node transition-colors",
+        missing ? "hover:border-[#3A3A40]" : "border-emerald-500/60 ring-1 ring-emerald-500/20 hover:border-emerald-400",
+        selected && "lh-node-active",
       )}>
-        <div className="flex cursor-grab items-center gap-2 border-b border-zinc-800 bg-layer-4/40 px-3 py-2 text-xs font-medium text-zinc-200 active:cursor-grabbing">
+        <div className="flex cursor-grab items-center gap-2 border-b border-[#26262B] bg-layer-4/40 px-3 py-2 text-xs font-medium text-zinc-200 active:cursor-grabbing">
           <Mic className={cn("h-3.5 w-3.5 shrink-0", missing ? "text-zinc-500" : "text-emerald-300")} />
           <span className="min-w-0 flex-1 truncate">{title}</span>
           <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px]", missing ? "bg-layer-4 text-zinc-500" : "bg-emerald-500/15 text-emerald-200")}>

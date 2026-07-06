@@ -46,14 +46,14 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={240} minHeight={210} />
-      <div className="h-full w-full min-w-[240px] overflow-hidden rounded-lg border border-border bg-[#141416] shadow-xl transition-colors hover:border-zinc-500">
+      <div className={`h-full w-full min-w-[240px] overflow-hidden rounded-[14px] border lh-node transition-colors hover:border-[#3A3A40] ${selected ? "lh-node-active" : ""}`}>
       <div className="bg-layer-4/50 px-3 py-2 text-xs font-medium text-zinc-300 flex justify-between items-center cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5">
           <ImagePlay className="h-3.5 w-3.5 text-primary" />
           {data.title || "分镜"}
         </div>
         {referenceImages.length > 0 && (
-          <span className="text-[10px] text-sky-400">{referenceImages.length} 参考</span>
+          <span className="text-[10px] text-[#F7C24E]">{referenceImages.length} 参考</span>
         )}
       </div>
 
@@ -69,7 +69,7 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
                 onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
                 onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
               />
-              <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[9px] font-bold text-white">
+              <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#F5A623] text-[9px] font-bold text-[#0D0D0F]">
                 {i + 1}
               </span>
             </div>
@@ -78,7 +78,7 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
       )}
 
       <div className="p-3 pb-0">
-        <div className="aspect-video bg-zinc-900 rounded border border-zinc-800 flex items-center justify-center overflow-hidden mb-3 relative group">
+        <div className="aspect-video bg-[#141417] rounded border border-[#26262B] flex items-center justify-center overflow-hidden mb-3 relative group">
           {data.status === 'completed' && data.image ? (
             <ThumbImage
               src={data.image}
@@ -90,8 +90,8 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
             />
           ) : data.status === 'generating' ? (
             <div className="flex flex-col items-center justify-center gap-2">
-              <div className="h-1.5 w-24 bg-layer-4 rounded-full overflow-hidden">
-                <div className="h-full bg-primary/90 w-[45%] animate-pulse" />
+              <div className="h-1.5 w-24 bg-[#26262B] rounded-full overflow-hidden">
+                <div className="h-full bg-[linear-gradient(90deg,#F5A623,#F7C24E)] w-[45%] animate-pulse" />
               </div>
               <span className="text-xs text-zinc-500 font-mono">生成中...</span>
             </div>
@@ -105,7 +105,7 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
         </p>
       </div>
 
-      <div className="px-3 py-2 border-t border-zinc-800 flex items-center justify-between bg-zinc-900/50">
+      <div className="px-3 py-2 border-t border-[#26262B] flex items-center justify-between bg-[#141417]/50">
         <div className="flex items-center gap-1.5">
           {data.status === 'completed' ? (
             <span className="flex h-2 w-2 rounded-full bg-green-500" />

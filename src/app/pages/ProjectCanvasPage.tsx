@@ -5458,13 +5458,13 @@ function CanvasInner() {
           minZoom={0.08}
           maxZoom={2.5}
           onlyRenderVisibleElements
-          className="bg-background"
+          className="bg-[#0A0A0C]"
           colorMode="dark"
         >
-          <Background color="#27272a" gap={20} size={1} />
-          <Controls className="!bg-[#141416] !border-zinc-800 !fill-zinc-400" />
+          <Background color="#1E1E22" gap={18} size={1} />
+          <Controls className="!bg-[#141417] !border-[#26262B] !fill-zinc-400" />
           <MiniMap
-            className="hidden overflow-hidden rounded-lg !border-zinc-800 !bg-[#141416] sm:block"
+            className="hidden overflow-hidden rounded-lg !border-[#26262B] !bg-[#141417] sm:block"
             nodeColor={(n) => {
               if (n.type === 'scene') return '#27272a';
               return '#18181b';
@@ -6315,7 +6315,7 @@ function CanvasInner() {
                       value={assetGenerationModelId}
                       onChange={(event) => setAssetGenerationModelId(event.target.value)}
                       disabled={workflowModelsLoading || assetImageModels.length === 0}
-                      className="mt-1 h-8 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="">{assetImageModels.length === 0 ? '未配置图片模型' : '使用后端默认图片模型'}</option>
                       {assetImageModels.map((model) => (
@@ -6331,7 +6331,7 @@ function CanvasInner() {
                       <select
                         value={assetGenerationAspectRatio}
                         onChange={(event) => setAssetGenerationAspectRatio(event.target.value)}
-                        className="mt-1 h-8 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-2 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-2 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {assetImageAspectRatioOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -6343,7 +6343,7 @@ function CanvasInner() {
                       <select
                         value={assetGenerationResolution}
                         onChange={(event) => setAssetGenerationResolution(event.target.value)}
-                        className="mt-1 h-8 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-2 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-2 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {assetImageResolutionOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -6357,7 +6357,7 @@ function CanvasInner() {
                       value={assetUploadModelId}
                       onChange={(event) => setAssetUploadModelId(event.target.value)}
                       disabled={workflowModelsLoading || assetUploadBusyKeys.length > 0 || workflowModels.length === 0}
-                      className="mt-1 h-8 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 text-[12px] text-zinc-100 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 text-[12px] text-zinc-100 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="">{workflowModelsLoading ? '加载模型中...' : '使用当前文本模型'}</option>
                       {workflowModels.map((model) => (
@@ -6369,12 +6369,12 @@ function CanvasInner() {
                   </label>
                 </div>
                 {assetUploadStatus && (
-                  <div className="mt-2 rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                  <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[11px] leading-4 text-zinc-400">
                     {assetUploadStatus}
                   </div>
                 )}
                 {assetGenerationStatus && (
-                  <div className="mt-2 rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                  <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[11px] leading-4 text-zinc-400">
                     {assetGenerationStatus}
                   </div>
                 )}
@@ -6408,7 +6408,7 @@ function CanvasInner() {
                     </Button>
                   </div>
                   {assetHistoryStatus && (
-                    <div className="mt-2 rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                    <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[11px] leading-4 text-zinc-400">
                       {assetHistoryStatus}
                     </div>
                   )}

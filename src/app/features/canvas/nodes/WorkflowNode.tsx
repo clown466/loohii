@@ -11,7 +11,7 @@ export const WorkflowNode = ({ id, data, selected }: CanvasNodeProps) => {
   }
 
   const iconMap: Record<string, React.ReactNode> = {
-    episode: <Layers3 className="h-4 w-4 text-sky-300" />,
+    episode: <Layers3 className="h-4 w-4 text-[#F7C24E]" />,
     asset: <Boxes className="h-4 w-4 text-emerald-300" />,
     workflow: <ListChecks className="h-4 w-4 text-primary" />,
     directorBoard: <Clapperboard className="h-4 w-4 text-amber-300" />,
@@ -20,18 +20,18 @@ export const WorkflowNode = ({ id, data, selected }: CanvasNodeProps) => {
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={240} minHeight={120} />
-      <div className="h-full w-full min-w-[240px] rounded-lg border border-border bg-[#141416] p-3 shadow-xl transition-colors hover:border-zinc-500">
+      <div className={`h-full w-full min-w-[240px] rounded-[14px] border lh-node p-3 transition-colors hover:border-[#3A3A40] ${selected ? "lh-node-active" : ""}`}>
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             {iconMap[String(data.kind ?? 'workflow')] ?? iconMap.workflow}
             <div className="truncate text-[13px] font-semibold text-zinc-100">{data.title ?? '流程节点'}</div>
           </div>
-          <Badge className="border border-border bg-zinc-900 text-[10px] text-zinc-400 hover:bg-zinc-900">
+          <Badge className="border border-border bg-[#141417] text-[10px] text-zinc-400 hover:bg-[#141417]">
             {data.statusLabel ?? '待处理'}
           </Badge>
         </div>
         <p className="min-h-[40px] text-[12px] leading-5 text-zinc-400">{data.description ?? '等待接入生产任务'}</p>
-        <div className="mt-3 flex items-center gap-2 border-t border-zinc-800 pt-2 text-[11px] text-zinc-500">
+        <div className="mt-3 flex items-center gap-2 border-t border-[#26262B] pt-2 text-[11px] text-zinc-500">
           <Sparkles className="h-3.5 w-3.5" />
           <span className="truncate">{data.scope ?? '当前项目'}</span>
         </div>

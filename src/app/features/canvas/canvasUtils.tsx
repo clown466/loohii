@@ -3205,13 +3205,13 @@ export function CanvasNodeResizer({
       isVisible={Boolean(selected)}
       minWidth={minWidth}
       minHeight={minHeight}
-      color="#38bdf8"
+      color="#F5A623"
       lineStyle={{ borderWidth: 1 }}
       handleStyle={{
         width: 10,
         height: 10,
         borderRadius: 3,
-        border: '1px solid #7dd3fc',
+        border: '1px solid #F7C24E',
         background: '#09090b',
       }}
     />
@@ -3230,7 +3230,7 @@ export function CanvasHandle({
   style?: React.CSSProperties;
 }) {
   const borderClass =
-    tone === 'sky' ? 'border-sky-500 hover:!bg-sky-500' : tone === 'primary' ? 'border-primary hover:!bg-primary' : tone === 'emerald' ? 'border-emerald-500 hover:!bg-emerald-500' : 'border-zinc-500 hover:!bg-zinc-500';
+    tone === 'sky' ? '!border-[#F5A623] hover:!bg-[#F5A623]' : tone === 'primary' ? 'border-primary hover:!bg-primary' : tone === 'emerald' ? 'border-emerald-500 hover:!bg-emerald-500' : 'border-zinc-500 hover:!bg-zinc-500';
   return (
     <Handle
       type={type}

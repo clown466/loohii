@@ -185,11 +185,11 @@ export function PromptTextarea({
             onClick={closeExpanded}
           >
             <div
-              className="flex h-[min(920px,calc(100vh-48px))] w-[min(1720px,calc(100vw-48px))] max-w-none flex-col overflow-hidden rounded-lg border border-cyan-500/40 bg-[#111113] shadow-2xl"
+              className="flex h-[min(920px,calc(100vh-48px))] w-[min(1720px,calc(100vw-48px))] max-w-none flex-col overflow-hidden rounded-lg border border-[#2E2E34] bg-[#111113] shadow-2xl"
               onClick={(event) => event.stopPropagation()}
               onDoubleClick={(event) => event.stopPropagation()}
             >
-              <div className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-zinc-800 px-5">
+              <div className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-[#26262B] px-5">
                 <div className="min-w-0">
                   <div className="truncate text-[17px] font-semibold text-zinc-100">{modalTitle}</div>
                   <div className="mt-1 text-[13px] text-zinc-500">{modalSubtitle}</div>
@@ -206,7 +206,7 @@ export function PromptTextarea({
               </div>
               <div className="min-h-0 flex-1 p-5">
                 <textarea
-                  className="nodrag nopan h-full w-full resize-none rounded-md border border-zinc-800 bg-background px-5 py-4 font-mono text-[16px] leading-7 text-zinc-100 outline-none focus:border-cyan-400"
+                  className="nodrag nopan h-full w-full resize-none rounded-md border border-[#26262B] bg-background px-5 py-4 font-mono text-[16px] leading-7 text-zinc-100 outline-none focus:border-primary"
                   value={draft}
                   autoFocus
                   onPointerDown={(event) => event.stopPropagation()}
@@ -231,7 +231,7 @@ export function PromptTextarea({
                   }}
                 />
               </div>
-              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-zinc-800 px-5 py-4">
+              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#26262B] px-5 py-4">
                 <div className="min-w-0">
                   <div className="truncate text-[13px] text-zinc-500">保存后会同步回当前画布节点。</div>
                   <div className={`mt-1 text-[12px] ${maxChars && draft.length > maxChars ? 'text-red-300' : 'text-zinc-500'}`}>
@@ -252,7 +252,7 @@ export function PromptTextarea({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-10 bg-cyan-500 px-5 text-[14px] text-black hover:bg-cyan-400"
+                    className="h-10 bg-[linear-gradient(135deg,#F5A623,#E08D0C)] px-5 text-[14px] font-bold text-[#0D0D0F] hover:opacity-90"
                     onClick={saveExpanded}
                   >
                     保存
