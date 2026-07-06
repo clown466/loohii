@@ -50,7 +50,7 @@ export function AuthPage() {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Brand Side - Hidden on Mobile */}
-      <div className="hidden lg:flex flex-1 flex-col justify-between p-12 relative overflow-hidden bg-[#141416] border-r border-zinc-800">
+      <div className="hidden lg:flex flex-1 flex-col justify-between p-12 relative overflow-hidden bg-[#141416] border-r border-[#2A2A30]">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent" />
         <div className="absolute -left-48 top-1/4 w-96 h-96 bg-primary/20 blur-[128px] rounded-full" />
 
@@ -63,16 +63,16 @@ export function AuthPage() {
 
         <div className="relative z-10 max-w-md">
           <h2 className="text-4xl font-bold mb-4 leading-tight">释放你的想象力</h2>
-          <p className="text-zinc-400 text-lg">加入数以万计的创作者，使用鹿绘AI将脑海中的故事变成触手可及的视觉盛宴。</p>
+          <p className="text-[#6B6B72] text-lg">加入数以万计的创作者，使用鹿绘AI将脑海中的故事变成触手可及的视觉盛宴。</p>
         </div>
       </div>
 
       {/* Form Side */}
       <div className="relative flex flex-1 flex-col items-center justify-center p-4 sm:p-8">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm lh-card rounded-xl border p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold mb-2">{isLogin ? "欢迎回来" : "创建账号"}</h1>
-            <p className="text-zinc-400 text-sm">
+            <h1 className="text-2xl font-extrabold text-[#E8E8EC] mb-2">{isLogin ? "欢迎回来" : "创建账号"}</h1>
+            <p className="text-[#6B6B72] text-sm">
               {isLogin ? "输入您的信息登录到鹿绘AI" : "开始您的 AI 动画创作之旅"}
             </p>
           </div>
@@ -136,32 +136,32 @@ export function AuthPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-11 mt-6 bg-primary hover:bg-primary/90 text-base disabled:opacity-50"
+              className="w-full h-11 mt-6 text-base disabled:opacity-50"
             >
               {loading ? "处理中..." : (isLogin ? "登录" : "注册")}
             </Button>
 
             <div className="relative py-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-zinc-800" />
+                <div className="w-full border-t border-[#2A2A30]" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-zinc-500">或使用以下方式</span>
+                <span className="bg-[#19191E] px-2 text-[#6B6B72]">或使用以下方式</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-zinc-800 hover:bg-layer-4">
+              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-[#2A2A30] hover:bg-layer-4">
                 <Github className="h-4 w-4 mr-2" />
                 GitHub
               </Button>
-              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-zinc-800 hover:bg-layer-4">
+              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-[#2A2A30] hover:bg-layer-4">
                 Google
               </Button>
             </div>
           </form>
 
-          <p className="text-center text-sm text-zinc-400 mt-8">
+          <p className="text-center text-sm text-[#6B6B72] mt-8">
             {isLogin ? "没有账号？" : "已有账号？"}
             <Link to={isLogin ? "/register" : "/login"} className="text-primary hover:underline ml-1 font-medium">
               {isLogin ? "去注册" : "去登录"}
