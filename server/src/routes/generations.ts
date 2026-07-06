@@ -31,10 +31,7 @@ router.get(
     const take = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(300, Math.floor(requestedLimit))) : 100;
     const compact = req.query.compact === "1" || req.query.compact === "true";
     const generations = await prisma.generation.findMany({
-      where: {
-        userId: req.user!.id,
-        ...(projectId ? { projectId } : {}),
-      },
+      where: generationListWhere(req.user!.id, projectId),
       include: generationIncludeActiveAssets(),
       orderBy: { createdAt: "desc" },
       take,
@@ -181,6 +178,16 @@ router.delete(
 );
 
 export const generationsRouter = router;
+
+// 删除生成记录采用软取消（status = CANCELED）。列表查询过滤 CANCELED，
+// 保证“删除即消失”，避免 socket 触发的 refetch 让已删除记录以失败卡片复活。
+export function generationListWhere(userId: string, projectId?: string) {
+  return {
+    userId,
+    status: { not: "CANCELED" as const },
+    ...(projectId ? { projectId } : {}),
+  };
+}
 
 function generationIncludeActiveAssets() {
   return {
