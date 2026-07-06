@@ -6934,7 +6934,8 @@ function buildClipSeedancePromptRefinementPrompt(input: {
     "Do not describe character clothing or exact appearance when reference images exist.",
     ...VIDEO_STATE_AND_ASSET_RULES,
     "Preserve every beat line (P1/P2... or S1/S2...) in order. Do not skip, merge, or reorder them.",
-    "Keep dialogue lines attached to the matching beat when present.",
+    "Keep dialogue lines attached to the matching beat when present, and keep the exact labeled format at the start of that beat: `Dialogue: Speaker says “...”`. Never rewrite dialogue as unlabeled inline narration.",
+    "Keep the whole refined prompt under 3500 characters; trim scene description and acting notes first, never dialogue or beat labels.",
     "If storyboard panels conflict with ordered shots, the storyboard panels are the authority.",
     "Do not repeat the whole Clip cast in every S beat. Each S beat should name only visible speakers/actors and their carried-forward state.",
     "Move repeated constraints into the prompt header. Do not repeat scene-continuity rules, screen-direction rules, visible-subject rules, or foreground/midground/background rules inside every S beat.",
@@ -7432,9 +7433,16 @@ function compactWorkflowVideoBeatLine(line: string, maxChars = COMPACT_WORKFLOW_
   if (!labelMatch) return compactSentence(line, maxChars);
   const label = labelMatch[1].toUpperCase();
   const body = labelMatch[2] ?? "";
-  const dialogue = cleanVideoDialogue(extractDialogueFromVideoBeatLine(body));
-  const withoutDialogue = removeVideoDialogueFragments(body, dialogue);
-  const dialogueSentence = formatExactVideoDialogue(dialogue);
+  const labeledDialogue = cleanVideoDialogue(extractDialogueFromVideoBeatLine(body));
+  // 精修模型常把台词改写为行内 `X says “...”`（无 Dialogue: 标签），压缩截断前提取出来一并保护。
+  const inlineDialogues = labeledDialogue ? [] : extractInlineQuotedVideoDialogue(body);
+  const dialogue = labeledDialogue || inlineDialogues.map((item) => item.formatted).join(" ");
+  const withoutDialogue = inlineDialogues.length
+    ? inlineDialogues.reduce((text, item) => text.replace(new RegExp(escapeRegExp(item.raw), "gi"), ""), body)
+    : removeVideoDialogueFragments(body, dialogue);
+  const dialogueSentence = inlineDialogues.length
+    ? inlineDialogues.map((item) => item.formatted).join("; ")
+    : formatExactVideoDialogue(dialogue);
   const prefix = `${label}: ${dialogueSentence ? `Dialogue: ${dialogueSentence}; ` : ""}`;
   const minimumForDialogueBeat = dialogueSentence ? prefix.length + 80 : maxChars;
   const effectiveMaxChars = Math.max(maxChars, minimumForDialogueBeat);
@@ -7452,6 +7460,25 @@ function compactWorkflowVideoBeatLine(line: string, maxChars = COMPACT_WORKFLOW_
   if (compacted.length <= effectiveMaxChars) return compacted;
   if (dialogue) return cleanVideoLine(`${label}: Dialogue: ${dialogueSentence}`);
   return cleanVideoLine(`${label}: ${compactSentence(action, Math.max(0, effectiveMaxChars - `${label}: `.length))}`);
+}
+
+/** 提取行内引号台词（`Chloe snaps “...”` 或较长的裸引号句），raw 用于从动作文本中删除，formatted 用于 Dialogue 前缀。 */
+function extractInlineQuotedVideoDialogue(body: string): Array<{ raw: string; formatted: string }> {
+  const results: Array<{ raw: string; formatted: string }> = [];
+  const pattern = /(?:\b([A-Z][A-Za-z0-9_-]*(?:\s+[A-Z][A-Za-z0-9_-]*){0,2}|[一-龥·]{1,12})\s+(?:says?|said|snaps?|mutters?|shouts?|whispers?|yells?|growls?|barks?|replies|repeats?|asks?|adds?|deadpans?|announces?|proclaims?|declares?|hisses?|warns?|demands?)\b[^“”"]{0,24})?[“"]([^“”"\n]{2,})[”"]/g;
+  for (const match of body.matchAll(pattern)) {
+    const speaker = (match[1] ?? "").trim();
+    const line = trimDialogueQuotes((match[2] ?? "").trim());
+    if (!line) continue;
+    // 无说话人的短引号（如物件名、招牌字）多半不是台词，避免误保护。
+    if (!speaker && line.split(/\s+/).length < 3 && !/[一-龥]/.test(line)) continue;
+    if (speaker && isNonDialogueSpeakerLabel(speaker, line)) continue;
+    results.push({
+      raw: match[0],
+      formatted: speaker ? `${speaker} says “${line}”` : `“${line}”`,
+    });
+  }
+  return results;
 }
 
 function compactWorkflowVideoBeatBody(value: string): string {
