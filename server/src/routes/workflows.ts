@@ -6775,11 +6775,46 @@ async function refineWorkflowClipSeedancePrompt(input: {
     : input.prompt;
   const cameraSafePrompt = enforceShotCameraPlansInVideoPrompt(safePrompt, input.shots);
   const fallbackPrompt = enforceShotCameraPlansInVideoPrompt(input.prompt, input.shots);
-  const finalized = finalizeWorkflowVideoPrompt(cameraSafePrompt, fallbackPrompt);
+  // 精修模型常把台词挪位、堆到末拍或改写说话人，指令约束不可靠；这里剥掉候选里的所有 Dialogue 片段，按源节拍确定性回插。
+  const reattached = reattachVideoBeatDialogues(cameraSafePrompt, buildClipVideoStoryboardBeats(input.clip, input.shots, input.workflow));
+  const finalized = finalizeWorkflowVideoPrompt(reattached, fallbackPrompt);
   // 精修结果超长时会走 compactWorkflowVideoPrompt 逐拍截断，行内（未带 Dialogue: 标签的）台词会被截掉；
   // 台词丢失时回退到源提示词（其 Dialogue: 标签在压缩中受保护）。
   if (preservesVideoDialogueLines(finalized, input.prompt)) return finalized;
   return finalizeWorkflowVideoPrompt(fallbackPrompt);
+}
+
+/** 剥掉提示词里所有 Dialogue 片段与独立 Dialogue 行，再按源节拍标签把台词插回对应 S/P 行开头。 */
+function reattachVideoBeatDialogues(prompt: string, beats: ClipVideoStoryboardBeat[]): string {
+  const dialogueByLabel = new Map<string, string>();
+  for (const beat of beats) {
+    const sentence = formatExactVideoDialogue(beat.dialogue || "");
+    if (beat.label && sentence) dialogueByLabel.set(beat.label.toUpperCase(), sentence);
+  }
+  if (dialogueByLabel.size === 0) return prompt;
+  const stripDialogueSegments = (value: string) =>
+    cleanVideoLine(
+      value
+        .replace(/\bDialogue\s*[:：]\s*(?:[^“”"\n]{0,60})?[“"][^“”"\n]*[”"][.,;，。；]?\s*/g, "")
+        .replace(/\bDialogue\s*[:：]\s*/gi, ""),
+    );
+  return normalizePromptTextWithoutCompression(prompt)
+    .split("\n")
+    .map((line) => {
+      const match = line.match(/^((?:P|S)\d{1,2})\s*[:：]\s*([\s\S]*)$/i);
+      if (!match) {
+        // 独立的 Dialogue 行是精修模型挪位产物，内容会按节拍回插，这里直接删除。
+        return /^Dialogue\s*[:：]/i.test(line.trim()) ? "" : line;
+      }
+      const label = match[1].toUpperCase();
+      const body = stripDialogueSegments(match[2] ?? "");
+      const sentence = dialogueByLabel.get(label);
+      return cleanVideoLine(`${label}: ${sentence ? `Dialogue: ${sentence}; ` : ""}${body}`)
+        .replace(/;{2,}/g, ";")
+        .replace(/\s*;\s*$/g, "");
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 function preservesVideoBeatLabels(candidate: string, source: string): boolean {
@@ -11606,6 +11641,7 @@ export const workflowsTestInternals = {
   normalizeFragmentedStoryboardDialogue,
   normalizeWorkflowAssets,
   normalizeCanvasVideoRatio,
+  reattachVideoBeatDialogues,
   rebalanceStoryboardPacing,
   regenerateWorkflowClipSeedancePrompt,
   resolveWorkflowEpisodeId,
