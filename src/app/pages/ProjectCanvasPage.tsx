@@ -3819,8 +3819,8 @@ function CanvasInner() {
   const handleAddClipVideoNode = async (
     clip: Clip,
     prompt: string,
-    options: { silent?: boolean; fitViewAfter?: boolean } = {},
-  ) => {
+    options: { silent?: boolean; fitViewAfter?: boolean; origin?: { x: number; y: number } } = {},
+  ): Promise<{ width: number; height: number } | undefined> => {
     if (!options.silent) {
       setActivePanel(null);
       showCanvasDropStatus('正在放入视频任务...');
@@ -3862,10 +3862,12 @@ function CanvasInner() {
       const referenceAreaWidth = hasReferenceArea ? referenceGrid.width : 0;
       const sectionWidth = CANVAS_SECTION_PADDING_X * 2 + (hasReferenceArea ? referenceAreaWidth + CANVAS_TARGET_SECTION_GAP : 0) + 540;
       const sectionHeight = CANVAS_SECTION_HEADER_HEIGHT + Math.max(referenceGrid.height, CANVAS_VIDEO_NODE_HEIGHT) + CANVAS_SECTION_PADDING_BOTTOM;
-      const sectionPosition = {
-        x: hasReferenceArea ? x - 420 : x - CANVAS_SECTION_PADDING_X,
-        y: y - CANVAS_SECTION_HEADER_HEIGHT,
-      };
+      const sectionPosition = options.origin
+        ? { x: options.origin.x, y: options.origin.y }
+        : {
+            x: hasReferenceArea ? x - 420 : x - CANVAS_SECTION_PADDING_X,
+            y: y - CANVAS_SECTION_HEADER_HEIGHT,
+          };
       const referenceBasePosition = {
         x: sectionPosition.x + CANVAS_SECTION_PADDING_X,
         y: sectionPosition.y + CANVAS_SECTION_HEADER_HEIGHT,
@@ -4020,9 +4022,11 @@ function CanvasInner() {
       if (options.fitViewAfter !== false) {
         window.setTimeout(() => fitView({ padding: 0.22, duration: 300 }), 0);
       }
+      return { width: sectionWidth, height: sectionHeight };
     } catch (error) {
       if (options.silent) throw error;
       showCanvasDropStatus(`视频任务放入画布失败：${error instanceof Error ? error.message : '未知错误'}`);
+      return undefined;
     }
   };
 
@@ -4043,9 +4047,23 @@ function CanvasInner() {
     let completed = 0;
     let failed = 0;
     let firstError = '';
+    // 从画布现有内容下方开始，按区块实际高度垂直依次排列，避免互相重叠
+    const existingNodes = useCanvasStore.getState().nodes;
+    let cursorY = 160;
+    for (const node of existingNodes) {
+      const rawHeight = Number(node.height ?? (node as { measured?: { height?: number } }).measured?.height ?? 320);
+      const nodeHeight = Number.isFinite(rawHeight) && rawHeight > 0 ? rawHeight : 320;
+      cursorY = Math.max(cursorY, (node.position?.y ?? 0) + nodeHeight + 200);
+    }
+    const originX = 200;
     for (const clip of readyClips) {
       try {
-        await handleAddClipVideoNode(clip, clip.seedancePrompt || '', { silent: true, fitViewAfter: false });
+        const size = await handleAddClipVideoNode(clip, clip.seedancePrompt || '', {
+          silent: true,
+          fitViewAfter: false,
+          origin: { x: originX, y: cursorY },
+        });
+        cursorY += (size?.height ?? 900) + 140;
         completed += 1;
       } catch (error) {
         failed += 1;
