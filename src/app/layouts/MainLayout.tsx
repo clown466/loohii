@@ -164,7 +164,7 @@ export function MainLayout() {
   return (
     <div className="flex h-screen h-[100dvh] w-full flex-col overflow-hidden bg-background text-[14px] text-foreground">
       {/* Topbar */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#1f1f23] bg-[#0f0f11] px-3 sm:px-4">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#222226] bg-[#141417] px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Link to="/app/dashboard" className="flex min-w-0 items-center gap-2 font-bold text-base tracking-tight hover:opacity-80 transition-opacity sm:text-lg">
             <div className="flex h-6 w-6 items-center justify-center rounded bg-gradient-to-br from-primary to-primary/80 text-white">
@@ -218,13 +218,13 @@ export function MainLayout() {
         {/* Sidebar */}
         <aside 
           className={cn(
-            "z-30 flex shrink-0 flex-col border-r border-[#1f1f23] bg-[#0f0f11] transition-all duration-300",
+            "z-30 flex shrink-0 flex-col border-r border-[#222226] bg-[#141417] transition-all duration-300",
             isSidebarOpen
               ? "w-[200px] max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:w-[220px] max-md:shadow-2xl"
               : "w-[56px]"
           )}
         >
-          <div className={cn("flex h-12 shrink-0 items-center border-b border-[#1f1f23] px-2", isSidebarOpen ? "justify-end" : "justify-center")}>
+          <div className={cn("flex h-12 shrink-0 items-center border-b border-[#222226] px-2", isSidebarOpen ? "justify-end" : "justify-center")}>
             <button
               type="button"
               aria-label={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
@@ -280,17 +280,17 @@ export function MainLayout() {
         {isProjectPage && (
           <aside 
             className={cn(
-              "flex flex-col border-l border-[#1f1f23] bg-[#111113] shadow-2xl transition-all duration-300 md:absolute md:bottom-0 md:right-0 md:top-0 md:z-20 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-12 max-md:z-50 max-md:border-l-0",
+              "flex flex-col border-l border-[#222226] bg-[#141417] shadow-2xl transition-all duration-300 md:absolute md:bottom-0 md:right-0 md:top-0 md:z-20 max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:top-12 max-md:z-50 max-md:border-l-0",
               isAgentOpen
                 ? "w-full translate-x-0 md:w-[360px]"
                 : "w-full translate-x-full overflow-hidden border-none md:w-0 md:translate-x-0"
             )}
           >
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#1f1f23] bg-card px-3 sm:h-14 sm:px-4">
+            <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#222226] bg-card px-3 sm:h-14 sm:px-4">
               <div className="flex min-w-0 items-center gap-2 font-medium text-[14px]">
                 🤖 项目总控
                 <span className="h-2 w-2 rounded-full bg-[#22c55e]"></span>
-                <span className="truncate rounded border border-border bg-[#111113] px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                <span className="truncate rounded border border-border bg-[#141417] px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
                   {agentModeLabel}
                 </span>
               </div>
@@ -325,7 +325,7 @@ export function MainLayout() {
             </div>
 
             {isAgentHistoryOpen && (
-              <div className="shrink-0 border-b border-[#1f1f23] bg-[#151518] p-3">
+              <div className="shrink-0 border-b border-[#222226] bg-[#141417] p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-[12px] font-medium text-[#d4d4d8]">历史对话</span>
                   <button
@@ -338,12 +338,12 @@ export function MainLayout() {
                 </div>
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {isLoadingConversations && (
-                    <div className="rounded-md border border-border bg-[#111113] px-3 py-2 text-[12px] text-muted-foreground">
+                    <div className="rounded-md border border-border bg-[#141417] px-3 py-2 text-[12px] text-muted-foreground">
                       正在加载历史...
                     </div>
                   )}
                   {!isLoadingConversations && conversations.length === 0 && (
-                    <div className="rounded-md border border-border bg-[#111113] px-3 py-2 text-[12px] text-muted-foreground">
+                    <div className="rounded-md border border-border bg-[#141417] px-3 py-2 text-[12px] text-muted-foreground">
                       还没有历史对话
                     </div>
                   )}
@@ -354,7 +354,7 @@ export function MainLayout() {
                         "group relative rounded-md border pr-9 transition-colors",
                         conversation.id === activeConversationId
                           ? "border-primary/70 bg-layer-4"
-                          : "border-border bg-[#111113] hover:border-[#3f3f46] hover:bg-card"
+                          : "border-border bg-[#141417] hover:border-[#3f3f46] hover:bg-card"
                       )}
                     >
                       <button
@@ -384,7 +384,7 @@ export function MainLayout() {
             )}
             
             {/* Agent Chat Area */}
-            <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#111113] p-3 sm:gap-5 sm:p-4">
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#141417] p-3 sm:gap-5 sm:p-4">
               {/* Welcome message with suggestions */}
               {isLoadingMessages && (
                 <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-muted-foreground shadow-sm sm:w-[90%]">
@@ -436,7 +436,7 @@ export function MainLayout() {
             </div>
 
             {/* Agent Input */}
-            <div className="shrink-0 border-t border-[#1f1f23] bg-card p-3">
+            <div className="shrink-0 border-t border-[#222226] bg-card p-3">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -498,12 +498,12 @@ function NavItem({ icon, label, to, isOpen, active, isSubnav }: { icon: React.Re
         "relative flex h-10 items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-[14px] font-medium transition-colors whitespace-nowrap overflow-hidden group",
         isSubnav && "ml-0.5",
         active
-          ? "border-l-primary text-foreground font-medium"
+          ? "border-l-primary text-primary font-medium"
           : "text-[#71717a] hover:bg-card hover:text-muted-foreground"
       )}
       title={!isOpen ? label : undefined}
     >
-      <div className={cn("flex-shrink-0 flex items-center justify-center w-5", active ? "text-foreground" : "")}>
+      <div className={cn("flex-shrink-0 flex items-center justify-center w-5", active ? "text-primary" : "")}>
         {React.cloneElement(icon as React.ReactElement, { className: iconSize })}
       </div>
       <span className={cn("transition-opacity duration-200", isOpen ? "opacity-100" : "opacity-0 w-0")}>
@@ -536,7 +536,7 @@ function AgentActionLog({ metadata }: { metadata?: Record<string, unknown> }) {
   return (
     <div className="mt-3 space-y-2 border-t border-border pt-2 text-[12px] leading-5 text-muted-foreground">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded border border-[#3f3f46] bg-[#111113] px-1.5 py-0.5 text-[11px] text-[#d4d4d8]">
+        <span className="rounded border border-[#3f3f46] bg-[#141417] px-1.5 py-0.5 text-[11px] text-[#d4d4d8]">
           {sourceLabel}
         </span>
         {statusLabel && (

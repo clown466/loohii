@@ -52,7 +52,7 @@ export function DashboardPage() {
   return (
     <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-y-auto p-4 text-[14px] sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:mb-8 lg:flex-row lg:items-center lg:justify-between">
-        <h1 className="text-[22px] font-semibold tracking-tight sm:text-[24px]">我的项目</h1>
+        <h1 className="text-[22px] font-extrabold tracking-tight sm:text-[24px]">我的项目</h1>
         <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:items-center">
           <div className="relative w-full sm:w-72 lg:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#71717a]" />
@@ -64,7 +64,7 @@ export function DashboardPage() {
             />
           </div>
           <Link to="/app/project/new/setup" className="w-full sm:w-auto">
-            <Button className="h-9 w-full gap-2 rounded-md border-0 bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 sm:w-auto">
+            <Button className="h-9 w-full gap-2 rounded-md sm:w-auto">
               <Plus className="h-4 w-4" />
               新建项目
             </Button>
@@ -73,7 +73,7 @@ export function DashboardPage() {
       </div>
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full space-x-1 overflow-x-auto rounded-lg border border-[#1f1f23] bg-[#111113] p-1 sm:w-fit">
+        <div className="flex w-full space-x-1 overflow-x-auto rounded-lg border border-[#222226] bg-[#141417] p-1 sm:w-fit">
           {["全部", "最近", "收藏"].map((tab) => (
             <button 
               key={tab}
@@ -109,7 +109,7 @@ export function DashboardPage() {
           <p className="text-muted-foreground mb-6">{searchQuery ? "试试其他关键词" : "创建你的第一个 AI 动画项目"}</p>
           {!searchQuery && (
             <Link to="/app/project/new/setup">
-              <Button className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:opacity-90 text-white border-0">
+              <Button className="gap-2">
                 <Plus className="h-4 w-4" />
                 新建项目
               </Button>
@@ -119,7 +119,7 @@ export function DashboardPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-6">
           {/* Create New Card */}
-          <Link to="/app/project/new/setup" className="group flex h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-[#111113] text-[#71717a] transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary sm:h-[260px]">
+          <Link to="/app/project/new/setup" className="group flex h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-[#141417] text-[#71717a] transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary sm:h-[260px]">
             <div className="h-12 w-12 rounded-full bg-card group-hover:bg-primary/20 flex items-center justify-center mb-4 transition-colors">
               <Plus className="h-6 w-6" />
             </div>
@@ -128,7 +128,7 @@ export function DashboardPage() {
 
           {/* Project Cards */}
           {filteredProjects.map((project) => (
-            <div key={project.id} className="group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-primary hover:shadow-[0_0_0_1px_rgba(245,166,35,1)] sm:h-[260px]">
+            <div key={project.id} className="lh-card group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border transition-all hover:border-primary hover:shadow-[0_0_0_1px_rgba(245,166,35,1)] sm:h-[260px]">
               {/* Cover 60% */}
               <div className="h-[60%] w-full bg-background relative overflow-hidden shrink-0">
                 <ThumbImage src={project.cover} thumbWidth={300} alt={project.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -149,7 +149,7 @@ export function DashboardPage() {
               </div>
 
               {/* Info 40% */}
-              <div className="p-4 flex flex-col h-[40%] bg-card">
+              <div className="p-4 flex flex-col h-[40%]">
                 <div className="flex justify-between items-start mb-1">
                   <Link to={`/app/project/${project.id}/canvas`} className="font-medium text-[14px] text-foreground truncate pr-2 hover:text-primary transition-colors">{project.title}</Link>
                   <span className="text-[12px] text-muted-foreground shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
