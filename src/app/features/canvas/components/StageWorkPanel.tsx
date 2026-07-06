@@ -61,6 +61,7 @@ export function StageWorkPanel({
   onAddClipStoryboardNode,
   onAddClipStoryboardImageReferenceNode,
   onAddClipVideoNode,
+  onAddClipVideoNodes,
   onAddClipPositioningBoardNode,
   onAddClipPositioningBoardNodes,
   onUpdateClipStoryboard,
@@ -351,6 +352,7 @@ export function StageWorkPanel({
             workflowModelsLoading={workflowModelsLoading}
             workflowModelError={workflowModelError}
             onAddClipVideoNode={onAddClipVideoNode}
+            onAddClipVideoNodes={onAddClipVideoNodes}
             onAddClipPositioningBoardNode={onAddClipPositioningBoardNode}
             onAddClipPositioningBoardNodes={onAddClipPositioningBoardNodes}
             onGenerateClipSeedancePrompt={onGenerateClipSeedancePrompt}

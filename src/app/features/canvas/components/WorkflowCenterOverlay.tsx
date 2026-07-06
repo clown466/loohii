@@ -74,6 +74,7 @@ export function WorkflowCenterOverlay({
   onAddClipStoryboardNode,
   onAddClipStoryboardImageReferenceNode,
   onAddClipVideoNode,
+  onAddClipVideoNodes,
   onAddClipPositioningBoardNode,
   onAddClipPositioningBoardNodes,
   onUpdateClipStoryboard,
@@ -461,6 +462,7 @@ export function WorkflowCenterOverlay({
                 onAddClipStoryboardNode={onAddClipStoryboardNode}
                 onAddClipStoryboardImageReferenceNode={onAddClipStoryboardImageReferenceNode}
                 onAddClipVideoNode={onAddClipVideoNode}
+                onAddClipVideoNodes={onAddClipVideoNodes}
                 onAddClipPositioningBoardNode={onAddClipPositioningBoardNode}
                 onAddClipPositioningBoardNodes={onAddClipPositioningBoardNodes}
                 onUpdateClipStoryboard={onUpdateClipStoryboard}
