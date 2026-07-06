@@ -472,6 +472,7 @@ function isTextModel(model: AiModelLike): boolean {
 
 function defaultMaxTokensForModel(model: AiModelLike): number {
   const value = `${model.displayName} ${model.model}`.toLowerCase();
+  if (/(claude|opus|sonnet|haiku)/.test(value)) return 12000;
   if (/(deepseek|reasoner|thinking|r1)/.test(value)) return 6000;
   if (/gemini/.test(value)) return 8000;
   return 4000;
@@ -479,7 +480,7 @@ function defaultMaxTokensForModel(model: AiModelLike): number {
 
 function expandedMaxTokensForModel(model: AiModelLike, current: number): number {
   const value = `${model.displayName} ${model.model}`.toLowerCase();
-  const target = /gemini/.test(value) ? 12000 : 8000;
+  const target = /(claude|opus|sonnet|haiku)/.test(value) ? 16000 : /gemini/.test(value) ? 12000 : 8000;
   return Math.max(Number.isFinite(current) ? current : 0, target);
 }
 

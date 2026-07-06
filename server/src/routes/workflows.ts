@@ -332,6 +332,7 @@ const STORYBOARD_BREAKDOWN_QUALITY_RULES = [
   "- For every shot with characters, include blocking in action/references/visualPrompt: screen side or relative position, facing direction, held items, worn items, and visible state.",
   "- Temporary contamination, wet clothing, splashes, slime, stains, soot, wounds, or damage must be scoped to the exact affected character and current story moment. Do not carry it across a location/time transition or into later clips unless the source explicitly says it is still visible.",
   "- Clip-to-clip memory should preserve durable spatial layout, held/owned props, restraints, wardrobe changes, injuries with explicit persistence, and entry/exit positions; it should not preserve one-off spill residue by default.",
+  "- For dialogue beats, favor close-up or medium close-up framing: speaker close-ups, listener reaction close-ups, over-the-shoulder shots, or cutaway close-ups of relevant props/objects. Write the framing cue in visualPrompt. Avoid group wide shots during dialogue; use at most one wide orientation shot per scene.",
   "- Shot durations should vary between 1 and 3 seconds. Do not assign every shot 3 seconds.",
   "- Clip duration should follow the actual story beat within the video model range of 4-15 seconds. Prefer 7-10 shots only for longer/full clips with several actions, reactions, or dialogue timing changes.",
 ];
@@ -8953,7 +8954,8 @@ function inferProfessionalShotFields(
   const isClose = /(close|face|eyes|reaction|whisper|smirk|stare|特写|表情)/.test(text);
   const isWide = /(enter|open|lab|room|space|crowd|screen|world|establish|全景|空间|进入)/.test(text);
   const isAction = /(run|attack|fire|shoot|dodge|explode|slam|grab|fight|chase|冲|打|射|爆|躲)/.test(text);
-  const shotSize = isClose ? "close-up" : isWide ? "wide" : "medium";
+  const hasDialogue = Boolean(shot.dialogue && shot.dialogue.trim());
+  const shotSize = isClose ? "close-up" : isWide ? "wide" : hasDialogue ? "close-up" : "medium";
   const cameraAngle = isAction && index % 3 === 1 ? "low angle" : index % 4 === 2 ? "over-shoulder" : "eye-level";
   const cameraMove = isAction ? "handheld tracking" : isWide ? "slow push-in" : "static hold";
   const lens = shotSize === "wide" ? "24mm" : shotSize === "close-up" ? "85mm" : "50mm";
