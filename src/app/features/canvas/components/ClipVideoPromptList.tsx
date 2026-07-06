@@ -69,6 +69,9 @@ export function ClipVideoPromptList({
   const [selectedVideoPromptClipIds, setSelectedVideoPromptClipIds] = useState<string[]>([]);
   const [batchVideoPromptRunning, setBatchVideoPromptRunning] = useState(false);
   const videoPromptResumeAttemptedRef = useRef(false);
+  const [singleInferenceQueue, setSingleInferenceQueue] = useState<string[]>([]);
+  const singleQueueRef = useRef<string[]>([]);
+  const singleProcessingRef = useRef(false);
 
   useEffect(() => {
     const clipIds = new Set(clips.map((clip) => clip.id));
@@ -118,20 +121,39 @@ export function ClipVideoPromptList({
     await runVideoPromptInferenceBatch(initialBatch);
   };
 
-  const addSelectedPositioningBoardsToCanvas = async () => {
+  const addSelectedToCanvas = async () => {
     const selected = clips.filter((clip) => selectedVideoPromptClipSet.has(clip.id));
     if (selected.length === 0 || videoPromptBatchBusy || generationBlocked) return;
     await onAddClipPositioningBoardNodes(selected);
+    const withPrompt = selected.filter((clip) => (clip.seedancePrompt || '').trim());
+    if (withPrompt.length > 0) await onAddClipVideoNodes(withPrompt);
   };
 
-  const selectedClipsWithPrompt = useMemo(
-    () => clips.filter((clip) => selectedVideoPromptClipSet.has(clip.id) && (clip.seedancePrompt || '').trim()),
-    [clips, selectedVideoPromptClipSet],
-  );
+  const processSingleInferenceQueue = async () => {
+    if (singleProcessingRef.current) return;
+    singleProcessingRef.current = true;
+    try {
+      while (singleQueueRef.current.length > 0) {
+        const clipId = singleQueueRef.current[0];
+        try {
+          await onGenerateClipSeedancePrompt(clipId, { skipCanvasSync: true });
+        } catch {
+          // 错误已在上层展示，这里继续处理队列
+        }
+        singleQueueRef.current = singleQueueRef.current.slice(1);
+        setSingleInferenceQueue([...singleQueueRef.current]);
+      }
+    } finally {
+      singleProcessingRef.current = false;
+    }
+  };
 
-  const addSelectedVideoNodesToCanvas = async () => {
-    if (selectedClipsWithPrompt.length === 0 || videoPromptBatchBusy) return;
-    await onAddClipVideoNodes(selectedClipsWithPrompt);
+  const enqueueSingleInference = (clipId: string) => {
+    if (generationBlocked || batchVideoPromptRunning || workflowBusy) return;
+    if (singleQueueRef.current.includes(clipId)) return;
+    singleQueueRef.current = [...singleQueueRef.current, clipId];
+    setSingleInferenceQueue([...singleQueueRef.current]);
+    void processSingleInferenceQueue();
   };
 
   const runVideoPromptInferenceBatch = async (batch: PersistedClipPromptBatch) => {
@@ -263,22 +285,11 @@ export function ClipVideoPromptList({
               variant="secondary"
               className="h-8 border border-border bg-zinc-900 text-[11px] text-zinc-100 hover:bg-layer-4"
               disabled={selectedVideoPromptClipIds.length === 0 || videoPromptBatchBusy || generationBlocked}
-              onClick={() => void addSelectedPositioningBoardsToCanvas()}
-            >
-              <ImageIcon className="h-3.5 w-3.5" />
-              批量放入故事板/定位板 {selectedVideoPromptClipIds.length || ''}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="h-8 border border-border bg-zinc-900 text-[11px] text-zinc-100 hover:bg-layer-4"
-              disabled={selectedClipsWithPrompt.length === 0 || videoPromptBatchBusy}
-              onClick={() => void addSelectedVideoNodesToCanvas()}
-              title={selectedVideoPromptClipIds.length > 0 && selectedClipsWithPrompt.length === 0 ? '所选 Clip 还没有视频提示词，请先推理' : undefined}
+              onClick={() => void addSelectedToCanvas()}
+              title="批量放入故事板/定位板与视频任务（无提示词的 Clip 会跳过视频任务）"
             >
               <Film className="h-3.5 w-3.5" />
-              批量放入视频任务 {selectedClipsWithPrompt.length || ''}
+              批量放入画布 {selectedVideoPromptClipIds.length || ''}
             </Button>
           </div>
           <div className="w-full sm:w-[320px]">
@@ -302,6 +313,7 @@ export function ClipVideoPromptList({
         const prompt = clip.seedancePrompt || '';
         const references = collectClipAssetReferences(clip, clipScenes, assets);
         const generating = generatingSeedanceClipId === clip.id;
+        const queued = singleInferenceQueue.includes(clip.id) && !generating;
         return (
           <div key={clip.id} className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_220px]">
             <div className="min-w-0">
@@ -335,11 +347,11 @@ export function ClipVideoPromptList({
                 type="button"
                 size="sm"
                 className="h-8 bg-amber-500 text-black hover:bg-amber-400"
-                disabled={videoPromptBatchBusy || generationBlocked}
-                onClick={() => void onGenerateClipSeedancePrompt(clip.id)}
+                disabled={batchVideoPromptRunning || workflowBusy || generationBlocked || generating || queued}
+                onClick={() => enqueueSingleInference(clip.id)}
               >
                 <Wand2 className="h-3.5 w-3.5" />
-                {generating ? '推理中...' : prompt ? '润色提示词' : '推理视频提示词'}
+                {generating ? '推理中...' : queued ? '排队中...' : prompt ? '润色提示词' : '推理视频提示词'}
               </Button>
               <Button
                 type="button"
