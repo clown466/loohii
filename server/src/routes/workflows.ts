@@ -1748,6 +1748,8 @@ router.post(
         model: breakdown.model,
         rawText: breakdown.rawText,
       });
+      // 事务提交后再通知，避免对可能回滚的记录发出实时事件。
+      notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: saved.run.id, status: "SUCCEEDED" });
 
       ok(res, saved);
     } catch (error) {
