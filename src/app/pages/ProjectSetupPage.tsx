@@ -240,7 +240,7 @@ export function ProjectSetupPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-[14px]">
       {isEditMode && isLoadingProject && (
-        <div className="border-b border-[#1f1f23] bg-card px-4 py-2 text-center text-[12px] text-muted-foreground">
+        <div className="border-b border-[#222226] bg-[#141417] px-4 py-2 text-center text-[12px] text-muted-foreground">
           正在从后端加载项目全局设定...
         </div>
       )}
@@ -270,15 +270,15 @@ export function ProjectSetupPage() {
                     className={cn(
                       "h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium border transition-colors",
                       isCompleted
-                        ? "bg-primary border-primary text-white"
+                        ? "bg-primary border-primary text-primary-foreground"
                         : isActive
                           ? "bg-layer-4 border-primary text-primary"
-                          : "bg-background border-border text-[#71717a]"
+                          : "bg-background border-border text-muted-foreground"
                     )}
                   >
                     {isCompleted ? <Check className="h-3 w-3" /> : num}
                   </button>
-                  <span className={cn("max-w-[72px] truncate text-[11px] font-medium min-[420px]:max-w-none min-[420px]:text-[12px]", isActive ? "text-foreground" : "text-[#71717a]")}>{label}</span>
+                  <span className={cn("max-w-[72px] truncate text-[11px] font-medium min-[420px]:max-w-none min-[420px]:text-[12px]", isActive ? "text-primary" : "text-muted-foreground")}>{label}</span>
                 </div>
               );
             })}
@@ -295,22 +295,22 @@ export function ProjectSetupPage() {
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">给项目起个名字</h2>
+                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">给项目起个名字</h2>
                 <p className="text-muted-foreground">好的开始是成功的一半</p>
               </div>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目名称 <span className="text-[#ef4444]">*</span></label>
+                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目名称 <span className="text-destructive">*</span></label>
                   <Input
                     placeholder="例如：赛博朋克 2077 第一季"
-                    className={cn("h-10 text-[14px] bg-layer-4 border-border focus-visible:ring-primary", nameError && "border-[#ef4444] focus-visible:ring-[#ef4444]")}
+                    className={cn("h-10 text-[14px] bg-layer-4 border-border focus-visible:ring-primary", nameError && "border-destructive focus-visible:ring-destructive")}
                     value={projectName}
                     onChange={(e) => { setProjectName(e.target.value); setNameError(false); }}
                   />
-                  {nameError && <p className="text-[12px] text-[#ef4444] mt-1">项目名称不能为空</p>}
+                  {nameError && <p className="text-[12px] text-destructive mt-1">项目名称不能为空</p>}
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目描述 <span className="text-[#71717a] font-normal">(选填)</span></label>
+                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目描述 <span className="text-muted-foreground font-normal">(选填)</span></label>
                   <Textarea
                     placeholder="一句话描述这个项目的故事背景..."
                     className="h-20 resize-none bg-layer-4 border-border focus-visible:ring-primary"
@@ -319,7 +319,7 @@ export function ProjectSetupPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目封面 <span className="text-[#71717a] font-normal">(选填)</span></label>
+                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目封面 <span className="text-muted-foreground font-normal">(选填)</span></label>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -328,7 +328,7 @@ export function ProjectSetupPage() {
                     onChange={handleFileUpload}
                   />
                   <div
-                    className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center text-[#71717a] hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer bg-card overflow-hidden"
+                    className="border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer bg-[#141417] overflow-hidden"
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {coverPreview ? (
@@ -349,7 +349,7 @@ export function ProjectSetupPage() {
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">选择画面比例</h2>
+                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">选择画面比例</h2>
                 <p className="text-muted-foreground">设定全局的默认输出尺寸</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6">
@@ -367,11 +367,11 @@ export function ProjectSetupPage() {
                         "relative flex h-[148px] w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 p-4 transition-all sm:h-[200px]",
                         isActive
                           ? "border-primary bg-primary/10 text-primary scale-[1.02] shadow-[0_0_0_2px_rgba(245,166,35,0.2)]"
-                          : "border-border bg-card text-[#71717a] hover:border-primary/50 hover:bg-accent"
+                          : "lh-card border-border text-muted-foreground hover:border-primary/50"
                       )}
                     >
                       {isActive && (
-                        <div className="absolute top-3 right-3 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white">
+                        <div className="absolute top-3 right-3 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-primary-foreground">
                           <Check className="h-3 w-3" />
                         </div>
                       )}
@@ -394,7 +394,7 @@ export function ProjectSetupPage() {
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">风格预设</h2>
+                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">风格预设</h2>
                 <p className="text-muted-foreground">选择一个基础的艺术风格</p>
               </div>
               
@@ -434,12 +434,12 @@ export function ProjectSetupPage() {
                       <div className="aspect-square bg-background relative">
                         <img loading="lazy" decoding="async" src={style.cover} alt={style.name} className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                         {isActive && (
-                          <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white shadow-md">
+                          <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-md">
                             <Check className="h-3 w-3" />
                           </div>
                         )}
                       </div>
-                      <div className={cn("p-1.5 text-center text-[12px] font-medium bg-card", isActive ? "text-foreground" : "text-muted-foreground")}>
+                      <div className={cn("p-1.5 text-center text-[12px] font-medium bg-[#141417]", isActive ? "text-foreground" : "text-muted-foreground")}>
                         {style.name}
                       </div>
                     </div>
@@ -454,25 +454,25 @@ export function ProjectSetupPage() {
                     if (event.key === "Enter" || event.key === " ") setSelectedStyle("自定义");
                   }}
                   className={cn(
-                    "group relative rounded-xl border-2 border-dashed overflow-hidden cursor-pointer transition-all bg-card hover:border-primary/50 hover:bg-primary/5 flex flex-col",
+                    "group relative rounded-xl border-2 border-dashed overflow-hidden cursor-pointer transition-all bg-[#141417] hover:border-primary/50 hover:bg-primary/5 flex flex-col",
                     selectedStyle === "自定义" ? "border-primary bg-primary/10 shadow-[0_0_0_2px_rgba(245,166,35,0.2)]" : "border-border"
                   )}
                 >
                   <div className="aspect-square flex items-center justify-center relative">
-                    <Plus className="h-6 w-6 text-[#71717a] group-hover:text-primary" />
+                    <Plus className="h-6 w-6 text-muted-foreground group-hover:text-primary" />
                     {selectedStyle === "自定义" && (
-                      <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-white shadow-md">
+                      <div className="absolute top-2 right-2 h-5 w-5 bg-primary rounded-full flex items-center justify-center text-primary-foreground shadow-md">
                         <Check className="h-3 w-3" />
                       </div>
                     )}
                   </div>
-                  <div className={cn("p-1.5 text-center text-[12px] font-medium bg-card border-t border-border", selectedStyle === "自定义" ? "text-foreground" : "text-[#71717a]")}>
+                  <div className={cn("p-1.5 text-center text-[12px] font-medium bg-[#141417] border-t border-border", selectedStyle === "自定义" ? "text-foreground" : "text-muted-foreground")}>
                     + 自定义
                   </div>
                 </div>
               </div>
               {selectedStyle === "自定义" && (
-                <div className="grid gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-2">
+                <div className="lh-card grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-[13px] font-medium text-foreground">自定义风格名称</label>
                     <Input
@@ -499,15 +499,15 @@ export function ProjectSetupPage() {
           {step === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-semibold text-foreground sm:text-[24px]">导演指导</h2>
+                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">导演指导</h2>
                 <p className="text-muted-foreground">设定全局生成策略、调性和剧本规则</p>
               </div>
               <div className="space-y-5">
-                <div className="rounded-xl border border-border bg-card p-4">
+                <div className="lh-card rounded-xl border border-border p-4">
                   <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="text-[14px] font-medium text-foreground">默认生成策略</div>
-                      <div className="mt-1 text-[12px] text-[#71717a]">后续分镜图、导演板、视频生成会优先使用该策略</div>
+                      <div className="mt-1 text-[12px] text-muted-foreground">后续分镜图、导演板、视频生成会优先使用该策略</div>
                     </div>
                     <Badge className="w-fit border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">{selectedRatio}</Badge>
                   </div>
@@ -526,14 +526,14 @@ export function ProjectSetupPage() {
                           className={cn(
                             "min-h-[88px] rounded-lg border p-3 text-left transition-colors",
                             disabled && "cursor-not-allowed opacity-55",
-                            active ? "border-[#d6a200] bg-[#d6a200]/10" : "border-border bg-[#111113] hover:border-[#3f3f46]"
+                            active ? "border-primary bg-primary/10" : "border-border bg-[#141417] hover:border-primary/50"
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[13px] font-medium text-foreground">{strategy.title}</span>
-                            {disabled ? <span className="text-[10px] text-amber-300">暂未开发</span> : active && <Check className="h-4 w-4 text-[#facc15]" />}
+                            {disabled ? <span className="text-[10px] text-status-warning">暂未开发</span> : active && <Check className="h-4 w-4 text-primary" />}
                           </div>
-                          <div className="mt-1 text-[12px] leading-5 text-[#71717a]">{strategy.desc}</div>
+                          <div className="mt-1 text-[12px] leading-5 text-muted-foreground">{strategy.desc}</div>
                         </button>
                       );
                     })}
@@ -591,21 +591,21 @@ export function ProjectSetupPage() {
                   <div className="mb-3 text-[14px] font-medium text-foreground">详细剧本规则</div>
                   <div className="grid gap-3 md:grid-cols-2">
                     {SCRIPT_RULE_TEMPLATES.map((rule) => (
-                      <div key={rule.id} className="rounded-xl border border-border bg-card p-4">
+                      <div key={rule.id} className="lh-card rounded-xl border border-border p-4">
                         <div className="mb-2 flex items-center gap-2">
-                          <Badge className="border border-[#d6a200]/30 bg-[#d6a200]/10 text-[#facc15] hover:bg-[#d6a200]/10">{rule.id.slice(0, 2).toUpperCase()}</Badge>
+                          <Badge className="border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">{rule.id.slice(0, 2).toUpperCase()}</Badge>
                           <div className="text-[13px] font-medium text-foreground">{rule.title}</div>
                         </div>
                         <Textarea
                           value={scriptRules[rule.id] ?? ""}
                           onChange={(event) => setScriptRules((current) => ({ ...current, [rule.id]: event.target.value }))}
-                          className="h-28 resize-none border-border bg-[#111113] text-[12px] leading-5 text-[#d4d4d8]"
+                          className="h-28 resize-none border-border bg-[#141417] text-[12px] leading-5 text-foreground"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="rounded-lg border border-border bg-card p-3 text-[12px] leading-5 text-[#71717a]">
+                <div className="lh-card rounded-xl border border-border p-3 text-[12px] leading-5 text-muted-foreground">
                   这些设定会保存到项目全局提示词中，影响后续资产、分镜、导演板和视频生成。
                 </div>
               </div>
@@ -615,7 +615,7 @@ export function ProjectSetupPage() {
       </div>
 
       {/* Footer Actions (Sticky bottom) */}
-      <div className="sticky bottom-0 left-0 z-10 flex w-full shrink-0 justify-center border-t border-[#1f1f23] bg-background/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4">
+      <div className="sticky bottom-0 left-0 z-10 flex w-full shrink-0 justify-center border-t border-[#222226] bg-background/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4">
         <div className={cn("flex w-full flex-col gap-3", contentMaxWidth)}>
           {saveError && (
             <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
@@ -638,7 +638,7 @@ export function ProjectSetupPage() {
             {step === 1 && isEditMode ? "返回画布" : "上一步"}
           </Button>
           <Button 
-            className="flex-1 gap-2 rounded-md border-0 bg-gradient-to-r from-primary to-primary/80 px-4 text-white hover:opacity-90 sm:flex-none sm:px-8"
+            className="flex-1 gap-2 rounded-md px-4 sm:flex-none sm:px-8"
             onClick={handleNext}
             disabled={isSaving}
           >
