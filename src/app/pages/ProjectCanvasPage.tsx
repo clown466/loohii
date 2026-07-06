@@ -3816,9 +3816,15 @@ function CanvasInner() {
     }
   };
 
-  const handleAddClipVideoNode = async (clip: Clip, prompt: string) => {
-    setActivePanel(null);
-    showCanvasDropStatus('正在放入视频任务...');
+  const handleAddClipVideoNode = async (
+    clip: Clip,
+    prompt: string,
+    options: { silent?: boolean; fitViewAfter?: boolean } = {},
+  ) => {
+    if (!options.silent) {
+      setActivePanel(null);
+      showCanvasDropStatus('正在放入视频任务...');
+    }
     try {
       const nodeCount = useCanvasStore.getState().nodes.length;
       const x = 420 + (nodeCount % 3) * 380;
@@ -4006,12 +4012,54 @@ function CanvasInner() {
         });
       });
       attachNodesToCanvasSection(sectionId, childPositions);
-      showCanvasDropStatus(useMultiReferenceStrategy
-        ? `已把多参视频任务放入画布，并接入 ${assetReferenceCount} 个资产参考和 ${audioReferenceCount} 个台词音频坑位。`
-        : `已把视频任务放入画布，并接入故事板坑位、${assetReferenceCount} 个资产参考和 ${audioReferenceCount} 个台词音频坑位。`);
-      window.setTimeout(() => fitView({ padding: 0.22, duration: 300 }), 0);
+      if (!options.silent) {
+        showCanvasDropStatus(useMultiReferenceStrategy
+          ? `已把多参视频任务放入画布，并接入 ${assetReferenceCount} 个资产参考和 ${audioReferenceCount} 个台词音频坑位。`
+          : `已把视频任务放入画布，并接入故事板坑位、${assetReferenceCount} 个资产参考和 ${audioReferenceCount} 个台词音频坑位。`);
+      }
+      if (options.fitViewAfter !== false) {
+        window.setTimeout(() => fitView({ padding: 0.22, duration: 300 }), 0);
+      }
     } catch (error) {
+      if (options.silent) throw error;
       showCanvasDropStatus(`视频任务放入画布失败：${error instanceof Error ? error.message : '未知错误'}`);
+    }
+  };
+
+  const handleAddClipVideoNodes = async (targetClips: Clip[]) => {
+    const uniqueClips = targetClips.filter((clip, index, list) => clip.id && list.findIndex((item) => item.id === clip.id) === index);
+    if (uniqueClips.length === 0) {
+      showCanvasDropStatus('请先选择要放入视频任务的 Clip。');
+      return;
+    }
+    const readyClips = uniqueClips.filter((clip) => (clip.seedancePrompt || '').trim());
+    const skipped = uniqueClips.length - readyClips.length;
+    if (readyClips.length === 0) {
+      showCanvasDropStatus('所选 Clip 都还没有视频提示词，请先推理视频提示词。');
+      return;
+    }
+    setActivePanel(null);
+    showCanvasDropStatus(`正在批量放入 ${readyClips.length} 个视频任务...`);
+    let completed = 0;
+    let failed = 0;
+    let firstError = '';
+    for (const clip of readyClips) {
+      try {
+        await handleAddClipVideoNode(clip, clip.seedancePrompt || '', { silent: true, fitViewAfter: false });
+        completed += 1;
+      } catch (error) {
+        failed += 1;
+        firstError ||= `${clip.title || clip.id || 'Clip'}：${error instanceof Error ? error.message : '未知错误'}`;
+      }
+    }
+    const skippedNote = skipped ? `跳过 ${skipped} 个未生成提示词的 Clip。` : '';
+    showCanvasDropStatus(
+      completed > 0
+        ? `已批量放入 ${completed} 个视频任务。${failed ? `失败 ${failed} 个：${firstError}` : ''}${skippedNote}`
+        : `批量放入视频任务失败：${firstError || '未知错误'}${skippedNote}`,
+    );
+    if (completed > 0) {
+      window.setTimeout(() => fitView({ padding: 0.18, duration: 300 }), 0);
     }
   };
 
@@ -6009,6 +6057,7 @@ function CanvasInner() {
             onAddClipStoryboardNode={handleAddClipStoryboardNode}
             onAddClipStoryboardImageReferenceNode={handleAddClipStoryboardImageReferenceNode}
             onAddClipVideoNode={handleAddClipVideoNode}
+            onAddClipVideoNodes={handleAddClipVideoNodes}
             onAddClipPositioningBoardNode={handleAddClipPositioningBoardNode}
             onAddClipPositioningBoardNodes={handleAddClipPositioningBoardNodes}
             onUpdateClipStoryboard={handleUpdateClipStoryboard}

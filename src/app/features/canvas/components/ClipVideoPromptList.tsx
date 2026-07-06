@@ -36,6 +36,7 @@ export function ClipVideoPromptList({
   workflowModelsLoading,
   workflowModelError,
   onAddClipVideoNode,
+  onAddClipVideoNodes,
   onAddClipPositioningBoardNode,
   onAddClipPositioningBoardNodes,
   onGenerateClipSeedancePrompt,
@@ -56,6 +57,7 @@ export function ClipVideoPromptList({
   workflowModelsLoading: boolean;
   workflowModelError: string | null;
   onAddClipVideoNode: (clip: Clip, prompt: string) => void;
+  onAddClipVideoNodes: (clips: Clip[]) => void | Promise<void>;
   onAddClipPositioningBoardNode: (clip: Clip) => void | Promise<unknown>;
   onAddClipPositioningBoardNodes: (clips: Clip[]) => void | Promise<void>;
   onGenerateClipSeedancePrompt: (clipId: string, options?: { skipCanvasSync?: boolean }) => ClipVideoPromptInferenceResult | Promise<ClipVideoPromptInferenceResult>;
@@ -120,6 +122,16 @@ export function ClipVideoPromptList({
     const selected = clips.filter((clip) => selectedVideoPromptClipSet.has(clip.id));
     if (selected.length === 0 || videoPromptBatchBusy || generationBlocked) return;
     await onAddClipPositioningBoardNodes(selected);
+  };
+
+  const selectedClipsWithPrompt = useMemo(
+    () => clips.filter((clip) => selectedVideoPromptClipSet.has(clip.id) && (clip.seedancePrompt || '').trim()),
+    [clips, selectedVideoPromptClipSet],
+  );
+
+  const addSelectedVideoNodesToCanvas = async () => {
+    if (selectedClipsWithPrompt.length === 0 || videoPromptBatchBusy) return;
+    await onAddClipVideoNodes(selectedClipsWithPrompt);
   };
 
   const runVideoPromptInferenceBatch = async (batch: PersistedClipPromptBatch) => {
@@ -255,6 +267,18 @@ export function ClipVideoPromptList({
             >
               <ImageIcon className="h-3.5 w-3.5" />
               批量放入故事板/定位板 {selectedVideoPromptClipIds.length || ''}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-8 border border-border bg-zinc-900 text-[11px] text-zinc-100 hover:bg-layer-4"
+              disabled={selectedClipsWithPrompt.length === 0 || videoPromptBatchBusy}
+              onClick={() => void addSelectedVideoNodesToCanvas()}
+              title={selectedVideoPromptClipIds.length > 0 && selectedClipsWithPrompt.length === 0 ? '所选 Clip 还没有视频提示词，请先推理' : undefined}
+            >
+              <Film className="h-3.5 w-3.5" />
+              批量放入视频任务 {selectedClipsWithPrompt.length || ''}
             </Button>
           </div>
           <div className="w-full sm:w-[320px]">
