@@ -6472,7 +6472,7 @@ function expandSparseClipGroup(group: NormalizedStoryboardShot[]): NormalizedSto
 
 function followupShotAction(shot: NormalizedStoryboardShot): string {
   const text = normalizeCompareText(`${shot.title} ${shot.description} ${shot.action}`);
-  if (/(fire|shoot|shotgun|gun|射|枪|开火|霰弹)/.test(text)) return `${shot.action || shot.description} Show the impact, recoil, smoke, or target reaction.`;
+  if (/(\b(?:fires?|firing)\b|\bshoots?\b(?!\s+(?:past|from|toward|towards|over|through))|gunshot|muzzle flash|pulls? the trigger|开火|开枪|射击|扣动扳机)/.test(text)) return `${shot.action || shot.description} Show the impact, recoil, smoke, or target reaction.`;
   if (/(dialogue|argue|say|speak|shout|对话|对白|说|喊)/.test(text) || shot.dialogue) {
     return dialogueCoverageShotAction(shot);
   }
@@ -6770,7 +6770,9 @@ async function refineWorkflowClipSeedancePrompt(input: {
       .trim(),
   );
   const candidate = refined || input.prompt;
-  const safePrompt = preservesVideoBeatLabels(candidate, input.prompt) ? candidate : input.prompt;
+  const safePrompt = preservesVideoBeatLabels(candidate, input.prompt) && preservesVideoDialogueLines(candidate, input.prompt)
+    ? candidate
+    : input.prompt;
   const cameraSafePrompt = enforceShotCameraPlansInVideoPrompt(safePrompt, input.shots);
   return finalizeWorkflowVideoPrompt(cameraSafePrompt, enforceShotCameraPlansInVideoPrompt(input.prompt, input.shots));
 }
@@ -6780,6 +6782,26 @@ function preservesVideoBeatLabels(candidate: string, source: string): boolean {
   if (sourceLabels.length === 0) return true;
   const candidateLabels = new Set(extractVideoBeatLabels(candidate));
   return sourceLabels.every((label) => candidateLabels.has(label));
+}
+
+/** 精修模型偶尔会把 Dialogue 行整体丢掉；源提示词里的每句台词都必须在精修结果中保留，否则回退源提示词。 */
+function preservesVideoDialogueLines(candidate: string, source: string): boolean {
+  const sourceDialogues = extractVideoDialogueQuotes(source);
+  if (sourceDialogues.length === 0) return true;
+  const candidateKey = normalizeDialogueCompareText(candidate);
+  return sourceDialogues.every((line) => candidateKey.includes(line));
+}
+
+function extractVideoDialogueQuotes(value: string): string[] {
+  const quotes: string[] = [];
+  for (const line of value.split("\n")) {
+    if (!/\bDialogue\s*[:：]/i.test(line)) continue;
+    for (const match of line.matchAll(/[“"]([\s\S]*?)[”"]/g)) {
+      const key = normalizeDialogueCompareText(match[1] ?? "");
+      if (key) quotes.push(key);
+    }
+  }
+  return quotes;
 }
 
 /** 模型偶尔无视指令把提示词包成 JSON 数组/字符串/对象返回，这里解包；非 JSON 原样返回。 */
@@ -7642,7 +7664,7 @@ function trimDialogueQuotes(value: string): string {
 
 function isNonDialogueSpeakerLabel(speaker: string, line: string): boolean {
   const key = normalizeCompareText(speaker);
-  if (/(camera|scene|shot|panel|action|dialogue|state|performance|composition|blocking|block|movement|lens|angle|shot size|visual|reference|references|setting|style|physics hack|poster ruined|face cracks open|exact dialogue)/.test(key)) return true;
+  if (/(camera|scene|shot|panel|action|dialogue|state|performance|composition|blocking|block|movement|lens|angle|shot size|visual|reference|references|setting|style|physics hack|poster ruined|face cracks open|exact dialogue|screen|frame|foreground|midground|background|offscreen|off screen)/.test(key)) return true;
   if (/^(camera|composition|blocking|block|movement|lens|angle|shot size|performance|medium|close-up|wide|eye-level|static|handheld|tracking|slow push|cut|whip-pan)\b/i.test(line)) return true;
   return false;
 }
@@ -8498,8 +8520,13 @@ function extractPanelDialogueLines(value: string, speakerNames: string[]): strin
 }
 
 function cleanExtractedPanelDialogue(value: string): string {
-  return value
+  const compact = value.replace(/\s+/g, " ").trim();
+  // 若以引号包裹的台词开头且引号后还有剩余文本（舞台指示/时长指令等），只保留引号内的台词本体
+  const leadingQuote = compact.match(/^['"“‘]([\s\S]*?)['"”’]/);
+  const base = leadingQuote && leadingQuote[0].length < compact.length ? leadingQuote[1] : compact;
+  return base
     .replace(/\b(?:No speech bubbles|No subtitles|No watermarks|No UI|Avoid|Negative prompt)\b[\s\S]*$/i, "")
+    .replace(/\s*\bHold\s+(?:approximately|about|for)?\s*[\d.]+\s*seconds?\b\.?\s*$/i, "")
     .replace(/\s+/g, " ")
     .replace(/['"“”‘’]+([.!?。！？])/g, "$1")
     .trim()
