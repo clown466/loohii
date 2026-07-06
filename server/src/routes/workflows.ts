@@ -6774,7 +6774,12 @@ async function refineWorkflowClipSeedancePrompt(input: {
     ? candidate
     : input.prompt;
   const cameraSafePrompt = enforceShotCameraPlansInVideoPrompt(safePrompt, input.shots);
-  return finalizeWorkflowVideoPrompt(cameraSafePrompt, enforceShotCameraPlansInVideoPrompt(input.prompt, input.shots));
+  const fallbackPrompt = enforceShotCameraPlansInVideoPrompt(input.prompt, input.shots);
+  const finalized = finalizeWorkflowVideoPrompt(cameraSafePrompt, fallbackPrompt);
+  // 精修结果超长时会走 compactWorkflowVideoPrompt 逐拍截断，行内（未带 Dialogue: 标签的）台词会被截掉；
+  // 台词丢失时回退到源提示词（其 Dialogue: 标签在压缩中受保护）。
+  if (preservesVideoDialogueLines(finalized, input.prompt)) return finalized;
+  return finalizeWorkflowVideoPrompt(fallbackPrompt);
 }
 
 function preservesVideoBeatLabels(candidate: string, source: string): boolean {
