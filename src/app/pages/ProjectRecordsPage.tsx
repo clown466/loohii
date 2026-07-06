@@ -173,13 +173,13 @@ export function ProjectRecordsPage() {
     <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:mb-8 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-[22px] font-semibold tracking-tight sm:text-2xl">生成记录</h1>
-          <div className="mt-1 text-[12px] text-zinc-500">显示当前项目真实生成记录、实际提示词、模型和生成结果。</div>
+          <h1 className="text-[22px] font-extrabold tracking-tight text-[#E8E8EC] sm:text-2xl">生成记录</h1>
+          <div className="mt-1 text-[12px] text-muted-foreground">显示当前项目真实生成记录、实际提示词、模型和生成结果。</div>
         </div>
         <div className="relative w-full sm:w-72 lg:w-64">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="bg-[#141416] pl-9"
+            className="bg-[#141417] pl-9"
             placeholder="搜索提示词..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -201,15 +201,15 @@ export function ProjectRecordsPage() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-2 border-border bg-[#141416] text-zinc-300" onClick={() => void loadRecords()}>
+          <Button variant="outline" size="sm" className="h-8 gap-2 border-border bg-[#141417] text-zinc-300" onClick={() => void loadRecords()}>
             <RefreshCw className="h-3.5 w-3.5" />
             刷新
           </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-2 border-border bg-[#141416] text-zinc-300">
+          <Button variant="outline" size="sm" className="h-8 gap-2 border-border bg-[#141417] text-zinc-300">
             <Filter className="h-3.5 w-3.5" />
             筛选
           </Button>
-          <div className="flex items-center gap-1 rounded-md border border-zinc-800 bg-[#141416] p-1">
+          <div className="flex items-center gap-1 rounded-md border border-[#222226] bg-[#141417] p-1">
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-sm bg-layer-4 text-zinc-100"><LayoutGrid className="h-4 w-4" /></Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 rounded-sm text-zinc-400 hover:text-zinc-100"><List className="h-4 w-4" /></Button>
           </div>
@@ -217,15 +217,15 @@ export function ProjectRecordsPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
+        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-red-200">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-xl border border-zinc-800 bg-[#141416] p-8 text-center text-[13px] text-zinc-500">正在读取真实生成记录...</div>
+        <div className="lh-card rounded-xl border p-8 text-center text-[13px] text-muted-foreground">正在读取真实生成记录...</div>
       ) : filteredRecords.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-800 bg-[#141416] p-8 text-center text-[13px] text-zinc-500">暂无生成记录。</div>
+        <div className="rounded-xl border border-dashed border-border bg-[#141417] p-8 text-center text-[13px] text-muted-foreground">暂无生成记录。</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {filteredRecords.map((item) => (
@@ -280,8 +280,8 @@ function RecordCard({
 }) {
   if (item.status === "generating") {
     return (
-      <div className="flex flex-col overflow-hidden rounded-xl border border-zinc-800 bg-[#141416]">
-        <div className="flex aspect-square flex-col items-center justify-center bg-zinc-900/50 p-4">
+      <div className="lh-card flex flex-col overflow-hidden rounded-xl border lh-glow-active">
+        <div className="flex aspect-square flex-col items-center justify-center bg-[#101014]/60 p-4">
           <div className="mb-3 h-2 w-full overflow-hidden rounded-full bg-layer-4">
             <div className="h-full animate-pulse bg-primary/90" style={{ width: `${item.progress ?? 35}%` }} />
           </div>
@@ -294,17 +294,17 @@ function RecordCard({
 
   if (item.status === "failed") {
     return (
-      <div className="relative flex flex-col overflow-hidden rounded-xl border border-red-500/30 bg-[#141416]">
-        <div className="flex aspect-square flex-col items-center justify-center bg-red-500/5 p-4">
-          <div className="mb-1 font-medium text-red-400">&#10007; 生成失败</div>
-          <div className="text-center text-xs text-zinc-500">{item.error || "未知错误"}</div>
+      <div className="lh-card relative flex flex-col overflow-hidden rounded-xl border border-destructive/30">
+        <div className="flex aspect-square flex-col items-center justify-center bg-destructive/5 p-4">
+          <div className="mb-1 font-medium text-destructive">&#10007; 生成失败</div>
+          <div className="text-center text-xs text-muted-foreground">{item.error || "未知错误"}</div>
         </div>
-        <div className="border-t border-zinc-800 p-3 text-xs">
+        <div className="border-t border-border p-3 text-xs">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-zinc-300">{item.model}</span>
             <button className="text-primary hover:underline" onClick={() => void onRetry(item.id)}>重试 &rarr;</button>
           </div>
-          <div className="flex justify-between text-zinc-500">
+          <div className="flex justify-between text-muted-foreground">
             <span>{item.cost} 积分</span>
             <span>{item.time}</span>
           </div>
@@ -314,12 +314,12 @@ function RecordCard({
   }
 
   return (
-    <div className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-zinc-800 bg-[#141416] transition-colors hover:border-zinc-600">
-      <div className="relative aspect-square overflow-hidden bg-zinc-900">
+    <div className="lh-card group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border transition-colors hover:border-primary/50">
+      <div className="relative aspect-square overflow-hidden rounded-lg bg-[#101014]">
         {item.image ? (
           <ThumbImage src={item.image} thumbWidth={300} alt="Generated" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center text-zinc-500">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground">
             <ImageIcon className="h-8 w-8" />
             <span className="text-[12px]">此记录没有图片资产</span>
           </div>
@@ -346,21 +346,21 @@ function RecordCard({
                 <Download className="h-3.5 w-3.5" />
               </Button>
             )}
-            <Button size="icon" variant="destructive" className="h-8 w-8 bg-red-500/80 hover:bg-red-500" onClick={() => void onDelete(item.id)}>
+            <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => void onDelete(item.id)}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
 
         {addedToCanvas && (
-          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-green-500/90 px-2 py-0.5 text-[11px] font-medium text-white">
+          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full border border-[#7ED88733] bg-[#7ED88733] px-2 py-0.5 text-[11px] font-medium text-[#7ED887] backdrop-blur">
             <Check className="h-3 w-3" /> 已放入画布
           </div>
         )}
       </div>
 
       {editingPrompt === item.id ? (
-        <div className="space-y-2 border-t border-zinc-800 bg-[#141416] p-3">
+        <div className="space-y-2 border-t border-border p-3">
           <Textarea
             value={promptDraft}
             onChange={(e) => setPromptDraft(e.target.value)}
@@ -371,7 +371,7 @@ function RecordCard({
             <Button size="sm" variant="ghost" className="h-7 text-xs text-zinc-400" onClick={onCancelEdit}>
               <X className="mr-1 h-3 w-3" /> 取消
             </Button>
-            <Button size="sm" className="h-7 bg-primary text-xs text-white hover:bg-primary/90" onClick={() => onSavePrompt(item.id)}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => onSavePrompt(item.id)}>
               <Check className="mr-1 h-3 w-3" /> 保存
             </Button>
           </div>
@@ -385,23 +385,23 @@ function RecordCard({
 
 function RecordMeta({ item, onEditPrompt }: { item: RecordItem; onEditPrompt?: (item: RecordItem) => void }) {
   return (
-    <div className="relative z-10 border-t border-zinc-800 bg-[#141416] p-3 text-xs">
+    <div className="relative z-10 border-t border-border p-3 text-xs">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1 truncate font-medium text-green-500">&#10003; {item.model}</span>
-        <span className="shrink-0 text-[10px] text-zinc-500">{item.type}</span>
+        <span className="flex min-w-0 items-center gap-1 truncate font-medium text-[#7ED887]">&#10003; {item.model}</span>
+        <span className="shrink-0 text-[10px] text-muted-foreground">{item.type}</span>
       </div>
-      {item.provider && <div className="mb-1 truncate text-[10px] text-zinc-600">{item.provider}</div>}
-      {item.paramsLabel && <div className="mb-1 truncate text-[10px] text-zinc-500">{item.paramsLabel}</div>}
+      {item.provider && <div className="mb-1 truncate text-[10px] text-muted-foreground/70">{item.provider}</div>}
+      {item.paramsLabel && <div className="mb-1 truncate text-[10px] text-muted-foreground">{item.paramsLabel}</div>}
       {item.prompt && (
         <div
-          className="mb-2 max-h-28 cursor-pointer overflow-y-auto whitespace-pre-wrap rounded-md border border-zinc-800 bg-[#101014] px-2 py-1.5 text-[11px] leading-4 text-zinc-500 transition-colors hover:border-border hover:text-zinc-300"
+          className="mb-2 max-h-28 cursor-pointer overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-[#101014] px-2 py-1.5 text-[11px] leading-4 text-muted-foreground transition-colors hover:border-primary/40 hover:text-zinc-300"
           onClick={() => onEditPrompt?.(item)}
           title="点击编辑提示词"
         >
           {item.prompt}
         </div>
       )}
-      <div className="flex justify-between text-zinc-500">
+      <div className="flex justify-between text-muted-foreground">
         <span>{item.cost} 积分</span>
         <span>{item.time}</span>
       </div>

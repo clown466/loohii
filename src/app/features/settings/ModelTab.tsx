@@ -382,7 +382,7 @@ function iconForModel(model: ModelConfig) {
   const kind = normalizeModelKind(model.modality, model.capabilities);
   if (kind === "video") return <MonitorPlay className="h-5 w-5 text-[#f59e0b]" />;
   if (kind === "image") return <ImageIcon className="h-5 w-5 text-[#a78bfa]" />;
-  if (kind === "audio") return <Sparkles className="h-5 w-5 text-[#22c55e]" />;
+  if (kind === "audio") return <Sparkles className="h-5 w-5 text-[#7ED887]" />;
   return <Cpu className="h-5 w-5 text-[#60a5fa]" />;
 }
 
@@ -795,7 +795,7 @@ export function ModelsSettings() {
     <div className="animate-in fade-in slide-in-from-bottom-4">
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-[24px] font-semibold text-foreground">模型配置</h1>
+          <h1 className="text-[24px] font-extrabold text-[#E8E8EC]">模型配置</h1>
           <p className="text-muted-foreground mt-1 text-[14px]">管理真实供应商、模型 API Key 和可用模型</p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
@@ -811,7 +811,7 @@ export function ModelsSettings() {
             <KeyRound className="h-4 w-4" />
             管理供应商
           </Button>
-          <Button onClick={() => openModelForm()} disabled={providers.length === 0} className="h-9 w-full gap-2 rounded-md border-0 bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 disabled:opacity-50 sm:w-auto">
+          <Button onClick={() => openModelForm()} disabled={providers.length === 0} className="h-9 w-full gap-2 disabled:opacity-50 sm:w-auto">
             <Plus className="h-4 w-4" />
             添加模型
           </Button>
@@ -819,26 +819,26 @@ export function ModelsSettings() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10 p-4 text-[13px] text-[#fecaca]">
+        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-[13px] text-[#fecaca]">
           <div className="mb-3 font-medium text-foreground">模型配置接口不可用</div>
           <div className="break-words">{error}</div>
-          <Button onClick={loadConfigs} variant="outline" className="mt-4 h-8 border-[#ef4444]/40 text-[#fecaca] hover:bg-[#ef4444]/20">重试</Button>
+          <Button onClick={loadConfigs} variant="outline" className="mt-4 h-8 border-destructive/40 text-[#fecaca] hover:bg-destructive/20">重试</Button>
         </div>
       )}
 
       {loading ? (
-        <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-border bg-card text-muted-foreground">
+        <div className="lh-card flex min-h-[220px] items-center justify-center rounded-xl border border-border text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           正在加载模型配置...
         </div>
       ) : (
         <div className="space-y-6">
           {providers.length === 0 && models.length === 0 && !error && (
-            <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
-              <Cpu className="mx-auto mb-3 h-8 w-8 text-[#71717a]" />
+            <div className="rounded-xl border border-dashed border-border bg-[#141417] p-6 text-center">
+              <Cpu className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
               <h3 className="text-[15px] font-medium text-foreground">还没有模型配置</h3>
-              <p className="mt-1 text-[13px] text-[#71717a]">先添加供应商，再为每个模型配置对应 API Key。</p>
-              <Button onClick={() => openProviderForm()} className="mt-4 h-9 border-0 bg-primary text-white hover:bg-primary/80">管理供应商</Button>
+              <p className="mt-1 text-[13px] text-muted-foreground">先添加供应商，再为每个模型配置对应 API Key。</p>
+              <Button onClick={() => openProviderForm()} className="mt-4 h-9">管理供应商</Button>
             </div>
           )}
 
@@ -846,12 +846,12 @@ export function ModelsSettings() {
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-[16px] font-medium text-foreground">供应商</h2>
-                <span className="text-[12px] text-[#71717a]">{providers.length} 个</span>
+                <span className="text-[12px] text-muted-foreground">{providers.length} 个</span>
               </div>
-              <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="lh-card flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="text-[15px] font-medium text-foreground">已配置 {providers.length} 个供应商</div>
-                  <div className="mt-1 text-[12px] text-[#71717a]">
+                  <div className="mt-1 text-[12px] text-muted-foreground">
                     在供应商管理里选择具体供应商，修改 Base URL、API Key、测试连接或删除。
                   </div>
                 </div>
@@ -867,7 +867,7 @@ export function ModelsSettings() {
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-[16px] font-medium text-foreground">模型配置</h2>
-                <span className="text-[12px] text-[#71717a]">{modelGroups.length} 组 / {models.length} 个模型</span>
+                <span className="text-[12px] text-muted-foreground">{modelGroups.length} 组 / {models.length} 个模型</span>
               </div>
               <div className="grid gap-3">
                 {modelGroups.map((group) => {
@@ -876,7 +876,7 @@ export function ModelsSettings() {
                   const result = representative ? testResults[representative.id] : undefined;
                   const modalities = groupModalities(group);
                   return (
-                    <div key={group.id} className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/30 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                    <div key={group.id} className="lh-card flex flex-col gap-4 rounded-xl border border-border p-4 transition-colors hover:border-primary/30 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                       <div className="flex min-w-0 items-center gap-4">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-border bg-layer-4">
                           {representative ? iconForModel(representative) : <Cpu className="h-5 w-5 text-[#60a5fa]" />}
@@ -884,10 +884,10 @@ export function ModelsSettings() {
                         <div className="min-w-0">
                           <div className="mb-1 flex flex-wrap items-center gap-2">
                             <h3 className="truncate text-[16px] font-medium text-foreground">{provider?.displayName ?? group.provider}</h3>
-                            <Badge className="border border-[#22c55e]/20 bg-[#22c55e]/10 px-1.5 py-0 font-normal text-[#22c55e] hover:bg-[#22c55e]/20">已启用</Badge>
+                            <Badge className="border border-[#7ED88733] bg-[#7ED88733] px-1.5 py-0 font-normal text-[#7ED887] hover:bg-[#7ED88733]">已启用</Badge>
                             <Badge variant="secondary" className="border-0 bg-layer-4 px-1.5 py-0 font-normal text-muted-foreground">{group.models.length} 个模型</Badge>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-[12px] text-[#71717a] sm:gap-3">
+                          <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground sm:gap-3">
                             <span>{modalities.map((item) => `${item.label}${item.count > 1 ? ` x${item.count}` : ""}`).join(" / ")}</span>
                             <span className="h-1 w-1 rounded-full bg-accent" />
                             <span className="break-all font-mono">Key: <span className="text-muted-foreground">{displayModelGroupApiKey(group)}</span></span>
@@ -906,7 +906,7 @@ export function ModelsSettings() {
                             ))}
                           </div>
                           {result && (
-                            <div className={cn("mt-1 text-[12px]", result.ok ? "text-[#22c55e]" : "text-[#f87171]")}>
+                            <div className={cn("mt-1 text-[12px]", result.ok ? "text-[#7ED887]" : "text-destructive")}>
                               {result.message}
                             </div>
                           )}
@@ -921,7 +921,7 @@ export function ModelsSettings() {
                         )}
                         <Button onClick={() => openModelForm(group)} variant="outline" className="h-8 flex-1 border-border text-[13px] text-foreground hover:bg-accent sm:flex-none">编辑</Button>
                         {representative && (
-                          <Button onClick={() => disableModel(representative.id)} variant="ghost" size="icon" className="h-8 w-10 text-[#71717a] hover:bg-[#ef4444]/10 hover:text-[#ef4444]">
+                          <Button onClick={() => disableModel(representative.id)} variant="ghost" size="icon" className="h-8 w-10 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
@@ -937,12 +937,12 @@ export function ModelsSettings() {
 
       {modalMode && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4">
-          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-[#1f1f23] p-4 sm:p-5">
+          <div className="lh-card flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-border p-4 sm:p-5">
               <h2 className="text-[16px] font-medium text-foreground">
                 {modalMode === "provider" ? (editingProvider ? "编辑供应商" : "添加供应商") : (editingModel || editingModelGroup ? "编辑模型" : "添加模型")}
               </h2>
-              <button onClick={closeModal} className="rounded-md p-1 text-[#71717a] hover:bg-accent hover:text-foreground">
+              <button onClick={closeModal} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -951,7 +951,7 @@ export function ModelsSettings() {
               {modalMode === "provider" ? (
                 <>
                   {providers.length > 0 && (
-                    <div className="rounded-lg border border-border bg-[#111113] p-3">
+                    <div className="rounded-lg border border-border bg-[#141417] p-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                         <div className="min-w-0 flex-1">
                           <label className="mb-1.5 block text-[14px] font-medium text-foreground">选择供应商</label>
@@ -975,13 +975,13 @@ export function ModelsSettings() {
                   )}
 
                   {editingProvider && (
-                    <div className="rounded-lg border border-border bg-[#111113] p-3 text-[12px] text-[#71717a]">
+                    <div className="rounded-lg border border-border bg-[#141417] p-3 text-[12px] text-muted-foreground">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <Badge variant="secondary" className="border-0 bg-layer-4 text-muted-foreground">{providerModelCounts.get(editingProvider.id) ?? 0} 模型</Badge>
                       </div>
                       <div className="break-all">当前 Base URL: <span className="text-muted-foreground">{editingProvider.baseUrl || "未设置"}</span></div>
                       {testResults[editingProvider.id] && (
-                        <div className={cn("mt-1", testResults[editingProvider.id].ok ? "text-[#22c55e]" : "text-[#f87171]")}>
+                        <div className={cn("mt-1", testResults[editingProvider.id].ok ? "text-[#7ED887]" : "text-destructive")}>
                           {testResults[editingProvider.id].message}
                         </div>
                       )}
@@ -1009,11 +1009,11 @@ export function ModelsSettings() {
                     <label className="mb-1.5 block text-[14px] font-medium text-foreground">Base URL</label>
                     <Input value={providerForm.baseUrl} onChange={(e) => setProviderForm({ ...providerForm, baseUrl: e.target.value })} placeholder="https://api.example.com/v1" className="h-10 border-border bg-layer-4 text-[14px]" />
                     {providerFormIsDreaminaWeb ? (
-                      <p className="mt-1.5 text-[12px] leading-5 text-[#71717a]">
+                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
                         Base URL 留空。服务器会连接本机 Dreamina 云浏览器：/dreamina-browser/。
                       </p>
                     ) : providerFormIsJimengApi ? (
-                      <p className="mt-1.5 text-[12px] leading-5 text-[#71717a]">
+                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
                         默认本机服务地址是 http://127.0.0.1:5100。需要先部署 iptag/jimeng-api 容器。
                       </p>
                     ) : null}
@@ -1043,13 +1043,13 @@ export function ModelsSettings() {
                       <button
                         type="button"
                         onClick={() => setShowModelApiKey((value) => !value)}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center text-[#71717a] hover:text-foreground"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"
                         aria-label={showModelApiKey ? "隐藏 API Key" : "显示 API Key"}
                       >
                         {showModelApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="mt-1.5 text-[12px] leading-5 text-[#71717a]">
+                    <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
                       {modelFormUsesJimengSession
                         ? "这里填写浏览器 Cookie 里的 sessionid；国际站按 jimeng-api 规则加 us-/hk-/jp-/sg- 前缀。测试只检查 session，不会生成视频。"
                         : "这一批模型共用这里的 Key；需要另一组 Key 时，再新建同供应商下的模型即可。"}
@@ -1081,11 +1081,11 @@ export function ModelsSettings() {
                               "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
                               modelForm.modalities.includes(option.id) ? "border-primary/80 bg-primary" : "border-[#3f3f46]",
                             )}>
-                              {modelForm.modalities.includes(option.id) ? <Check className="h-3 w-3 text-white" /> : null}
+                              {modelForm.modalities.includes(option.id) ? <Check className="h-3 w-3 text-primary-foreground" /> : null}
                             </span>
                             <span className="min-w-0">
                               <span className="block text-[13px] font-medium text-foreground">{option.label}</span>
-                              <span className="mt-0.5 block text-[11px] leading-4 text-[#71717a]">{option.description}</span>
+                              <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{option.description}</span>
                             </span>
                           </button>
                         ))}
@@ -1097,11 +1097,11 @@ export function ModelsSettings() {
                             const modality = option.id;
                             const entries = modelForm.modelEntriesByModality[modality];
                             return (
-                              <div key={option.id} className="rounded-lg border border-border bg-[#111113] p-3">
+                              <div key={option.id} className="rounded-lg border border-border bg-[#141417] p-3">
                                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
                                     <div className="text-[13px] font-medium text-foreground">{option.label}模型</div>
-                                    <div className="mt-1 text-[11px] leading-5 text-[#71717a]">
+                                    <div className="mt-1 text-[11px] leading-5 text-muted-foreground">
                                       能力：{inferredCapabilitiesForModality(option.id).join(" / ")}
                                     </div>
                                   </div>
@@ -1128,7 +1128,7 @@ export function ModelsSettings() {
                                     className="h-8 border-0 bg-transparent px-1 text-[14px] shadow-none focus-visible:ring-0"
                                   />
                                 </div>
-                                <p className="mt-1.5 text-[12px] text-[#71717a]">只会保存为{option.label}模型，不会套用到其他大类。</p>
+                                <p className="mt-1.5 text-[12px] text-muted-foreground">只会保存为{option.label}模型，不会套用到其他大类。</p>
                                 {entries.length > 0 && (
                                   <div className="mt-3 space-y-2">
                                     {entries.map((entry) => {
@@ -1144,12 +1144,12 @@ export function ModelsSettings() {
                                         >
                                           <div className="min-w-0">
                                             <div className="truncate font-mono text-[13px] text-foreground">{entry.model || "未命名模型"}</div>
-                                            <div className="truncate text-[11px] text-[#71717a]">显示：{entry.displayName || entry.model || "默认同模型名称"}</div>
+                                            <div className="truncate text-[11px] text-muted-foreground">显示：{entry.displayName || entry.model || "默认同模型名称"}</div>
                                           </div>
                                           <div className="flex shrink-0 items-center gap-2">
                                             {(!editingModel || entries.length > 1 || modelForm.modalities.length > 1) && (
                                               removingModelId === entry.id ? (
-                                                <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                               ) : (
                                               <span
                                                 role="button"
@@ -1165,13 +1165,13 @@ export function ModelsSettings() {
                                                     void removeModelEntry(modality, entry.id);
                                                   }
                                                 }}
-                                                className="rounded p-1 text-[#71717a] hover:bg-[#ef4444]/10 hover:text-[#ef4444]"
+                                                className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                               >
                                                 <X className="h-4 w-4" />
                                               </span>
                                               )
                                             )}
-                                            <ChevronDown className={cn("h-4 w-4 text-[#71717a] transition-transform", entry.expanded ? "rotate-180" : "")} />
+                                            <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", entry.expanded ? "rotate-180" : "")} />
                                           </div>
                                         </button>
                                         {entry.expanded && (
@@ -1189,7 +1189,7 @@ export function ModelsSettings() {
                                             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                               <div className="min-h-5 text-[12px]">
                                                 {entryTestResult && (
-                                                  <span className={entryTestResult.ok ? "text-[#22c55e]" : "text-[#f87171]"}>
+                                                  <span className={entryTestResult.ok ? "text-[#7ED887]" : "text-destructive"}>
                                                     {entryTestResult.message}
                                                   </span>
                                                 )}
@@ -1226,7 +1226,7 @@ export function ModelsSettings() {
               )}
             </div>
 
-            <div className="flex shrink-0 flex-col justify-end gap-3 border-t border-[#1f1f23] bg-card p-4 sm:flex-row sm:p-5">
+            <div className="flex shrink-0 flex-col justify-end gap-3 border-t border-border p-4 sm:flex-row sm:p-5">
               {modalMode === "provider" && editingProvider && (
                 <>
                   <Button
@@ -1244,7 +1244,7 @@ export function ModelsSettings() {
                     onClick={deleteProvider}
                     disabled={saving}
                     variant="outline"
-                    className="border-[#ef4444]/40 text-[#f87171] hover:bg-[#ef4444]/10 hover:text-[#fecaca]"
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-[#fecaca]"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     删除
@@ -1263,7 +1263,7 @@ export function ModelsSettings() {
 	                    allModelEntriesByModality(modelForm).every(({ entries }) => entries.length === 0)
 	                  ))
 	                }
-                className="border-0 bg-gradient-to-r from-primary to-primary/80 text-white hover:opacity-90 disabled:opacity-50"
+                className="disabled:opacity-50"
               >
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 保存

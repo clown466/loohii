@@ -18,8 +18,8 @@ export function SettingsPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background text-[14px] md:flex-row">
       {/* Settings Sidebar */}
-      <div className="flex w-full shrink-0 flex-col border-b border-[#1f1f23] bg-[#0f0f11] p-3 md:w-64 md:border-b-0 md:border-r md:p-4">
-        <h2 className="mb-3 px-1 text-[18px] font-semibold text-foreground md:mb-6 md:px-2">设置</h2>
+      <div className="flex w-full shrink-0 flex-col border-b border-[#222226] bg-[#141417] p-3 md:w-64 md:border-b-0 md:border-r md:p-4">
+        <h2 className="mb-3 px-1 text-[18px] font-extrabold text-[#E8E8EC] md:mb-6 md:px-2">设置</h2>
         <nav className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:gap-1 md:overflow-visible md:pb-0">
           {menuItems.map((item) => {
             const isActive = tab === item.id || (tab === undefined && item.id === "billing");
@@ -30,8 +30,8 @@ export function SettingsPage() {
                 className={cn(
                   "relative flex h-10 shrink-0 items-center gap-3 rounded-md px-3 py-2 text-[14px] font-medium transition-colors group",
                   isActive
-                    ? "bg-layer-4 text-foreground"
-                    : "text-[#71717a] hover:text-muted-foreground hover:bg-card"
+                    ? "bg-layer-4 text-primary border-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card"
                 )}
               >
                 {isActive && (
