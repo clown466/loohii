@@ -2226,7 +2226,10 @@ export function buildCanvasClipStoryboardBoardPrompt(input: {
     characters: input.clip.characters,
   } as BreakdownScene];
   const panelCount = Math.max(1, Math.min(12, shots.length));
-  const grid = isPortrait ? portraitCanvasStoryboardGrid(panelCount) : storyboardGridForPanelCount(panelCount);
+  const portraitGrid = isPortrait ? portraitCanvasStoryboardGridShape(panelCount) : null;
+  const grid = portraitGrid
+    ? `${portraitGrid.rows}-row x ${portraitGrid.cols}-column`
+    : storyboardGridForPanelCount(panelCount);
   const panelLines = shots.slice(0, panelCount).map((shot, index) => {
     const label = shot.id || `S${index + 1}`;
     const camera = [
@@ -2253,8 +2256,16 @@ export function buildCanvasClipStoryboardBoardPrompt(input: {
   return [
     `Create a ${grid} comic storyboard board for ${input.clip.title || input.clip.id || 'this clip'}, matching the clip video prompt shots S1, S2, S3... in exact order.`,
     `Image type: one ${aspectRatio} storyboard sheet, multiple panels in a clean grid. Each panel is a still frame for one shot, not a single positioning still and not a video.`,
-    isPortrait
-      ? `Grid rule: use a uniform square grid (${grid}) with thin black gutters so that every panel cell is itself a ${aspectRatio} vertical frame, the same aspect ratio as the final video. Compose each panel as a standalone vertical video frame, never as a wide or square crop. If the shots do not fill the square grid, leave the unused trailing cells as solid black empty cells with no drawing and no label.`
+    portraitGrid
+      ? [
+          portraitGrid.rows === portraitGrid.cols
+            ? `Grid rule: use a uniform square grid of exactly ${portraitGrid.rows} rows by ${portraitGrid.cols} columns with thin black gutters, so that every panel cell is itself a ${aspectRatio} vertical frame, the same aspect ratio as the final video.`
+            : `Grid rule: use a uniform grid of exactly ${portraitGrid.rows} rows by ${portraitGrid.cols} columns with thin black gutters, filling the whole ${aspectRatio} sheet, so every panel cell is a vertical frame.`,
+          `Compose the content of every panel as a standalone vertical video frame close to ${aspectRatio}, never as a wide or square cinematic crop.`,
+          panelCount < portraitGrid.rows * portraitGrid.cols
+            ? `Exactly ${panelCount} panels are drawn; leave the remaining ${portraitGrid.rows * portraitGrid.cols - panelCount} trailing cell(s) as solid black empty cells with no drawing and no label.`
+            : `All ${panelCount} grid cells are drawn panels; do not add any extra empty or black cells.`,
+        ].join(' ')
       : '',
     'Panel numbering is mandatory: draw a small readable label in the upper-left corner of each panel, exactly S1, S2, S3... matching the shot order. No other text, captions, speech bubbles, subtitles, UI, watermark, or random labels.',
     `Project: ${input.projectName || 'current project'}. Style: saturated 3D American animated dark-comedy storyboard/previsualization, cinematic but readable.`,
@@ -2289,12 +2300,12 @@ export function canvasBoardAspectRatioIsPortrait(aspectRatio: string) {
   return Number.isFinite(w) && Number.isFinite(h) && h > w;
 }
 
-// 竖屏故事板使用正方形宫格：整图 9:16 时每个 NxN 格子本身也是 9:16。
-function portraitCanvasStoryboardGrid(count: number) {
-  if (count <= 1) return '1x1';
-  if (count <= 4) return '2x2';
-  if (count <= 9) return '3x3';
-  return '4x4';
+// 竖屏故事板宫格：正方形 NxN 时每格恰为 9:16；空格达到一整行及以上时收窄为 N行×(N-1)列（如 5-6 镜头用 3行×2列），避免大片黑格。
+function portraitCanvasStoryboardGridShape(count: number): { rows: number; cols: number } {
+  const safeCount = Math.max(1, count);
+  const n = Math.ceil(Math.sqrt(safeCount));
+  if (n > 1 && n * n - safeCount >= n && n * (n - 1) >= safeCount) return { rows: n, cols: n - 1 };
+  return { rows: n, cols: n };
 }
 
 function canvasPositioningEmbeddedSubjectRule(shots: BreakdownScene[], names: string[]) {

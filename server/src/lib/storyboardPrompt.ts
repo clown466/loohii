@@ -14,11 +14,14 @@ export function clipStoryboardBoardLayoutStrategy(panelCount?: number, aspectRat
     const [w, h] = aspectRatio.split(":").map(Number);
     return h > w;
   })();
+  const portraitGrid = panelCount ? portraitStoryboardGridShapeForPrompt(panelCount) : null;
   const frameGuidance = isPortrait
     ? [
-        `Grid rule: use a uniform square grid (${portraitStoryboardGridText(panelCount)}) so that every single panel cell is itself a ${aspectRatio} vertical frame, the same aspect ratio as the final video.`,
-        "Compose each panel as a standalone vertical video frame, never as a wide or square crop.",
-        "If the panel count does not fill the square grid, leave the unused trailing cells as solid black empty cells with no drawing and no label.",
+        `Grid rule: use a uniform grid (${portraitStoryboardGridText(panelCount)}) filling the whole ${aspectRatio} page, so every panel cell is a vertical frame${portraitGrid && portraitGrid.rows === portraitGrid.cols ? `, each cell itself ${aspectRatio}, the same aspect ratio as the final video` : ""}.`,
+        `Compose the content of every panel as a standalone vertical video frame close to ${aspectRatio}, never as a wide or square crop.`,
+        portraitGrid && panelCount && panelCount < portraitGrid.rows * portraitGrid.cols
+          ? `Exactly ${panelCount} panels are drawn; leave the remaining ${portraitGrid.rows * portraitGrid.cols - panelCount} trailing cell(s) as solid black empty cells with no drawing and no label.`
+          : "Do not add any extra empty or black cells beyond the drawn panels.",
         "Use thin black gutters between cells.",
       ].join(" ")
     : "Use a full-page comic grid with thin black gutters and vertical-video-friendly frames: most panels should be tighter and taller-feeling rather than very wide.";
@@ -35,11 +38,21 @@ export function clipStoryboardBoardLayoutStrategy(panelCount?: number, aspectRat
 }
 
 export function portraitStoryboardGridText(panelCount?: number): string {
-  if (!panelCount) return "2x2, 3x3, or 4x4 depending on panel count";
+  if (!panelCount) return "2x2, 3 rows x 2 columns, 3x3, or 4 rows x 3 columns depending on panel count";
   if (panelCount <= 1) return "a single full-page frame";
-  if (panelCount <= 4) return "2 columns x 2 rows";
-  if (panelCount <= 9) return "3 columns x 3 rows";
-  return "4 columns x 4 rows";
+  const shape = portraitStoryboardGridShapeForPrompt(panelCount);
+  return `${shape.rows} rows x ${shape.cols} columns`;
+}
+
+/**
+ * 竖屏故事板宫格：正方形 NxN 时每格恰为 9:16；
+ * 空格达到一整行及以上时收窄为 N行×(N-1)列（如 5-6 格用 3行×2列），避免大片黑格。
+ */
+function portraitStoryboardGridShapeForPrompt(count: number): { rows: number; cols: number } {
+  const safeCount = Math.max(1, count);
+  const n = Math.ceil(Math.sqrt(safeCount));
+  if (n > 1 && n * n - safeCount >= n && n * (n - 1) >= safeCount) return { rows: n, cols: n - 1 };
+  return { rows: n, cols: n };
 }
 
 export function ensureClipStoryboardBoardLayoutPrompt(prompt: unknown, panelCount?: number, aspectRatio?: string): string {
@@ -86,7 +99,7 @@ export function stripComicStoryboardLayoutPrompt(prompt: unknown): string {
 
 function hasCompleteClipStoryboardBoardLayoutPrompt(prompt: string): boolean {
   return /Storyboard layout:\s*one \d+:\d+ compact multi-panel comic page/i.test(prompt) &&
-    /vertical-video-friendly frames|every single panel cell is itself a \d+:\d+ vertical frame/i.test(prompt) &&
+    /vertical-video-friendly frames|every single panel cell is itself a \d+:\d+ vertical frame|every panel cell is a vertical frame/i.test(prompt) &&
     /Show spoken dialogue as clean white comic speech bubbles/i.test(prompt);
 }
 
