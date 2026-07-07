@@ -166,8 +166,14 @@ export function buildEpisodeCanvasSyncScene(input: {
   generationStrategy?: string;
   existingScene?: { nodes?: unknown[]; edges?: unknown[] };
   records?: CanvasStoryboardGenerationRecord[];
+  aspectRatio?: string;
   now?: string;
 }): EpisodeCanvasSyncBuildResult {
+  const projectAspectRatio = /^\d+:\d+$/.test(String(input.aspectRatio || "").trim()) ? String(input.aspectRatio).trim() : "16:9";
+  const storyboardImageAspect = (() => {
+    const [w, h] = projectAspectRatio.split(":").map(Number);
+    return w > 0 && h > 0 ? Math.round((w / h) * 100) / 100 : 1.78;
+  })();
   const episodeId = resolveWorkflowEpisodeId(input.metadata, input.episodeId) || input.episodeId;
   const workflow = workflowCenterFromMetadata(input.metadata, episodeId);
   const useMultiReferenceStrategy = isSeedanceMultiReferenceStrategy(input.generationStrategy || projectGenerationStrategyFromMetadata(input.metadata));
@@ -230,7 +236,7 @@ export function buildEpisodeCanvasSyncScene(input: {
     const storyboardHeight = CANVAS_SECTION_HEADER_HEIGHT + Math.max(storyboardGrid.height, CANVAS_GENERATION_NODE_HEIGHT) + CANVAS_SECTION_PADDING_BOTTOM;
     const positioningBoardRef = useMultiReferenceStrategy ? collectClipPositioningBoardReference(existingNodes, clip.id, episodeId) : null;
     const videoPrompt = finalizeEpisodeCanvasVideoPrompt(
-      withPositioningBoardVideoAuthority(buildEpisodeClipVideoPrompt(clip, clipScenes), positioningBoardRef),
+      withPositioningBoardVideoAuthority(buildEpisodeClipVideoPrompt(clip, clipScenes, projectAspectRatio), positioningBoardRef),
     );
     const assetVideoReferenceLimit = useMultiReferenceStrategy
       ? Math.max(0, MAX_VIDEO_REFERENCE_IMAGES - (positioningBoardRef ? 1 : 0))
@@ -319,6 +325,7 @@ export function buildEpisodeCanvasSyncScene(input: {
         visibleCharacterNames: positioningVisibleCharacterNames,
         sceneLockName: positioningSceneLockName,
         sceneVisualLock: positioningSceneVisualLock,
+        aspectRatio: projectAspectRatio,
         mode: "positioning",
       });
       const storyboardPrompt = buildClipPositioningBoardPrompt({
@@ -329,6 +336,7 @@ export function buildEpisodeCanvasSyncScene(input: {
         visibleCharacterNames: positioningVisibleCharacterNames,
         sceneLockName: positioningSceneLockName,
         sceneVisualLock: positioningSceneVisualLock,
+        aspectRatio: projectAspectRatio,
         mode: "storyboard",
       });
       const activeBoardPrompt = boardMode === "storyboard" ? storyboardPrompt : positioningPrompt;
@@ -380,7 +388,7 @@ export function buildEpisodeCanvasSyncScene(input: {
           outputImageAssetId: stringValue(oldPositioningData.outputImageAssetId),
           outputImages: oldPositioningOutputImages,
           generationStartedAt: stringValue(oldPositioningData.generationStartedAt),
-          size: "16:9",
+          size: projectAspectRatio,
           resolution: "2k",
           quality: "high",
           format: "png",
@@ -498,7 +506,7 @@ export function buildEpisodeCanvasSyncScene(input: {
         submittedPrompt: exactStoryboardRef?.prompt || "",
         error: outputImage ? "已关联本 Clip 的故事板生成记录。" : "",
         generationStartedAt: "",
-        size: "16:9",
+        size: projectAspectRatio,
         resolution: "2k",
         quality: "high",
         format: "png",
@@ -530,13 +538,13 @@ export function buildEpisodeCanvasSyncScene(input: {
         position,
         style: {
           width: reference.kind === "storyboard" ? 340 : 260,
-          height: preferredImageInputNodeHeight({ imageAspectRatio: reference.kind === "storyboard" ? 1.78 : 1.45, fileName: `${reference.name}.png` }),
+          height: preferredImageInputNodeHeight({ imageAspectRatio: reference.kind === "storyboard" ? storyboardImageAspect : 1.45, fileName: `${reference.name}.png` }),
         },
         zIndex: 1,
         data: {
           label: reference.label,
           imageUrl: reference.url,
-          imageAspectRatio: reference.kind === "storyboard" ? 1.78 : 1.45,
+          imageAspectRatio: reference.kind === "storyboard" ? storyboardImageAspect : 1.45,
           fileName: `${reference.name}.png`,
           uploadStatus: "linked",
           sourcePrompt: reference.kind === "storyboard"
@@ -601,10 +609,11 @@ export function buildEpisodeCanvasSyncScene(input: {
         extent: "parent",
         expandParent: false,
         position: { x: CANVAS_SECTION_PADDING_X, y: CANVAS_SECTION_HEADER_HEIGHT },
-        style: { width: 340, height: preferredImageInputNodeHeight({ imageAspectRatio: 1.78, fileName: `${clip.title || "Clip"}-storyboard.png` }) },
+        style: { width: 340, height: preferredImageInputNodeHeight({ imageAspectRatio: storyboardImageAspect, fileName: `${clip.title || "Clip"}-storyboard.png` }) },
         zIndex: 1,
         data: {
           ...storyboardSlotData(clip, outputImage, outputImageAssetId, exactStoryboardRef?.prompt),
+          imageAspectRatio: storyboardImageAspect,
           sourceEpisode: episodeTitle,
           sourceEpisodeId: episodeId,
           episodeCanvasSync: true,
@@ -694,13 +703,13 @@ export function buildEpisodeCanvasSyncScene(input: {
         position,
         style: {
           width: isPositioningBoard ? 340 : 260,
-          height: preferredImageInputNodeHeight({ imageAspectRatio: isPositioningBoard ? 1.78 : 1.45, fileName: `${reference.name}.png` }),
+          height: preferredImageInputNodeHeight({ imageAspectRatio: isPositioningBoard ? storyboardImageAspect : 1.45, fileName: `${reference.name}.png` }),
         },
         zIndex: 1,
         data: {
           label: reference.label,
           imageUrl: reference.url,
-          imageAspectRatio: isPositioningBoard ? 1.78 : 1.45,
+          imageAspectRatio: isPositioningBoard ? storyboardImageAspect : 1.45,
           fileName: `${reference.name}.png`,
           uploadStatus: reference.url ? "linked" : "missing",
           sourcePrompt: isPositioningBoard
@@ -1524,7 +1533,7 @@ function characterMentionIsNonVisualOnly(searchableText: string, normalizedName:
   return !visualOverridePatterns.some((pattern) => pattern.test(searchableText));
 }
 
-function buildLocalClipVideoPrompt(clip: WorkflowClip, clipScenes: WorkflowScene[]): string {
+function buildLocalClipVideoPrompt(clip: WorkflowClip, clipScenes: WorkflowScene[], aspectRatio = "16:9"): string {
   const duration = Math.round(getClipEstimatedDuration(clip, clipScenes) * 10) / 10;
   const sceneVisualLock = mostCommonString(clipScenes.map((scene) => scene.sceneVisualLock).filter((value): value is string => Boolean(value)));
   const initialStateAndPositions = summarizeCanvasInitialCharacterStateAndPositions(clip, clipScenes);
@@ -1552,7 +1561,7 @@ function buildLocalClipVideoPrompt(clip: WorkflowClip, clipScenes: WorkflowScene
   });
   return [
     `Clip video prompt for ${clip.title}.`,
-    `Duration target: ${duration}s, 16:9 cinematic 3D animated dark comedy style.`,
+    `Duration target: ${duration}s, ${aspectRatio} cinematic 3D animated dark comedy style.`,
     `Characters: ${compactList(clip.characters, "characters from this Clip", 12)}.`,
     `Setting: ${clip.setting || "current scene"}.`,
     sceneVisualLock ? `Scene visual continuity lock: ${compactPromptText(sceneVisualLock)}` : "",
@@ -1873,13 +1882,13 @@ function stripCanvasShotStyleBoilerplate(value: string): string {
     .trim();
 }
 
-function buildEpisodeClipVideoPrompt(clip: WorkflowClip, clipScenes: WorkflowScene[]): string {
+function buildEpisodeClipVideoPrompt(clip: WorkflowClip, clipScenes: WorkflowScene[], aspectRatio = "16:9"): string {
   if (clipScenes.length === 0 && clip.seedancePrompt) return clip.seedancePrompt;
   const panels = extractStoryboardPromptPanelTexts(clip.storyboardPrompt);
   if (clipScenes.length === 0 && panels.length > 0) {
     const duration = Math.round(getClipEstimatedDuration(clip, clipScenes) * 10) / 10;
     return [
-      `Generate one continuous ${duration}s cinematic video, 16:9.`,
+      `Generate one continuous ${duration}s cinematic video, ${aspectRatio}.`,
       "Style: polished 3D American animated dark-comedy comic look, saturated colors, clean 3D render, exaggerated acting, fast pacing.",
       `Scene: ${clip.setting || "current scene"}.`,
       `Characters: ${compactList(clip.characters, "characters from this Clip", 12)}; use connected character reference images for identity.`,
@@ -1888,7 +1897,7 @@ function buildEpisodeClipVideoPrompt(clip: WorkflowClip, clipScenes: WorkflowSce
       "Do not skip, merge, or reorder the P beats. Do not add subtitles, speech bubbles, UI, panel borders, panel numbers, watermarks, or explanatory text.",
     ].filter(Boolean).join("\n");
   }
-  return buildLocalClipVideoPrompt(clip, clipScenes) || clip.seedancePrompt || "";
+  return buildLocalClipVideoPrompt(clip, clipScenes, aspectRatio) || clip.seedancePrompt || "";
 }
 
 function fallbackCanvasBeatAction(scene: WorkflowScene, dialogue: string): string {

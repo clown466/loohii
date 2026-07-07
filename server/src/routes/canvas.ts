@@ -202,6 +202,7 @@ router.post(
         generationStrategy: input.generationStrategy,
         existingScene: canvasScenes[targetEpisodeId] ?? canvasScenes[resolveCanvasEpisodeId(metadata, targetEpisodeId)] ?? undefined,
         records,
+        aspectRatio: project.aspectRatio,
       });
       const nextMetadata = writeEpisodeCanvasSyncMetadata({ metadata: baseMetadata, sync, makeActive: true });
       await tx.project.update({

@@ -1852,6 +1852,7 @@ async function executeAgentAction(context: AgentActionExecutionContext, action: 
         episodeId,
         existingScene: canvasScenes[episodeId] ?? canvasScenes[resolveCanvasEpisodeId(metadata, episodeId)] ?? undefined,
         records,
+        aspectRatio: project.aspectRatio,
       });
       const nextMetadata = writeEpisodeCanvasSyncMetadata({ metadata: baseMetadata, sync, makeActive: true });
       await tx.project.update({ where: { id: project.id }, data: { metadata: nextMetadata as Prisma.InputJsonValue } });

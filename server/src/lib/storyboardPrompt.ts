@@ -15,18 +15,31 @@ export function clipStoryboardBoardLayoutStrategy(panelCount?: number, aspectRat
     return h > w;
   })();
   const frameGuidance = isPortrait
-    ? "Use a full-page comic grid with thin black gutters. Since the target is portrait/vertical video, frames should feel natural for tall aspect ratios."
+    ? [
+        `Grid rule: use a uniform square grid (${portraitStoryboardGridText(panelCount)}) so that every single panel cell is itself a ${aspectRatio} vertical frame, the same aspect ratio as the final video.`,
+        "Compose each panel as a standalone vertical video frame, never as a wide or square crop.",
+        "If the panel count does not fill the square grid, leave the unused trailing cells as solid black empty cells with no drawing and no label.",
+        "Use thin black gutters between cells.",
+      ].join(" ")
     : "Use a full-page comic grid with thin black gutters and vertical-video-friendly frames: most panels should be tighter and taller-feeling rather than very wide.";
   return [
     `Storyboard layout: one ${aspectRatio} compact multi-panel comic page using ${panelText} in left-to-right, top-to-bottom reading order.`,
     frameGuidance,
     "Favor medium close-ups, close-ups, reaction close-ups, over-shoulders, hand/prop inserts, and expression inserts; use wide/group panels sparingly for orientation only.",
     "Each panel should contain only the characters needed for that panel beat; do not duplicate the same character multiple times inside one panel.",
-    "Place a small readable panel number label such as P1, P2, P3 in a corner of each panel.",
+    "Panel numbering is mandatory: draw a small, clearly readable shot-order number label exactly P1, P2, P3... in the top-left corner of every drawn panel, in reading order, so a video model can tell which panel is which shot.",
     "Show spoken dialogue as clean white comic speech bubbles inside the relevant panels.",
     "Place each exact dialogue line in one speech bubble on the most relevant panel only; continuation and reaction panels for that same beat use no speech bubble unless they contain a different exact dialogue line.",
     "Visible text stays to panel labels and speech bubbles.",
   ].join(" ");
+}
+
+export function portraitStoryboardGridText(panelCount?: number): string {
+  if (!panelCount) return "2x2, 3x3, or 4x4 depending on panel count";
+  if (panelCount <= 1) return "a single full-page frame";
+  if (panelCount <= 4) return "2 columns x 2 rows";
+  if (panelCount <= 9) return "3 columns x 3 rows";
+  return "4 columns x 4 rows";
 }
 
 export function ensureClipStoryboardBoardLayoutPrompt(prompt: unknown, panelCount?: number, aspectRatio?: string): string {
@@ -73,7 +86,7 @@ export function stripComicStoryboardLayoutPrompt(prompt: unknown): string {
 
 function hasCompleteClipStoryboardBoardLayoutPrompt(prompt: string): boolean {
   return /Storyboard layout:\s*one \d+:\d+ compact multi-panel comic page/i.test(prompt) &&
-    /vertical-video-friendly frames|frames should feel natural for tall aspect ratios/i.test(prompt) &&
+    /vertical-video-friendly frames|every single panel cell is itself a \d+:\d+ vertical frame/i.test(prompt) &&
     /Show spoken dialogue as clean white comic speech bubbles/i.test(prompt);
 }
 

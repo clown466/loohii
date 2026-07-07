@@ -933,7 +933,7 @@ router.post(
   asyncRoute(async (req, res) => {
     const project = await findOwnedProject(routeParam(req.params.projectId, "projectId"), req.user!.id);
     const input = canvasImageGenerationSchema.parse(req.body);
-    const prompt = normalizeCanvasImageGenerationPrompt(input.prompt, input.metadata);
+    const prompt = normalizeCanvasImageGenerationPrompt(input.prompt, input.metadata, input.size || project.aspectRatio);
     if (!prompt) badRequest("Image prompt is required.");
     rejectPromptCompression("image", prompt);
     const referenceImageUrls = input.referenceImageUrls ?? [];
@@ -6754,7 +6754,7 @@ async function refineWorkflowClipSeedancePrompt(input: {
       {
         role: "system",
         content:
-          "You refine clip-level AI video prompts. Return only the final prompt text. No markdown, no JSON, no arrays, no surrounding brackets or quotes, no explanation.",
+          "You refine clip-level AI video prompts. Return only the final prompt text as plain text. No markdown, no JSON, no arrays, no code fences, no surrounding brackets or quotes, no explanation, no preamble like 'Here is'. If you cannot follow every rule in the task, return the original prompt verbatim instead of a partial rewrite.",
       },
       {
         role: "user",
@@ -6964,20 +6964,33 @@ function buildClipSeedancePromptRefinementPrompt(input: {
     existingAssetNameLanguageRules(input.authority),
     "",
     "Task: refine the following Seedance/video-generation prompt for this exact Clip.",
+    "Return the refined prompt as plain text only.",
+    "",
+    "HARD RULES (any violation makes the output unusable; follow all of them exactly):",
+    "1. Keep every beat line (P1/P2... or S1/S2...) present, in the same order, one beat per line, each line starting with its label like `S3: `. Do not skip, merge, renumber, or reorder beats.",
+    "2. Copy every `Dialogue: Speaker says “...”` segment verbatim, character for character, and keep it inside the same beat line it came from. Do not translate, paraphrase, shorten, move, or merge dialogue, and never rewrite dialogue as unlabeled narration.",
+    "3. Keep the duration line and the aspect ratio exactly as given in the current prompt.",
+    "4. Keep the whole refined prompt under 3500 characters. When trimming, cut scene description and acting notes first; never cut dialogue, beat labels, or camera language.",
+    "5. Do not add subtitles, speech bubbles, UI, panel borders, watermarks, markdown, headings, bullet symbols, or explanatory text.",
+    "If you cannot satisfy every hard rule, return the current prompt unchanged.",
+    "",
+    "Refinement guidance:",
     "Keep it practical for an AI video model, but do not compress, omit, or truncate required beat lines or spoken dialogue.",
     "Use connected storyboard and character reference images for visual identity.",
     "Do not describe character clothing or exact appearance when reference images exist.",
     ...VIDEO_STATE_AND_ASSET_RULES,
-    "Preserve every beat line (P1/P2... or S1/S2...) in order. Do not skip, merge, or reorder them.",
-    "Keep dialogue lines attached to the matching beat when present, and keep the exact labeled format at the start of that beat: `Dialogue: Speaker says “...”`. Never rewrite dialogue as unlabeled inline narration.",
-    "Keep the whole refined prompt under 3500 characters; trim scene description and acting notes first, never dialogue or beat labels.",
     "If storyboard panels conflict with ordered shots, the storyboard panels are the authority.",
     "Do not repeat the whole Clip cast in every S beat. Each S beat should name only visible speakers/actors and their carried-forward state.",
     "Move repeated constraints into the prompt header. Do not repeat scene-continuity rules, screen-direction rules, visible-subject rules, or foreground/midground/background rules inside every S beat.",
     "If all beats share the same scene blocking or composition, state it once as a 'Clip blocking' line before the beats, not inside every S beat.",
     "Each S beat should contain specific professional shot design only: shot size, camera angle, camera movement, lens, visible action, spoken dialogue when present, and carried-forward state only when it affects the shot. Do not repeat clip-level blocking in every beat.",
     "Mention who is who, style, scene, and how the motion should unfold from the storyboard.",
-    "Do not add subtitles, speech bubbles, UI, panel borders, watermarks, or explanatory text.",
+    "",
+    "Output format (structure only; keep the same labels and ordering as the current prompt):",
+    "<header lines: duration, style, scene, characters, clip blocking>",
+    "S1: Dialogue: <exact dialogue if this beat has one>; Shot: <shot size, angle, movement, composition, lens>; <visible action and state>",
+    "S2: ...",
+    "<one line per remaining beat, in order>",
     "",
     "Current asset constraints:",
     summarizeAssetsForStoryboardPrompt(input.workflow.assets),
@@ -11455,7 +11468,7 @@ function rawImageGenerationMessage(error: unknown): string {
   return typeof error === "string" ? error : "";
 }
 
-function normalizeCanvasImageGenerationPrompt(prompt: string, metadata: unknown): string {
+function normalizeCanvasImageGenerationPrompt(prompt: string, metadata: unknown, aspectRatio?: string): string {
   const text = prompt.trim();
   const record = isRecord(metadata) ? metadata : {};
   const clipNodeKind = stringFrom(record.clipNodeKind, "");
@@ -11476,7 +11489,9 @@ function normalizeCanvasImageGenerationPrompt(prompt: string, metadata: unknown)
     return text;
   }
   const panelCount = numberFrom(record.storyboardPanelCount, numberFrom(record.panelCount, 0));
-  return finalizeClipStoryboardImagePrompt(text, panelCount || undefined);
+  // 提交生图时用请求的 size/项目画幅重写布局行，避免故事板整图与宫格画幅和成片不一致。
+  const boardAspectRatio = /^\d+:\d+$/.test(String(aspectRatio || "").trim()) ? String(aspectRatio).trim() : undefined;
+  return finalizeClipStoryboardImagePrompt(text, panelCount || undefined, boardAspectRatio);
 }
 
 function normalizePositioningBoardImagePrompt(prompt: string): string {

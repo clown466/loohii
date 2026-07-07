@@ -33,9 +33,11 @@ export function buildClipPositioningBoardPrompt(input: {
   visibleCharacterNames: string[];
   sceneLockName?: string;
   sceneVisualLock?: string;
+  aspectRatio?: string;
   mode?: ClipPositioningBoardMode;
 }): string {
   if (input.mode === "storyboard") return buildClipStoryboardBoardPrompt(input);
+  const aspectRatio = normalizeBoardAspectRatio(input.aspectRatio);
   const anchor = selectPositioningAnchorShot(input.shots, input.visibleCharacterNames);
   const anchorAction = sentence(anchor?.action || anchor?.description || anchor?.visualPrompt || input.clip.title || "a readable representative moment");
   const anchorRefs = sentence(anchor?.references || "");
@@ -44,7 +46,7 @@ export function buildClipPositioningBoardPrompt(input: {
   const embeddedSubjectRule = embeddedSubjectPositioningRule(input.shots, input.visibleCharacterNames);
   return [
     `Create ONE static keyframe positioning-board image for ${input.clip.title || input.clip.id || "this clip"}.`,
-    "Image type: a single 16:9 still frame used as a spatial layout reference, not a storyboard, not a video prompt, not a multi-shot sequence.",
+    `Image type: a single ${aspectRatio} still frame used as a spatial layout reference, not a storyboard, not a video prompt, not a multi-shot sequence.`,
     `Project: ${input.projectName}. Style: saturated 3D American animated dark-comedy, cinematic but readable previsualization.`,
     `Scene to lock: ${input.sceneLockName || input.clip.setting || "current scene"}. Use the connected scene reference as the spatial authority.`,
     input.sceneVisualLock ? `Scene visual continuity lock: ${sentence(input.sceneVisualLock)}.` : "",
@@ -72,7 +74,10 @@ export function buildClipStoryboardBoardPrompt(input: {
   visibleCharacterNames: string[];
   sceneLockName?: string;
   sceneVisualLock?: string;
+  aspectRatio?: string;
 }): string {
+  const aspectRatio = normalizeBoardAspectRatio(input.aspectRatio);
+  const isPortrait = boardAspectRatioIsPortrait(aspectRatio);
   const shots = input.shots.length > 0 ? input.shots : [{
     id: "S1",
     title: input.clip.title || "Clip beat",
@@ -81,7 +86,7 @@ export function buildClipStoryboardBoardPrompt(input: {
     setting: input.clip.setting,
   }];
   const panelCount = Math.max(1, Math.min(12, shots.length));
-  const grid = storyboardGridForPanelCount(panelCount);
+  const grid = isPortrait ? portraitStoryboardGrid(panelCount) : storyboardGridForPanelCount(panelCount);
   const sceneVisualLock = sentence(input.sceneVisualLock || "");
   const panelLines = shots.slice(0, panelCount).map((shot, index) => {
     const label = shot.id || `S${index + 1}`;
@@ -108,8 +113,11 @@ export function buildClipStoryboardBoardPrompt(input: {
   const embeddedSubjectRule = embeddedSubjectPositioningRule(input.shots, input.visibleCharacterNames);
   return [
     `Create a ${grid} comic storyboard board for ${input.clip.title || input.clip.id || "this clip"}, matching the clip video prompt shots S1, S2, S3... in exact order.`,
-    "Image type: one 16:9 storyboard sheet, multiple panels in a clean grid. Each panel is a still frame for one shot, not a single positioning still and not a video.",
-    "Panel numbering is mandatory: draw a small readable label in the upper-left corner of each panel, exactly S1, S2, S3... matching the shot order. No other text, captions, speech bubbles, subtitles, UI, watermark, or random labels.",
+    `Image type: one ${aspectRatio} storyboard sheet, multiple panels in a clean grid. Each panel is a still frame for one shot, not a single positioning still and not a video.`,
+    isPortrait
+      ? `Grid rule: use a uniform square grid (${grid}) with thin black gutters so that every panel cell is itself a ${aspectRatio} vertical frame, the same aspect ratio as the final video. Compose each panel as a standalone vertical video frame, never as a wide or square crop. If the shots do not fill the square grid, leave the unused trailing cells as solid black empty cells with no drawing and no label.`
+      : "",
+    "Panel numbering is mandatory: draw a small, clearly readable shot-order number label in the upper-left corner of each drawn panel, exactly S1, S2, S3... matching the shot order, so a video model can tell which panel is which shot. No other text, captions, speech bubbles, subtitles, UI, watermark, or random labels.",
     `Project: ${input.projectName || "current project"}. Style: saturated 3D American animated dark-comedy storyboard/previsualization, cinematic but readable.`,
     `Scene continuity lock: ${input.sceneLockName || input.clip.setting || "current scene"}. Keep the same scene geography across all panels unless the shot explicitly changes location.`,
     sceneVisualLock ? `Scene visual continuity details: ${sceneVisualLock}.` : "",
@@ -123,6 +131,23 @@ export function buildClipStoryboardBoardPrompt(input: {
     `Storyboard panels:\n${panelLines.join("\n")}`,
     "Do not redesign characters, scene architecture, props, clothing, helmets, held items, or visible restraints. Keep all visible states consistent with connected references and continuity notes.",
   ].filter(Boolean).join("\n");
+}
+
+function normalizeBoardAspectRatio(value?: string): string {
+  return /^\d+:\d+$/.test(String(value || "").trim()) ? String(value).trim() : "16:9";
+}
+
+function boardAspectRatioIsPortrait(aspectRatio: string): boolean {
+  const [w, h] = aspectRatio.split(":").map(Number);
+  return Number.isFinite(w) && Number.isFinite(h) && h > w;
+}
+
+/** 竖屏故事板使用正方形宫格：整图 9:16 时每个 NxN 格子本身也是 9:16。 */
+function portraitStoryboardGrid(count: number): string {
+  if (count <= 1) return "1x1";
+  if (count <= 4) return "2x2";
+  if (count <= 9) return "3x3";
+  return "4x4";
 }
 
 function storyboardGridForPanelCount(count: number): string {
