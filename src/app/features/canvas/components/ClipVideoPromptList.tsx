@@ -7,6 +7,7 @@ import { type ModelConfig } from '../../../lib/apiClient';
 import {
   type BreakdownScene,
   type Clip,
+  type ClipPositioningBoardMode,
   type ClipVideoPromptInferenceResult,
   type EpisodeCanvasSyncRequest,
   type PersistedClipPromptBatch,
@@ -59,7 +60,7 @@ export function ClipVideoPromptList({
   onAddClipVideoNode: (clip: Clip, prompt: string) => void;
   onAddClipVideoNodes: (clips: Clip[]) => void | Promise<void>;
   onAddClipPositioningBoardNode: (clip: Clip) => void | Promise<unknown>;
-  onAddClipPositioningBoardNodes: (clips: Clip[]) => void | Promise<void>;
+  onAddClipPositioningBoardNodes: (clips: Clip[], options?: { mode?: ClipPositioningBoardMode }) => void | Promise<void>;
   onGenerateClipSeedancePrompt: (clipId: string, options?: { skipCanvasSync?: boolean }) => ClipVideoPromptInferenceResult | Promise<ClipVideoPromptInferenceResult>;
   onSyncEpisodeBoardsToCanvas: (override?: EpisodeCanvasSyncRequest) => void | Promise<void>;
   generatingSeedanceClipId: string | null;
@@ -68,6 +69,7 @@ export function ClipVideoPromptList({
   const { id: projectId } = useParams();
   const [selectedVideoPromptClipIds, setSelectedVideoPromptClipIds] = useState<string[]>([]);
   const [batchVideoPromptRunning, setBatchVideoPromptRunning] = useState(false);
+  const [batchInferenceScope, setBatchInferenceScope] = useState<'video' | 'storyboard' | 'positioning'>('video');
   const videoPromptResumeAttemptedRef = useRef(false);
   const [singleInferenceQueue, setSingleInferenceQueue] = useState<string[]>([]);
   const singleQueueRef = useRef<string[]>([]);
@@ -119,6 +121,17 @@ export function ClipVideoPromptList({
     };
     writePersistedClipPromptBatch(initialBatch);
     await runVideoPromptInferenceBatch(initialBatch);
+  };
+
+  const runSelectedBatchInference = async () => {
+    const selected = clips.filter((clip) => selectedVideoPromptClipSet.has(clip.id));
+    if (selected.length === 0 || videoPromptBatchBusy || generationBlocked) return;
+    if (batchInferenceScope === 'storyboard' || batchInferenceScope === 'positioning') {
+      // 故事板/定位板提示词是确定性重建：重新放入画布节点即完成“重新推理”，随后在节点上重新生成图片。
+      await onAddClipPositioningBoardNodes(selected, { mode: batchInferenceScope });
+      return;
+    }
+    await runSelectedVideoPromptInference();
   };
 
   const addSelectedToCanvas = async () => {
@@ -269,12 +282,23 @@ export function ClipVideoPromptList({
             >
               {allVideoPromptsSelected ? '清空选择' : '全选 Clip'}
             </button>
+            <select
+              value={batchInferenceScope}
+              onChange={(event) => setBatchInferenceScope(event.target.value as 'video' | 'storyboard' | 'positioning')}
+              disabled={videoPromptBatchBusy}
+              className="h-8 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-100 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+              title="选择批量重新推理的目标：视频任务走文本模型推理；故事板/定位板重建确定性提示词节点"
+            >
+              <option value="video">视频任务</option>
+              <option value="storyboard">故事板</option>
+              <option value="positioning">定位板</option>
+            </select>
             <Button
               type="button"
               size="sm"
               className="h-8 bg-sky-500 text-[11px] text-black hover:bg-sky-400"
               disabled={selectedVideoPromptClipIds.length === 0 || videoPromptBatchBusy || generationBlocked}
-              onClick={() => void runSelectedVideoPromptInference()}
+              onClick={() => void runSelectedBatchInference()}
             >
               <Wand2 className="h-3.5 w-3.5" />
               {batchVideoPromptRunning ? `批量推理中 ${selectedVideoPromptClipIds.length}` : `批量重新推理 ${selectedVideoPromptClipIds.length || ''}`}

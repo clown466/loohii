@@ -2985,6 +2985,7 @@ function CanvasInner() {
         projectPromptContext,
         imageModelId: assetGenerationModelId || undefined,
         imageResolution: assetGenerationResolution,
+        aspectRatio: currentProject?.ratio,
       });
       const store = useCanvasStore.getState();
       if (!canvasNodeListsEqual(result.nodes as any[], store.nodes as any[])) {
@@ -3571,6 +3572,7 @@ function CanvasInner() {
         visibleCharacterNames,
         sceneLockName: positioningSceneLockName,
         mode: 'positioning',
+        aspectRatio: currentProject?.ratio,
       });
       const storyboardPrompt = buildCanvasClipPositioningBoardPrompt({
         projectName: currentProject?.title || selectedEpisode,
@@ -3580,6 +3582,7 @@ function CanvasInner() {
         visibleCharacterNames,
         sceneLockName: positioningSceneLockName,
         mode: 'storyboard',
+        aspectRatio: currentProject?.ratio,
       });
       const activeBoardPrompt = boardMode === 'storyboard' ? storyboardPrompt : positioningPrompt;
       const positioningRows = Math.ceil(positioningReferences.length / POSITIONING_BOARD_REFERENCE_COLUMNS);
@@ -3679,7 +3682,7 @@ function CanvasInner() {
           outputImageAssetId: oldPositioningData.outputImageAssetId || '',
           outputImages: oldPositioningOutputImages,
           generationStartedAt: oldPositioningData.generationStartedAt || '',
-          size: '16:9',
+          size: currentProject?.ratio && /^\d+:\d+$/.test(currentProject.ratio) ? currentProject.ratio : '16:9',
           resolution: assetGenerationResolution || '2k',
           quality: 'high',
           format: 'png',
@@ -3786,20 +3789,25 @@ function CanvasInner() {
     }
   };
 
-  const handleAddClipPositioningBoardNodes = async (targetClips: Clip[]) => {
+  const handleAddClipPositioningBoardNodes = async (
+    targetClips: Clip[],
+    options: { mode?: ClipPositioningBoardMode } = {},
+  ) => {
+    const boardMode = options.mode || 'storyboard';
+    const boardModeLabel = boardMode === 'storyboard' ? '故事板' : '定位板';
     const uniqueClips = targetClips.filter((clip, index, list) => clip.id && list.findIndex((item) => item.id === clip.id) === index);
     if (uniqueClips.length === 0) {
-      showCanvasDropStatus('请先选择要放入故事板/定位板流程的 Clip。');
+      showCanvasDropStatus(`请先选择要放入${boardModeLabel}流程的 Clip。`);
       return;
     }
     setActivePanel(null);
-    showCanvasDropStatus(`正在批量放入 ${uniqueClips.length} 个故事板/定位板流程...`);
+    showCanvasDropStatus(`正在批量放入 ${uniqueClips.length} 个${boardModeLabel}流程...`);
     let completed = 0;
     let failed = 0;
     let firstError = '';
     for (const clip of uniqueClips) {
       try {
-        await handleAddClipPositioningBoardNode(clip, { silent: true, fitViewAfter: false });
+        await handleAddClipPositioningBoardNode(clip, { silent: true, fitViewAfter: false, mode: boardMode });
         completed += 1;
       } catch (error) {
         failed += 1;
@@ -3808,8 +3816,8 @@ function CanvasInner() {
     }
     showCanvasDropStatus(
       completed > 0
-        ? `已批量放入 ${completed} 个故事板/定位板流程。${failed ? `失败 ${failed} 个：${firstError}` : ''}`
-        : `批量放入故事板/定位板流程失败：${firstError || '未知错误'}`,
+        ? `已批量放入 ${completed} 个${boardModeLabel}流程。${failed ? `失败 ${failed} 个：${firstError}` : ''}`
+        : `批量放入${boardModeLabel}流程失败：${firstError || '未知错误'}`,
     );
     if (completed > 0) {
       window.setTimeout(() => fitView({ padding: 0.18, duration: 300 }), 0);

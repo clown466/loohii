@@ -1808,11 +1808,11 @@ export function removeEpisodeCanvasChildren(nodes: any[], edges: any[], sectionI
   };
 }
 
-export function buildEpisodeClipVideoPrompt(clip: Clip, clipScenes: BreakdownScene[]) {
+export function buildEpisodeClipVideoPrompt(clip: Clip, clipScenes: BreakdownScene[], aspectRatio?: string) {
   if (clipScenes.length === 0 && clip.seedancePrompt && !isClipVideoPromptStaleForStoryboard(clip)) return clip.seedancePrompt;
-  const storyboardPrompt = buildLocalClipVideoPromptFromStoryboard(clip, clipScenes);
+  const storyboardPrompt = buildLocalClipVideoPromptFromStoryboard(clip, clipScenes, aspectRatio);
   if (clipScenes.length === 0 && storyboardPrompt) return storyboardPrompt;
-  return buildLocalClipVideoPrompt(clip, clipScenes) || clip.seedancePrompt || '';
+  return buildLocalClipVideoPrompt(clip, clipScenes, aspectRatio) || clip.seedancePrompt || '';
 }
 
 export function isClipVideoPromptStaleForStoryboard(clip: Clip) {
@@ -1822,12 +1822,12 @@ export function isClipVideoPromptStaleForStoryboard(clip: Clip) {
   return storyboardPanelLabels.some((label) => !videoPBeats.has(Number(label.replace(/^P/, ''))));
 }
 
-export function buildLocalClipVideoPromptFromStoryboard(clip: Clip, clipScenes: BreakdownScene[]) {
+export function buildLocalClipVideoPromptFromStoryboard(clip: Clip, clipScenes: BreakdownScene[], aspectRatio?: string) {
   const panels = extractStoryboardPromptPanelTexts(clip.storyboardPrompt);
   if (!panels.length) return '';
   const duration = Math.round(getClipEstimatedDuration(clip, clipScenes) * 10) / 10;
   return [
-    `Generate one continuous ${duration}s cinematic video, 16:9.`,
+    `Generate one continuous ${duration}s cinematic video, ${normalizeCanvasBoardAspectRatio(aspectRatio)}.`,
     'Style: polished 3D American animated dark-comedy comic look, saturated colors, clean 3D render, exaggerated acting, fast pacing.',
     `Scene: ${clip.setting || 'current scene'}.`,
     `Characters: ${compactList(clip.characters, 'characters from this Clip', 12)}; use connected character reference images for identity.`,
@@ -1865,7 +1865,7 @@ export function cleanStoryboardPromptPanelText(value: string) {
     .trim();
 }
 
-export function buildLocalClipVideoPrompt(clip: Clip, clipScenes: BreakdownScene[]) {
+export function buildLocalClipVideoPrompt(clip: Clip, clipScenes: BreakdownScene[], aspectRatio?: string) {
   const duration = Math.round(getClipEstimatedDuration(clip, clipScenes) * 10) / 10;
   const allocatedDialogues = allocateCanvasClipDialogues(clipScenes);
   const initialStateAndPositions = summarizeCanvasInitialCharacterStateAndPositions(clip, clipScenes);
@@ -1880,7 +1880,7 @@ export function buildLocalClipVideoPrompt(clip: Clip, clipScenes: BreakdownScene
   });
   return [
     `Clip video prompt for ${clip.title}.`,
-    `Duration target: ${duration}s, 16:9 cinematic 3D animated dark comedy style.`,
+    `Duration target: ${duration}s, ${normalizeCanvasBoardAspectRatio(aspectRatio)} cinematic 3D animated dark comedy style.`,
     `Characters: ${compactList(clip.characters, 'characters from this Clip', 12)}.`,
     `Setting: ${clip.setting || 'current scene'}.`,
     initialStateAndPositions ? `Initial character state and positions: ${initialStateAndPositions}` : '',
@@ -2174,9 +2174,11 @@ export function buildCanvasClipPositioningBoardPrompt(input: {
   referenceLabels: string[];
   visibleCharacterNames: string[];
   sceneLockName?: string;
+  aspectRatio?: string;
   mode?: ClipPositioningBoardMode;
 }) {
   if (input.mode === 'storyboard') return buildCanvasClipStoryboardBoardPrompt(input);
+  const aspectRatio = normalizeCanvasBoardAspectRatio(input.aspectRatio);
   const anchor = selectCanvasPositioningAnchorShot(input.shots, input.visibleCharacterNames);
   const anchorAction = canvasPositioningSentence(anchor?.action || anchor?.description || anchor?.visualPrompt || input.clip.title || 'a readable representative moment');
   const anchorRefs = canvasPositioningSentence(anchor?.references || '');
@@ -2185,7 +2187,7 @@ export function buildCanvasClipPositioningBoardPrompt(input: {
   const embeddedSubjectRule = canvasPositioningEmbeddedSubjectRule(input.shots, input.visibleCharacterNames);
   return [
     `Create ONE static keyframe positioning-board image for ${input.clip.title || input.clip.id || 'this clip'}.`,
-    'Image type: a single 16:9 still frame used as a spatial layout reference, not a storyboard, not a video prompt, not a multi-shot sequence.',
+    `Image type: a single ${aspectRatio} still frame used as a spatial layout reference, not a storyboard, not a video prompt, not a multi-shot sequence.`,
     `Project: ${input.projectName || 'current project'}. Style: saturated 3D American animated dark-comedy, cinematic but readable previsualization.`,
     `Scene to lock: ${input.sceneLockName || input.clip.setting || 'current scene'}. Use the connected scene reference as the spatial authority.`,
     input.referenceLabels.length ? `Connected references to preserve exactly: ${input.referenceLabels.join(', ')}.` : 'Use connected references to preserve identity and scene consistency.',
@@ -2211,7 +2213,10 @@ export function buildCanvasClipStoryboardBoardPrompt(input: {
   referenceLabels: string[];
   visibleCharacterNames: string[];
   sceneLockName?: string;
+  aspectRatio?: string;
 }) {
+  const aspectRatio = normalizeCanvasBoardAspectRatio(input.aspectRatio);
+  const isPortrait = canvasBoardAspectRatioIsPortrait(aspectRatio);
   const shots = input.shots.length > 0 ? input.shots : [{
     id: 'S1',
     title: input.clip.title || 'Clip beat',
@@ -2221,7 +2226,7 @@ export function buildCanvasClipStoryboardBoardPrompt(input: {
     characters: input.clip.characters,
   } as BreakdownScene];
   const panelCount = Math.max(1, Math.min(12, shots.length));
-  const grid = storyboardGridForPanelCount(panelCount);
+  const grid = isPortrait ? portraitCanvasStoryboardGrid(panelCount) : storyboardGridForPanelCount(panelCount);
   const panelLines = shots.slice(0, panelCount).map((shot, index) => {
     const label = shot.id || `S${index + 1}`;
     const camera = [
@@ -2247,7 +2252,10 @@ export function buildCanvasClipStoryboardBoardPrompt(input: {
   const embeddedSubjectRule = canvasPositioningEmbeddedSubjectRule(input.shots, input.visibleCharacterNames);
   return [
     `Create a ${grid} comic storyboard board for ${input.clip.title || input.clip.id || 'this clip'}, matching the clip video prompt shots S1, S2, S3... in exact order.`,
-    'Image type: one 16:9 storyboard sheet, multiple panels in a clean grid. Each panel is a still frame for one shot, not a single positioning still and not a video.',
+    `Image type: one ${aspectRatio} storyboard sheet, multiple panels in a clean grid. Each panel is a still frame for one shot, not a single positioning still and not a video.`,
+    isPortrait
+      ? `Grid rule: use a uniform square grid (${grid}) with thin black gutters so that every panel cell is itself a ${aspectRatio} vertical frame, the same aspect ratio as the final video. Compose each panel as a standalone vertical video frame, never as a wide or square crop. If the shots do not fill the square grid, leave the unused trailing cells as solid black empty cells with no drawing and no label.`
+      : '',
     'Panel numbering is mandatory: draw a small readable label in the upper-left corner of each panel, exactly S1, S2, S3... matching the shot order. No other text, captions, speech bubbles, subtitles, UI, watermark, or random labels.',
     `Project: ${input.projectName || 'current project'}. Style: saturated 3D American animated dark-comedy storyboard/previsualization, cinematic but readable.`,
     `Scene continuity lock: ${input.sceneLockName || input.clip.setting || 'current scene'}. Keep the same scene geography across all panels unless the shot explicitly changes location.`,
@@ -2270,6 +2278,23 @@ function storyboardGridForPanelCount(count: number) {
   if (count <= 6) return '2x3';
   if (count <= 9) return '3x3';
   return '3x4';
+}
+
+export function normalizeCanvasBoardAspectRatio(value?: string) {
+  return /^\d+:\d+$/.test(String(value || '').trim()) ? String(value).trim() : '16:9';
+}
+
+export function canvasBoardAspectRatioIsPortrait(aspectRatio: string) {
+  const [w, h] = aspectRatio.split(':').map(Number);
+  return Number.isFinite(w) && Number.isFinite(h) && h > w;
+}
+
+// 竖屏故事板使用正方形宫格：整图 9:16 时每个 NxN 格子本身也是 9:16。
+function portraitCanvasStoryboardGrid(count: number) {
+  if (count <= 1) return '1x1';
+  if (count <= 4) return '2x2';
+  if (count <= 9) return '3x3';
+  return '4x4';
 }
 
 function canvasPositioningEmbeddedSubjectRule(shots: BreakdownScene[], names: string[]) {
@@ -2342,6 +2367,7 @@ export function syncEpisodeClipBoardsToCanvas(options: EpisodeCanvasSyncOptions)
   const episodeKey = stableCanvasIdPart(options.episodeId || options.episode, 'episode');
   const clips = options.clips.filter((clip) => clip.id);
   const useMultiReferenceStrategy = isSeedanceMultiReferenceStrategy(options.generationStrategy);
+  const projectAspectRatio = normalizeCanvasBoardAspectRatio(options.aspectRatio);
   const nextClips = clips.map((clip) => ({ ...clip }));
   let nextNodes: any[] = store.nodes;
   let nextEdges: any[] = store.edges;
@@ -2421,9 +2447,7 @@ export function syncEpisodeClipBoardsToCanvas(options: EpisodeCanvasSyncOptions)
     const previousStoryboardRef = finalizedStoryboard?.previousStoryboardRef ?? null;
     const storyboardReferences = finalizedStoryboard?.references ?? [];
     const storyboardPromptWithReferenceMap = finalizedStoryboard?.prompt ?? '';
-    const videoPrompt = useMultiReferenceStrategy
-      ? buildEpisodeClipVideoPrompt(clip, clipScenes)
-      : buildEpisodeClipVideoPrompt(clip, clipScenes);
+    const videoPrompt = buildEpisodeClipVideoPrompt(clip, clipScenes, projectAspectRatio);
     const positioningBoardImageUrl = publicImageUrl(oldPositioningData.outputImage) || oldPositioningOutputImages.map((item: unknown) => publicImageUrl(item)).find(Boolean) || '';
     const positioningBoardReference: ClipImageReference | null = useMultiReferenceStrategy && positioningBoardImageUrl
       ? {
@@ -2537,6 +2561,7 @@ export function syncEpisodeClipBoardsToCanvas(options: EpisodeCanvasSyncOptions)
         visibleCharacterNames,
         sceneLockName: positioningSceneLockName,
         mode: 'positioning',
+        aspectRatio: projectAspectRatio,
       });
       const storyboardPrompt = buildCanvasClipPositioningBoardPrompt({
         projectName: '',
@@ -2546,6 +2571,7 @@ export function syncEpisodeClipBoardsToCanvas(options: EpisodeCanvasSyncOptions)
         visibleCharacterNames,
         sceneLockName: positioningSceneLockName,
         mode: 'storyboard',
+        aspectRatio: projectAspectRatio,
       });
       const activeBoardPrompt = boardMode === 'storyboard' ? storyboardPrompt : positioningPrompt;
       const positioningOutputImage = publicImageUrl(oldPositioningData.outputImage);
@@ -2595,7 +2621,7 @@ export function syncEpisodeClipBoardsToCanvas(options: EpisodeCanvasSyncOptions)
           outputImageAssetId: oldPositioningData.outputImageAssetId || '',
           outputImages: oldPositioningOutputImages,
           generationStartedAt: oldPositioningData.generationStartedAt || '',
-          size: '16:9',
+          size: projectAspectRatio,
           resolution: options.imageResolution || '2k',
           quality: 'high',
           format: 'png',
@@ -2716,7 +2742,7 @@ export function syncEpisodeClipBoardsToCanvas(options: EpisodeCanvasSyncOptions)
         submittedPrompt: exactStoryboardRef?.prompt || oldStoryboardData.submittedPrompt || '',
         error: recoveredStoryboardUrl ? '已关联本 Clip 的故事板生成记录。' : '',
         generationStartedAt: '',
-        size: '16:9',
+        size: projectAspectRatio,
         resolution: options.imageResolution || '2k',
         quality: 'high',
         format: 'png',
@@ -4102,6 +4128,7 @@ export type EpisodeCanvasSyncOptions = {
   projectPromptContext?: string;
   imageModelId?: string;
   imageResolution?: string;
+  aspectRatio?: string;
 };
 
 export type EpisodeCanvasSyncRequest = {
@@ -7334,7 +7361,7 @@ export type WorkflowCenterOverlayProps = {
   onAddClipVideoNode: (clip: Clip, prompt: string) => void | Promise<void>;
   onAddClipVideoNodes: (clips: Clip[]) => void | Promise<void>;
   onAddClipPositioningBoardNode: (clip: Clip) => void | Promise<void>;
-  onAddClipPositioningBoardNodes: (clips: Clip[]) => void | Promise<void>;
+  onAddClipPositioningBoardNodes: (clips: Clip[], options?: { mode?: ClipPositioningBoardMode }) => void | Promise<void>;
   onUpdateClipStoryboard: (clipId: string, patch: { prompt?: string; panelCount?: number; notes?: string }) => void;
   onUpdateScene: (scene: BreakdownScene) => void;
   onDeleteScene: (sceneId: string) => void;
@@ -7395,7 +7422,7 @@ export type StageWorkPanelProps = {
   onAddClipVideoNode: (clip: Clip, prompt: string) => void | Promise<void>;
   onAddClipVideoNodes: (clips: Clip[]) => void | Promise<void>;
   onAddClipPositioningBoardNode: (clip: Clip) => void | Promise<void>;
-  onAddClipPositioningBoardNodes: (clips: Clip[]) => void | Promise<void>;
+  onAddClipPositioningBoardNodes: (clips: Clip[], options?: { mode?: ClipPositioningBoardMode }) => void | Promise<void>;
   onUpdateClipStoryboard: (clipId: string, patch: { prompt?: string; panelCount?: number; notes?: string }) => void;
   onDeleteScene: (sceneId: string) => void;
   onEditScene: (sceneId: string) => void;
