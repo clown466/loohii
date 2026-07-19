@@ -93,6 +93,24 @@ enum AgentMessageRole {
   TOOL
 }
 
+enum RemakeJobStatus {
+  PENDING
+  RUNNING
+  WAITING_GATE
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum RemakeStage {
+  INGEST
+  ANALYZE
+  ADAPT
+  GENERATE
+  ASSEMBLE
+  DELIVER
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -119,6 +137,7 @@ model User {
   transactions      Transaction[]
   paymentOrders     PaymentOrder[]
   agentMessages     AgentMessage[]
+  remakeJobs        RemakeJob[]
 
   @@index([deletedAt])
 }
@@ -516,4 +535,74 @@ model BillingCharge {
 
   @@index([status])
   @@index([platformUserId])
+}
+
+model RemakeJob {
+  id              String          @id @default(cuid())
+  userId          String
+  workspaceId     String?
+  status          RemakeJobStatus @default(PENDING)
+  stage           RemakeStage     @default(INGEST)
+  sourceUrl       String?
+  title           String?
+  gatesEnabled    Json            // { a: true, b: true, c: true }
+  breakdown       Json?
+  remakeScript    Json?
+  progress        Json?           // { percent, message, shotIndex, shotTotal }
+  errorMessage    String?
+  budgetPoints    Int?
+  spentPoints     Int             @default(0)
+  maxDurationMs   Int             @default(45000)
+  maxShots        Int             @default(12)
+  finalVideoKey   String?
+  finalVideoUrl   String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user   User               @relation(fields: [userId], references: [id])
+  source RemakeSourceAsset?
+  shots  RemakeShotClip[]
+
+  @@index([userId, createdAt])
+  @@index([status, stage])
+}
+
+model RemakeSourceAsset {
+  id           String   @id @default(cuid())
+  jobId        String   @unique
+  platform     String   // tiktok | upload
+  externalId   String?
+  sourceUrl    String?
+  videoKey     String
+  coverKey     String?
+  durationMs   Int?
+  width        Int?
+  height       Int?
+  rawMeta      Json?
+  ingestError  String?
+  createdAt    DateTime @default(now())
+
+  job RemakeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([platform, externalId])
+}
+
+model RemakeShotClip {
+  id           String   @id @default(cuid())
+  jobId        String
+  shotIndex    Int
+  status       String   // pending | running | succeeded | failed
+  prompt       String?
+  durationMs   Int?
+  resultKey    String?
+  resultUrl    String?
+  modelParams  Json?
+  retryCount   Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  job RemakeJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, shotIndex])
 }
