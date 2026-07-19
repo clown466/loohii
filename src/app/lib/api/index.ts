@@ -55,6 +55,21 @@ export type {
   WorkflowState,
 } from './types'
 
+export type {
+  CreateRemakeJobInput,
+  RemakeBreakdown,
+  RemakeGate,
+  RemakeGates,
+  RemakeJob,
+  RemakeJobStatus,
+  RemakeProgress,
+  RemakeScript,
+  RemakeShotClip,
+  RemakeSourceAsset,
+  RemakeStage,
+} from './remakeApi'
+export { remakeApi } from './remakeApi'
+
 import { getToken, setToken } from './httpClient'
 import { authApi } from './authApi'
 import { projectApi } from './projectApi'
@@ -63,6 +78,7 @@ import { workflowApi } from './workflowApi'
 import { generationApi } from './generationApi'
 import { modelApi } from './modelApi'
 import { uploadApi } from './uploadApi'
+import { remakeApi } from './remakeApi'
 
 /**
  * Unified API client — backward-compatible with the original single-file apiClient.
@@ -126,6 +142,16 @@ export const apiClient = {
   uploadLocalImage: uploadApi.uploadLocalImage.bind(uploadApi),
   uploadLocalFile: uploadApi.uploadLocalFile.bind(uploadApi),
   downloadImageBlob: uploadApi.downloadImageBlob.bind(uploadApi),
+
+  // Remake
+  listRemakeJobs: remakeApi.listJobs.bind(remakeApi),
+  getRemakeJob: remakeApi.getJob.bind(remakeApi),
+  createRemakeJob: remakeApi.createJob.bind(remakeApi),
+  updateRemakeBreakdown: remakeApi.updateBreakdown.bind(remakeApi),
+  updateRemakeScript: remakeApi.updateScript.bind(remakeApi),
+  approveRemakeGate: remakeApi.approveGate.bind(remakeApi),
+  rejectRemakeGate: remakeApi.rejectGate.bind(remakeApi),
+  retryRemakeFailedShots: remakeApi.retryFailedShots.bind(remakeApi),
 
   // Generation
   listGenerationRecords: generationApi.listGenerationRecords.bind(generationApi),

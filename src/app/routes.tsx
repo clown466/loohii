@@ -10,6 +10,9 @@ const ProjectSetupPage = React.lazy(() => import("./pages/ProjectSetupPage").the
 const ProjectCanvasPage = React.lazy(() => import("./pages/ProjectCanvasPage").then(m => ({ default: m.ProjectCanvasPage })));
 const ProjectRecordsPage = React.lazy(() => import("./pages/ProjectRecordsPage").then(m => ({ default: m.ProjectRecordsPage })));
 const SettingsPage = React.lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const RemakeListPage = React.lazy(() => import("./pages/RemakeListPage").then(m => ({ default: m.RemakeListPage })));
+const RemakeNewPage = React.lazy(() => import("./pages/RemakeNewPage").then(m => ({ default: m.RemakeNewPage })));
+const RemakeJobPage = React.lazy(() => import("./pages/RemakeJobPage").then(m => ({ default: m.RemakeJobPage })));
 
 export const router = createBrowserRouter([
   {
@@ -51,6 +54,14 @@ export const router = createBrowserRouter([
           {
             path: "project/:id/records",
             element: <ProjectRecordsPage />,
+          },
+          {
+            path: "remake",
+            children: [
+              { index: true, element: <RemakeListPage /> },
+              { path: "new", element: <RemakeNewPage /> },
+              { path: ":jobId", element: <RemakeJobPage /> },
+            ],
           },
           {
             path: "settings",
