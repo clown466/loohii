@@ -181,6 +181,57 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   全局深色细滚动条（黑金主题）：细滑块 + 透明轨道 + 圆角 + 悬停加深 + 无按钮
+   覆盖页面/面板/textarea/下拉列表/横向滚动条；Firefox 走 scrollbar-* 兜底。
+   视觉宽度约 6px（10px 槽 - 两侧各 2px 透明边），hover 不抢焦点。
+--------------------------------------------------------------------------- */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a41 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    background-color: transparent;
+  }
+
+  *::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #36363d;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #4b4b54;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background-color: #5a5a64;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-button {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
+}
+
 @layer components {
   .lh-card {
     background-image: linear-gradient(180deg, #1C1C21, #17171B);

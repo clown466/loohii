@@ -154,7 +154,7 @@ export function WorkflowCenterOverlay({
   }, [editingSceneId, scenes]);
 
   return (
-    <div className="absolute inset-3 left-16 z-30 flex min-h-0 overflow-hidden rounded-lg border border-zinc-800 bg-[#0d0d0f]/95 shadow-2xl backdrop-blur">
+    <div className="absolute inset-3 left-16 z-30 flex min-h-0 overflow-hidden rounded-xl border border-[#2A2A30] bg-[#0d0d0f]/95 shadow-[0_24px_64px_rgba(0,0,0,0.6)] backdrop-blur">
       <aside className="hidden w-[230px] shrink-0 border-r border-zinc-800 bg-[#111113] p-4 md:block">
         <div className="mb-5 flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10 text-amber-300">
@@ -205,11 +205,11 @@ export function WorkflowCenterOverlay({
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 px-4">
-          <div className="min-w-0">
+        <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-zinc-800 px-4 py-2">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] uppercase tracking-[0.22em] text-zinc-500">Production Flow</span>
-              <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/10">
+              <span className="shrink-0 text-[11px] uppercase tracking-[0.22em] text-zinc-500">Production Flow</span>
+              <Badge className="shrink-0 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/10">
                 {workflowLoading ? '加载中' : workflowBusy ? '拆解中' : workflowSaving ? '保存中' : sourceName ? '已保存' : '等待导入'}
               </Badge>
             </div>
@@ -218,7 +218,7 @@ export function WorkflowCenterOverlay({
               <div className="mt-1 truncate text-[11px] text-amber-200">{workflowProgressText}</div>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               variant="ghost"
               size="sm"
@@ -249,8 +249,8 @@ export function WorkflowCenterOverlay({
               />
             ) : activeStage === 'source' ? (
               <>
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <section className="rounded-lg border border-zinc-800 bg-[#141416]">
+            <div className="grid gap-4">
+              <section className="rounded-lg border border-[#26262C] bg-[#131316]">
                 <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2 text-[14px] font-semibold text-zinc-100">
@@ -321,7 +321,7 @@ export function WorkflowCenterOverlay({
                         value={activeEpisodeId}
                         onChange={(event) => onSelectEpisode(event.target.value)}
                         disabled={episodeSwitching || workflowBusy}
-                        className="h-9 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 text-[13px] text-zinc-100 outline-none focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="h-9 w-full rounded-lg border border-[#2A2A30] bg-[#111114] px-3 text-[13px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 hover:border-[#34343C] focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {episodeList.episodes.map((episode) => (
                           <option key={episode.id} value={episode.id}>
@@ -332,7 +332,7 @@ export function WorkflowCenterOverlay({
                       <input
                         value={selectedEpisode}
                         onChange={(event) => setSelectedEpisode(event.target.value)}
-                        className="mt-2 h-9 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 text-[13px] text-zinc-100 outline-none focus:border-amber-500"
+                        className="mt-2 h-9 w-full rounded-lg border border-[#2A2A30] bg-[#111114] px-3 text-[13px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 hover:border-[#34343C] focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/15"
                       />
                       <p className="mt-1 text-[11px] leading-4 text-zinc-500">
                         {episodeSwitching ? '正在切换剧集工作区...' : `画布：${activeEpisodeSummary?.canvasSceneId || activeEpisodeId}`}
@@ -344,7 +344,7 @@ export function WorkflowCenterOverlay({
                         value={sourceName}
                         onChange={(event) => setSourceName(event.target.value)}
                         placeholder="可直接粘贴文本"
-                        className="h-9 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 text-[13px] text-zinc-100 outline-none focus:border-amber-500"
+                        className="h-9 w-full rounded-lg border border-[#2A2A30] bg-[#111114] px-3 text-[13px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 hover:border-[#34343C] focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/15"
                       />
                     </div>
                     <div>
@@ -353,7 +353,7 @@ export function WorkflowCenterOverlay({
                         value={workflowAiModelId}
                         onChange={(event) => setWorkflowAiModelId(event.target.value)}
                         disabled={workflowModelsLoading || workflowBusy || workflowModels.length === 0}
-                        className="h-9 w-full rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 text-[13px] text-zinc-100 outline-none focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="h-9 w-full rounded-lg border border-[#2A2A30] bg-[#111114] px-3 text-[13px] text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 hover:border-[#34343C] focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <option value="">{workflowModelsLoading ? '加载模型中...' : '使用后端默认文本模型'}</option>
                         {workflowModels.map((model) => (
@@ -370,11 +370,11 @@ export function WorkflowCenterOverlay({
                       )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-3">
+                      <div className="rounded-lg border border-[#26262C] bg-[#111114] p-3">
                         <div className="text-[18px] font-semibold text-zinc-100">{sourceStats.chars}</div>
                         <div className="text-[11px] text-zinc-500">字符</div>
                       </div>
-                      <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-3">
+                      <div className="rounded-lg border border-[#26262C] bg-[#111114] p-3">
                         <div className="text-[18px] font-semibold text-zinc-100">{sourceStats.estimatedScenes}</div>
                         <div className="text-[11px] text-zinc-500">预估段落</div>
                       </div>
@@ -385,12 +385,12 @@ export function WorkflowCenterOverlay({
                     value={sourceText}
                     onChange={(event) => setSourceText(event.target.value)}
                     placeholder="粘贴小说或剧本文本。建议按章节、场景或自然段分隔，后续会先提取角色、场景、道具；资产图可按需要补充，然后拆分分镜脚本。"
-                    className="min-h-[280px] resize-none rounded-md border border-zinc-800 bg-background p-3 font-mono text-[12px] leading-5 text-zinc-200 outline-none focus:border-amber-500"
+                    className="min-h-[280px] resize-none rounded-lg border border-[#2A2A30] bg-[#111114] p-3 font-mono text-[12px] leading-5 text-zinc-200 outline-none transition-colors placeholder:text-zinc-600 hover:border-[#34343C] focus:border-amber-500/70 focus:ring-2 focus:ring-amber-500/15"
                   />
                 </div>
               </section>
 
-              <section className="rounded-lg border border-zinc-800 bg-[#141416] p-4">
+              <section className="rounded-lg border border-[#26262C] bg-[#131316] p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-[14px] font-semibold text-zinc-100">生产流程概览</div>
                   <Badge className="border border-border bg-zinc-900 text-zinc-400 hover:bg-zinc-900">自动执行</Badge>
@@ -399,7 +399,7 @@ export function WorkflowCenterOverlay({
                   {workflowSteps.map((item, index) => (
                     <div
                       key={item.key}
-                      className="flex w-full items-center justify-between rounded-md border border-zinc-800 bg-[#0d0d0f] p-3 text-left"
+                      className="flex w-full items-center justify-between rounded-lg border border-[#26262C] bg-[#111114] p-3 text-left"
                     >
                       <span className="min-w-0">
                         <span className="flex items-center gap-2 text-[13px] font-medium text-zinc-100">
@@ -414,7 +414,7 @@ export function WorkflowCenterOverlay({
               </section>
             </div>
 
-            <section className="mt-4 rounded-lg border border-zinc-800 bg-[#141416] p-4">
+            <section className="mt-4 rounded-lg border border-[#26262C] bg-[#131316] p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="text-[14px] font-semibold text-zinc-100">拆解结果</div>
@@ -528,7 +528,7 @@ export function WorkflowCenterOverlay({
                 ['分镜脚本', `${scenes.length}`],
                 ['资产状态', assetTotal > 0 ? `${assetTotal} 个` : workflowBusy ? '提取中' : '未提取'],
               ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2">
+                <div key={label} className="flex items-center justify-between rounded-lg border border-[#26262C] bg-[#111114] px-3 py-2">
                   <span className="text-[12px] text-zinc-500">{label}</span>
                   <span className="max-w-[160px] truncate text-[12px] font-medium text-zinc-100">{value}</span>
                 </div>

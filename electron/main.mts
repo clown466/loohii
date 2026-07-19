@@ -227,7 +227,10 @@ function buildAppMenu(): void {
         { label: '重置缩放', role: 'resetZoom' },
         { type: 'separator' },
         { label: '全屏切换', role: 'togglefullscreen' },
-        { label: '开发者工具', role: 'toggleDevTools' },
+        // F1 应修项：生产构建不暴露 DevTools 入口，仅开发期可用
+        ...(!app.isPackaged
+          ? ([{ label: '开发者工具', role: 'toggleDevTools' }] as MenuItemConstructorOptions[])
+          : []),
       ],
     },
     {
@@ -271,7 +274,8 @@ function createWindow(): void {
     minHeight: 700,
     show: false,
     backgroundColor: '#0B0B0D',
-    autoHideMenuBar: false,
+    // 隐藏原生菜单栏（按 Alt 可临时唤出）；缩放/刷新等快捷键仍由菜单 accelerator 提供
+    autoHideMenuBar: true,
     webPreferences: {
       // ---- 安全基线 ----
       contextIsolation: true, // 页面 JS 与 preload 隔离

@@ -5389,7 +5389,7 @@ function CanvasInner() {
           <Button
             variant="secondary"
             size="sm"
-            className="h-8 gap-1 bg-layer-4 text-zinc-100 hover:bg-zinc-700"
+            className="h-8 gap-1 border border-[#2E2E34] bg-layer-3 text-zinc-100 transition-colors hover:border-[#3A3A42] hover:bg-layer-4"
             onClick={handleAddNode}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -5398,7 +5398,7 @@ function CanvasInner() {
           <Button
             variant="secondary"
             size="sm"
-            className="h-8 gap-1 bg-layer-4 text-zinc-100 hover:bg-zinc-700"
+            className="h-8 gap-1 border border-[#2E2E34] bg-layer-3 text-zinc-100 transition-colors hover:border-[#3A3A42] hover:bg-layer-4"
             onClick={() => canvasImageFileRef.current?.click()}
           >
             <UploadCloud className="h-3.5 w-3.5" />
@@ -5407,21 +5407,21 @@ function CanvasInner() {
           <Button
             variant="secondary"
             size="sm"
-            className="h-8 gap-1 bg-layer-4 text-zinc-100 hover:bg-zinc-700"
+            className="h-8 gap-1 border border-[#2E2E34] bg-layer-3 text-zinc-100 transition-colors hover:border-[#3A3A42] hover:bg-layer-4"
             onClick={openProjectGlobalSettings}
             disabled={projectUnavailable}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">全局设定</span>
           </Button>
-          <div className="mx-1 h-4 w-px shrink-0 bg-zinc-700 sm:mx-2" />
+          <div className="mx-1 h-4 w-px shrink-0 bg-[#2E2E34] sm:mx-2" />
           <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-100" title="撤销">
             <RotateCcw className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-100" title="重做">
             <RotateCw className="h-4 w-4" />
           </Button>
-          <div className="mx-1 h-4 w-px shrink-0 bg-zinc-700 sm:mx-2" />
+          <div className="mx-1 h-4 w-px shrink-0 bg-[#2E2E34] sm:mx-2" />
           <Button variant="ghost" size="sm" className="h-8 shrink-0 text-zinc-400 hover:text-zinc-100">自动布局</Button>
           <Button
             variant="ghost"
