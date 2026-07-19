@@ -460,3 +460,40 @@
       opacity var(--dur-fast) var(--ease-standard);
   }
 }
+
+@layer components {
+  /* ---- P5-C 顶栏文字导航 tab：当前页琥珀下划线滑入，hover 过渡 ---- */
+  .lh-topnav {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 3rem; /* 顶栏 h-12 全高，下划线贴底 */
+    padding: 0 2px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #71717a;
+    white-space: nowrap;
+    transition: color var(--dur-fast) var(--ease-standard);
+  }
+  .lh-topnav::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px 2px 0 0;
+    background: linear-gradient(90deg, #f5a623, #e08d0c);
+    transform: scaleX(0);
+    transition: transform var(--dur-base) var(--ease-emphasized);
+  }
+  .lh-topnav:hover {
+    color: #e8e8ec;
+  }
+  .lh-topnav[data-active="true"] {
+    color: #f5a623;
+  }
+  .lh-topnav[data-active="true"]::after {
+    transform: scaleX(1);
+  }
+}

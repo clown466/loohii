@@ -5,8 +5,6 @@ import {
   Bell,
   ChevronRight,
   Coins,
-  Home,
-  LayoutDashboard,
   MessageSquare,
   Settings,
   X,
@@ -16,8 +14,7 @@ import {
   Menu,
   ChevronLeft,
   LogOut,
-  Trash2,
-  Clapperboard
+  Trash2
 } from "lucide-react";
 import { cn } from "../utils/cn";
 import { Button } from "../components/ui/button";
@@ -27,17 +24,7 @@ import { useCanvasStore } from "../stores/useCanvasStore";
 import { useProjectStore } from "../stores/useProjectStore";
 
 export function MainLayout() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-
-    if (window.matchMedia("(max-width: 767px)").matches) {
-      return false;
-    }
-
-    return localStorage.getItem("loohii-sidebar-open") !== "false";
-  });
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
   const [isAgentOpen, setIsAgentOpen] = useState(false);
   const [isAgentHistoryOpen, setIsAgentHistoryOpen] = useState(false);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
@@ -126,13 +113,8 @@ export function MainLayout() {
   }, [activeConversationId, loadAgentConversationMessages, projectId, runningConversationId]);
 
   useEffect(() => {
-    localStorage.setItem("loohii-sidebar-open", String(isSidebarOpen));
-  }, [isSidebarOpen]);
-
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 767px)").matches) {
-      setIsSidebarOpen(false);
-    }
+    // 路由切换时收起窄屏导航下拉
+    setIsNavMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -173,6 +155,48 @@ export function MainLayout() {
             </div>
             <span className="truncate">鹿绘AI</span>
           </Link>
+          {/* 顶栏文字导航（原侧栏入口）：当前页琥珀下划线 */}
+          <nav className="ml-3 hidden items-stretch gap-4 self-stretch md:flex">
+            <Link to="/app/dashboard" data-active={location.pathname === '/app/dashboard'} className="lh-topnav">主页</Link>
+            <Link to="/app/remake" data-active={location.pathname.startsWith('/app/remake')} className="lh-topnav">爆款复刻</Link>
+            {isProjectPage && projectId && projectId !== 'new' && (
+              <>
+                <Link to={`/app/project/${projectId}/setup`} data-active={location.pathname.includes('/setup')} className="lh-topnav">全局设定</Link>
+                <Link to={`/app/project/${projectId}/canvas`} data-active={location.pathname.includes('/canvas')} className="lh-topnav">节点画布</Link>
+                <Link to={`/app/project/${projectId}/records`} data-active={location.pathname.includes('/records')} className="lh-topnav">生成记录</Link>
+              </>
+            )}
+          </nav>
+
+          {/* 窄屏：导航折叠为下拉 */}
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              aria-label="打开导航"
+              title="导航"
+              onClick={() => setIsNavMenuOpen((value) => !value)}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#71717a] transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Menu className="h-4 w-4" />
+            </button>
+            {isNavMenuOpen && (
+              <div className="lh-anim-menu absolute left-0 top-full z-50 mt-2 w-40 rounded-lg border border-border bg-card py-1 shadow-xl">
+                <Link to="/app/dashboard" className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">主页</Link>
+                <Link to="/app/remake" className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">爆款复刻</Link>
+                {isProjectPage && projectId && projectId !== 'new' && (
+                  <>
+                    <div className="mx-3 my-1 h-px bg-layer-4" />
+                    <Link to={`/app/project/${projectId}/setup`} className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">全局设定</Link>
+                    <Link to={`/app/project/${projectId}/canvas`} className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">节点画布</Link>
+                    <Link to={`/app/project/${projectId}/records`} className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">生成记录</Link>
+                  </>
+                )}
+                <div className="mx-3 my-1 h-px bg-layer-4" />
+                <Link to="/app/settings/profile" className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">设置</Link>
+              </div>
+            )}
+          </div>
+
           {isProjectPage && (
             <div className="ml-2 hidden min-w-0 items-center gap-2 text-sm sm:flex">
               <ChevronRight className="h-4 w-4 text-[#71717a]" />
@@ -188,6 +212,17 @@ export function MainLayout() {
             <Coins className="h-3.5 w-3.5 text-[#f59e0b]" />
             <span className="lh-tnum font-medium">{user?.credits?.toLocaleString() ?? '0'} 积分</span>
           </div>
+          <Link
+            to="/app/settings/profile"
+            title="设置"
+            aria-label="设置"
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:bg-accent",
+              location.pathname.includes('/settings') ? "text-primary" : "text-[#71717a] hover:text-foreground"
+            )}
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
           <button className="relative h-8 w-8 flex items-center justify-center text-[#71717a] hover:text-foreground transition-colors rounded-full hover:bg-accent">
             <Bell className="h-4 w-4" />
             <span className="absolute top-2 right-2.5 h-1.5 w-1.5 rounded-full bg-[#ef4444]"></span>
@@ -216,55 +251,6 @@ export function MainLayout() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar */}
-        <aside 
-          className={cn(
-            "z-30 flex shrink-0 flex-col border-r border-[#222226] bg-[#141417] transition-all duration-300",
-            isSidebarOpen
-              ? "w-[200px] max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:w-[220px] max-md:shadow-2xl"
-              : "w-[56px]"
-          )}
-        >
-          <div className={cn("flex h-12 shrink-0 items-center border-b border-[#222226] px-2", isSidebarOpen ? "justify-end" : "justify-center")}>
-            <button
-              type="button"
-              aria-label={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
-              title={isSidebarOpen ? "收起侧边栏" : "展开侧边栏"}
-              onClick={() => setIsSidebarOpen((value) => !value)}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary/70 hover:bg-layer-4 hover:text-foreground"
-            >
-              {isSidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            </button>
-          </div>
-
-          <div className="flex-1 py-4 flex flex-col gap-1 px-2">
-            <NavItem icon={<Home />} label="主页" to="/app/dashboard" isOpen={isSidebarOpen} active={location.pathname === '/app/dashboard'} />
-            <NavItem icon={<Clapperboard />} label="爆款复刻" to="/app/remake" isOpen={isSidebarOpen} active={location.pathname.startsWith('/app/remake')} />
-            
-            {isProjectPage && (
-              <div className="mt-2 flex flex-col gap-1">
-                <NavItem icon={<Settings />} label="全局设定" to={`/app/project/${projectId}/setup`} isOpen={isSidebarOpen} active={location.pathname.includes('/setup')} isSubnav />
-                <NavItem icon={<LayoutDashboard />} label="节点画布" to={`/app/project/${projectId}/canvas`} isOpen={isSidebarOpen} active={location.pathname.includes('/canvas')} isSubnav />
-                <NavItem icon={<Coins />} label="生成记录" to={`/app/project/${projectId}/records`} isOpen={isSidebarOpen} active={location.pathname.includes('/records')} isSubnav />
-              </div>
-            )}
-
-            <div className="mt-auto flex flex-col gap-2">
-              <div className="h-px bg-layer-4 w-full" />
-              <NavItem icon={<Settings />} label="设置" to="/app/settings/profile" isOpen={isSidebarOpen} active={location.pathname.includes('/settings')} />
-            </div>
-          </div>
-        </aside>
-
-        {isSidebarOpen && (
-          <button
-            type="button"
-            aria-label="关闭侧边栏"
-            className="absolute inset-0 z-20 bg-black/50 md:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          />
-        )}
-
         {/* Content Router View */}
         <main className="relative min-w-0 flex-1 overflow-auto bg-background">
           <ErrorBoundary>
@@ -487,31 +473,6 @@ export function MainLayout() {
         )}
       </div>
     </div>
-  );
-}
-
-function NavItem({ icon, label, to, isOpen, active, isSubnav }: { icon: React.ReactNode; label: string; to: string; isOpen: boolean; active?: boolean; isSubnav?: boolean }) {
-  const iconSize = isSubnav ? "h-4 w-4" : "h-5 w-5";
-  
-  return (
-    <Link 
-      to={to} 
-      className={cn(
-        "relative flex h-10 items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-[14px] font-medium transition-colors whitespace-nowrap overflow-hidden group",
-        isSubnav && "ml-0.5",
-        active
-          ? "border-l-primary text-primary font-medium"
-          : "text-[#71717a] hover:bg-card hover:text-muted-foreground"
-      )}
-      title={!isOpen ? label : undefined}
-    >
-      <div className={cn("flex-shrink-0 flex items-center justify-center w-5", active ? "text-primary" : "")}>
-        {React.cloneElement(icon as React.ReactElement, { className: iconSize })}
-      </div>
-      <span className={cn("transition-opacity duration-200", isOpen ? "opacity-100" : "opacity-0 w-0")}>
-        {label}
-      </span>
-    </Link>
   );
 }
 
