@@ -5550,7 +5550,7 @@ function CanvasInner() {
         {/* Connection create menu */}
         {connectionCreateMenu && (
           <div
-            className="fixed z-50 w-[300px] overflow-hidden rounded-xl border border-border/80 bg-[#1b1b1f]/98 p-3 shadow-2xl backdrop-blur"
+            className="lh-anim-menu fixed z-50 w-[300px] overflow-hidden rounded-xl border border-border/80 bg-[#1b1b1f]/98 p-3 shadow-2xl backdrop-blur"
             style={{ left: connectionCreateMenu.x, top: connectionCreateMenu.y }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -5601,7 +5601,7 @@ function CanvasInner() {
         {/* Context Menu */}
         {contextMenu && (
           <div
-            className="fixed z-50 min-w-[160px] rounded-lg border border-border bg-[#1a1a1e] py-1 shadow-xl"
+            className="lh-anim-menu fixed z-50 min-w-[160px] rounded-lg border border-border bg-[#1a1a1e] py-1 shadow-xl"
             style={{ left: contextMenu.x, top: contextMenu.y }}
             onClick={(e) => e.stopPropagation()}
           >

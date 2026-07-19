@@ -263,3 +263,200 @@
     50% { opacity: 0.35; }
   }
 }
+
+/* ===========================================================================
+   P5-B 动效设计令牌与交互体系（黑金工具型质感）
+   时长档：fast 120ms / base 200ms / slow 320ms
+   缓动：standard（标准进出）/ emphasized（进场强调，轻微过冲）
+   纪律：动画只动 transform/opacity；reduced-motion 全局降级
+=========================================================================== */
+:root {
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+}
+
+@layer base {
+  /* ---- 控件交互反馈：按钮 hover 微浮起、按压下沉；背景/边框色同步过渡 ---- */
+  [data-slot="button"] {
+    transition:
+      transform var(--dur-fast) var(--ease-standard),
+      background-color var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard),
+      color var(--dur-fast) var(--ease-standard),
+      box-shadow var(--dur-fast) var(--ease-standard),
+      opacity var(--dur-fast) var(--ease-standard);
+  }
+  [data-slot="button"]:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+  [data-slot="button"]:not(:disabled):active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  /* ---- 输入控件：focus 光环/边框平滑过渡 ---- */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    transition:
+      border-color var(--dur-base) var(--ease-standard),
+      box-shadow var(--dur-base) var(--ease-standard),
+      background-color var(--dur-base) var(--ease-standard);
+  }
+
+  /* ---- 复选/开关类：过渡顺滑 ---- */
+  [data-slot="checkbox"],
+  [role="switch"],
+  [role="checkbox"] {
+    transition:
+      background-color var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard),
+      box-shadow var(--dur-fast) var(--ease-standard),
+      transform var(--dur-fast) var(--ease-standard);
+  }
+
+  /* ---- React Flow 画布微交互 ---- */
+  .react-flow__node {
+    transition: opacity var(--dur-fast) var(--ease-standard);
+  }
+  /* 拖拽中：阴影加深、层级提升 */
+  .react-flow__node.dragging .lh-node {
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+  }
+  .react-flow__edge path {
+    transition: stroke var(--dur-fast) var(--ease-standard);
+  }
+  /* 连线选中：主色 + 微光 + 流动虚线 */
+  .react-flow__edge.selected .react-flow__edge-path {
+    stroke: #f5a623;
+    stroke-dasharray: 8 4;
+    filter: drop-shadow(0 0 4px rgba(245, 166, 35, 0.5));
+    animation: lh-edge-flow 0.8s linear infinite;
+  }
+  .react-flow__edge:hover .react-flow__edge-path {
+    stroke: #e08d0c;
+  }
+
+  /* ---- reduced-motion 全局降级 ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* ---- 进出场关键帧（统一方向约定：菜单自上而下、弹窗上浮放大、抽屉自右） ---- */
+  @keyframes lh-menu-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes lh-modal-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes lh-overlay-in {
+    from { opacity: 0; transform: scale(0.985); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes lh-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes lh-fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes lh-slide-in-right {
+    from { opacity: 0; transform: translateX(16px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes lh-edge-flow {
+    to { stroke-dashoffset: -12; }
+  }
+  @keyframes lh-shimmer {
+    100% { transform: translateX(100%); }
+  }
+
+  .lh-anim-menu { animation: lh-menu-in var(--dur-fast) var(--ease-standard) both; }
+  .lh-anim-modal { animation: lh-modal-in var(--dur-base) var(--ease-emphasized) both; }
+  .lh-anim-overlay { animation: lh-overlay-in var(--dur-base) var(--ease-standard) both; }
+  .lh-anim-fade { animation: lh-fade-in var(--dur-fast) var(--ease-standard) both; }
+  .lh-anim-fade-up { animation: lh-fade-up var(--dur-base) var(--ease-standard) both; }
+  .lh-anim-slide-r { animation: lh-slide-in-right var(--dur-base) var(--ease-standard) both; }
+
+  /* ---- 骨架屏 shimmer（transform 实现，性能友好） ---- */
+  .lh-skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: #1a1a1e;
+    border-radius: 8px;
+  }
+  .lh-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+    animation: lh-shimmer 1.4s infinite;
+  }
+
+  /* ---- 流程中心步骤项：左侧指示条滑动进出（替代跳变） ---- */
+  .lh-stage {
+    position: relative;
+    transition:
+      background-color var(--dur-base) var(--ease-standard),
+      border-color var(--dur-base) var(--ease-standard),
+      transform var(--dur-fast) var(--ease-standard);
+  }
+  .lh-stage::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 12px;
+    bottom: 12px;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #f5a623, #e08d0c);
+    box-shadow: 0 0 8px rgba(245, 166, 35, 0.5);
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform var(--dur-base) var(--ease-emphasized);
+  }
+  .lh-stage[data-active="true"]::before {
+    transform: scaleY(1);
+  }
+
+  /* ---- 数字排版：积分/时长等用等宽数字 ---- */
+  .lh-tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* ---- 卡片 hover 浮起 + 阴影加深（与 .lh-card 组合使用） ---- */
+  .lh-card {
+    transition:
+      transform var(--dur-base) var(--ease-standard),
+      box-shadow var(--dur-base) var(--ease-standard),
+      border-color var(--dur-base) var(--ease-standard);
+  }
+  .lh-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  /* ---- 节点卡片选中发光描边过渡 ---- */
+  .lh-node {
+    transition:
+      border-color var(--dur-base) var(--ease-standard),
+      box-shadow var(--dur-base) var(--ease-standard),
+      opacity var(--dur-fast) var(--ease-standard);
+  }
+}

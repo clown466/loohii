@@ -11,13 +11,16 @@ export function DashboardPage() {
   const [activeTab, setActiveTab] = useState("全部");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState("");
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const projects = useProjectStore((s) => s.projects);
   const loadProjects = useProjectStore((s) => s.loadProjects);
   const deleteProject = useProjectStore((s) => s.deleteProject);
 
   useEffect(() => {
-    void loadProjects();
+    let alive = true;
+    void loadProjects().finally(() => { if (alive) setInitialLoading(false); });
+    return () => { alive = false; };
   }, [loadProjects]);
 
   useEffect(() => {
@@ -94,7 +97,19 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {filteredProjects.length === 0 ? (
+      {initialLoading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 xl:gap-6" aria-label="项目加载中">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex h-[220px] flex-col overflow-hidden rounded-xl border border-[#222226] sm:h-[260px]">
+              <div className="lh-skeleton h-[60%] w-full rounded-none" />
+              <div className="space-y-2 p-4">
+                <div className="lh-skeleton h-3.5 w-1/2" />
+                <div className="lh-skeleton h-3 w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filteredProjects.length === 0 ? (
         <div className="flex min-h-[360px] flex-1 flex-col items-center justify-center text-center">
           <div className="mb-6 flex h-36 w-36 items-center justify-center text-[#71717a] opacity-80 sm:h-48 sm:w-48">
             {/* Simple drawing icon for empty state */}
@@ -127,8 +142,8 @@ export function DashboardPage() {
           </Link>
 
           {/* Project Cards */}
-          {filteredProjects.map((project) => (
-            <div key={project.id} className="lh-card group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border transition-all hover:border-primary hover:shadow-[0_0_0_1px_rgba(245,166,35,1)] sm:h-[260px]">
+          {filteredProjects.map((project, index) => (
+            <div key={project.id} style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }} className="lh-anim-fade-up lh-card group relative flex h-[220px] cursor-pointer flex-col overflow-hidden rounded-xl border hover:border-primary hover:shadow-[0_0_0_1px_rgba(245,166,35,1)] sm:h-[260px]">
               {/* Cover 60% */}
               <div className="h-[60%] w-full bg-background relative overflow-hidden shrink-0">
                 <ThumbImage src={project.cover} thumbWidth={300} alt={project.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -152,7 +167,7 @@ export function DashboardPage() {
               <div className="p-4 flex flex-col h-[40%]">
                 <div className="flex justify-between items-start mb-1">
                   <Link to={`/app/project/${project.id}/canvas`} className="font-medium text-[14px] text-foreground truncate pr-2 hover:text-primary transition-colors">{project.title}</Link>
-                  <span className="text-[12px] text-muted-foreground shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
+                  <span className="lh-tnum text-[12px] text-muted-foreground shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
                 </div>
                 <div className="mt-auto flex min-w-0 items-center gap-2 pt-2 text-[12px] text-[#71717a]">
                   <Badge variant="secondary" className="text-[11px] h-5 px-1.5 font-normal bg-layer-4 text-muted-foreground hover:bg-accent border-0">{project.ratio}</Badge>

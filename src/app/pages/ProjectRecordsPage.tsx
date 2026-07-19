@@ -223,7 +223,17 @@ export function ProjectRecordsPage() {
       )}
 
       {loading ? (
-        <div className="lh-card rounded-xl border p-8 text-center text-[13px] text-muted-foreground">正在读取真实生成记录...</div>
+        <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" aria-label="生成记录加载中">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="overflow-hidden rounded-xl border border-[#222226]">
+              <div className="lh-skeleton aspect-video w-full rounded-none" />
+              <div className="space-y-2 p-3">
+                <div className="lh-skeleton h-3.5 w-2/3" />
+                <div className="lh-skeleton h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filteredRecords.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-[#141417] p-8 text-center text-[13px] text-muted-foreground">暂无生成记录。</div>
       ) : (

@@ -154,7 +154,7 @@ export function WorkflowCenterOverlay({
   }, [editingSceneId, scenes]);
 
   return (
-    <div className="absolute inset-3 left-16 z-30 flex min-h-0 overflow-hidden rounded-xl border border-[#2A2A30] bg-[#0d0d0f]/95 shadow-[0_24px_64px_rgba(0,0,0,0.6)] backdrop-blur">
+    <div className="lh-anim-overlay absolute inset-3 left-16 z-30 flex min-h-0 overflow-hidden rounded-xl border border-[#2A2A30] bg-[#0d0d0f]/95 shadow-[0_24px_64px_rgba(0,0,0,0.6)] backdrop-blur">
       <aside className="hidden w-[230px] shrink-0 border-r border-zinc-800 bg-[#111113] p-4 md:block">
         <div className="mb-5 flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10 text-amber-300">
@@ -174,9 +174,10 @@ export function WorkflowCenterOverlay({
               <button
                 key={stage.key}
                 type="button"
+                data-active={active}
                 onClick={() => setActiveStage(stage.key)}
                 className={cn(
-                  "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                  "lh-stage flex w-full items-start gap-3 rounded-lg border p-3 text-left",
                   active
                     ? "border-amber-500/70 bg-amber-500/10"
                     : "border-transparent bg-transparent hover:border-zinc-800 hover:bg-card"

@@ -185,7 +185,7 @@ export function MainLayout() {
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="flex h-8 items-center gap-1.5 rounded-full border border-border bg-layer-4 px-2 text-xs sm:px-3">
             <Coins className="h-3.5 w-3.5 text-[#f59e0b]" />
-            <span className="font-medium">{user?.credits?.toLocaleString() ?? '0'} 积分</span>
+            <span className="lh-tnum font-medium">{user?.credits?.toLocaleString() ?? '0'} 积分</span>
           </div>
           <button className="relative h-8 w-8 flex items-center justify-center text-[#71717a] hover:text-foreground transition-colors rounded-full hover:bg-accent">
             <Bell className="h-4 w-4" />
@@ -199,7 +199,7 @@ export function MainLayout() {
               <img loading="lazy" decoding="async" src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User" className="h-full w-full object-cover" />
             </button>
             {isAvatarMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-40 rounded-lg border border-border bg-card shadow-xl z-50 py-1">
+              <div className="lh-anim-menu absolute right-0 top-full z-50 mt-2 w-40 rounded-lg border border-border bg-card py-1 shadow-xl">
                 <button
                   onClick={handleSignOut}
                   className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-foreground hover:bg-accent transition-colors"

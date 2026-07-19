@@ -85,9 +85,9 @@ export function ScriptPackImportPanel({ projectId, onImported, onClose }: Script
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="lh-anim-fade fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
       <div
-        className="flex max-h-[80vh] w-[min(560px,100%)] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#111113] shadow-2xl"
+        className="lh-anim-modal flex max-h-[80vh] w-[min(560px,100%)] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#111113] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-800 px-4">
@@ -173,9 +173,17 @@ export function ScriptPackImportPanel({ projectId, onImported, onClose }: Script
               </div>
             </div>
           ) : loading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-[13px] text-zinc-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              正在加载平台作品库……
+            <div className="space-y-2" aria-label="正在加载平台作品库">
+              <p className="text-[12px] text-zinc-500">正在加载平台作品库……</p>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3 rounded-md border border-zinc-800 bg-[#141416] px-3 py-2.5">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="lh-skeleton h-3.5 w-2/5" />
+                    <div className="lh-skeleton h-3 w-3/5" />
+                  </div>
+                  <div className="lh-skeleton h-7 w-16 shrink-0" />
+                </div>
+              ))}
             </div>
           ) : packs.length === 0 ? (
             <div className="py-10 text-center text-[13px] leading-6 text-zinc-500">
@@ -189,7 +197,14 @@ export function ScriptPackImportPanel({ projectId, onImported, onClose }: Script
                 选择平台作品库中的剧本包导入当前项目：按集写入工作流并自动生成画布节点；重复导入覆盖同集，不会翻倍。
               </p>
               {packs.map((pack) => (
-                <div key={pack.id} className="flex items-center gap-3 rounded-md border border-zinc-800 bg-[#141416] px-3 py-2.5">
+                <div
+                  key={pack.id}
+                  className={`flex items-center gap-3 rounded-md border px-3 py-2.5 transition-colors ${
+                    importingId === pack.id
+                      ? 'lh-skeleton border-amber-500/40 bg-amber-500/5'
+                      : 'border-zinc-800 bg-[#141416] hover:border-[#34343C]'
+                  }`}
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-[13px] font-medium text-zinc-100">
                       <span className="truncate">{pack.name}</span>
