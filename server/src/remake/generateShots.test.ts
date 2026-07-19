@@ -48,3 +48,47 @@ test("runRemakeGenerate succeeds when all shots complete", async () => {
   assert.equal(result.failedCount, 0);
   assert.equal(result.succeededCount, 2);
 });
+
+test("runRemakeGenerate skips succeeded shots on retry", async () => {
+  const processed: number[] = [];
+  const result = await runRemakeGenerate({
+    jobId: "job3",
+    script,
+    refImages: [],
+    existingShots: {
+      0: { status: "succeeded", retryCount: 0 },
+      1: { status: "pending", retryCount: 2 },
+    },
+    generateClip: async () => ({ resultUrl: "https://mock/1.mp4" }),
+    upsertShot: async (_jobId, shotIndex, data) => {
+      if (data.status === "running") processed.push(shotIndex);
+    },
+    concurrency: 2,
+  });
+
+  assert.deepEqual(processed, [1]);
+  assert.equal(result.ok, true);
+  assert.equal(result.failedCount, 0);
+  assert.equal(result.succeededCount, 2);
+});
+
+test("runRemakeGenerate passes retryCount to chargeShot for billing rotation", async () => {
+  const charges: Array<{ shotIndex: number; retryCount: number }> = [];
+  await runRemakeGenerate({
+    jobId: "job4",
+    script,
+    refImages: [],
+    existingShots: {
+      0: { status: "succeeded", retryCount: 0 },
+      1: { status: "pending", retryCount: 2 },
+    },
+    generateClip: async () => ({ resultUrl: "https://mock/1.mp4" }),
+    upsertShot: async () => {},
+    chargeShot: async (shotIndex, retryCount) => {
+      charges.push({ shotIndex, retryCount });
+    },
+    concurrency: 2,
+  });
+
+  assert.deepEqual(charges, [{ shotIndex: 1, retryCount: 2 }]);
+});

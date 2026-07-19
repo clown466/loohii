@@ -5,7 +5,7 @@ import { enqueueRemakeJob } from "../queues/remakeQueue";
 import { buildRemakeUpdatedEvent, type RemakeProgress, type RemakeUpdatedEvent } from "./events";
 import { runRemakeAdapt, type RemakeScript, type TextModelCaller } from "./adapt";
 import { runRemakeAnalyze, shouldForceAnalyzeGate } from "./analyze";
-import { chargeRemakeStage, loadRemakePlatform, refundRemakeStage } from "./billing";
+import { chargeRemakeStage, loadRemakePlatform, refundRemakeStage, remakeBillingAttempt } from "./billing";
 import { runRemakeGenerate } from "./generateShots";
 import { nextStageAfterSuccess, shouldPauseForGate } from "./stateMachine";
 import type { RemakeBreakdown, RemakeGates, RemakeStageSlug } from "./types";
@@ -250,13 +250,24 @@ export function createGenerateStageRunner(): StageRunner {
 
     const platform = await loadRemakePlatform(job.userId);
     const shotCharges = new Map<number, OnceCharge>();
+    const existingClips = await prisma.remakeShotClip.findMany({
+      where: { jobId: job.id },
+    });
+    const existingShots = Object.fromEntries(
+      existingClips.map((clip: { shotIndex: number; status: string; retryCount: number }) => [
+        clip.shotIndex,
+        { status: clip.status, retryCount: clip.retryCount },
+      ]),
+    );
 
     const result = await runRemakeGenerate({
       jobId: job.id,
       script: remakeScript,
       refImages,
+      existingShots,
       chargeShot: platform
-        ? async (shotIndex) => {
+        ? async (shotIndex, retryCount) => {
+            const attempt = remakeBillingAttempt(retryCount);
             const charge = await chargeRemakeStage(
               platform,
               job.id,
@@ -264,6 +275,7 @@ export function createGenerateStageRunner(): StageRunner {
               "loohii_video",
               1,
               shotIndex,
+              attempt,
             );
             shotCharges.set(shotIndex, charge);
           }

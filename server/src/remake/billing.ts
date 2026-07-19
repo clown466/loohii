@@ -9,13 +9,21 @@ import {
 } from "../lib/platformBilling";
 import type { RemakeStageSlug } from "./types";
 
+export function remakeBillingAttempt(retryCount = 0): number {
+  return retryCount > 0 ? retryCount : 1;
+}
+
 export function remakeBillingJobId(
   jobId: string,
   stage: RemakeStageSlug,
   shotIndex?: number,
+  attempt?: number,
 ): string {
   const base = `remake:${jobId}:${stage}`;
-  return shotIndex === undefined ? base : `${base}:shot:${shotIndex}`;
+  if (shotIndex === undefined) return base;
+  const shotKey = `${base}:shot:${shotIndex}`;
+  if (attempt === undefined) return shotKey;
+  return `${shotKey}:attempt:${attempt}`;
 }
 
 export async function loadRemakePlatform(userId: string): Promise<PlatformContext | null> {
@@ -42,12 +50,22 @@ export async function chargeRemakeStage(
   action: BillingAction,
   units = 1,
   shotIndex?: number,
+  attempt?: number,
 ): Promise<OnceCharge> {
+  const billingAttempt =
+    stage === "generate" && shotIndex !== undefined
+      ? (attempt ?? remakeBillingAttempt(0))
+      : undefined;
   return chargeOnce(platform, {
-    jobId: remakeBillingJobId(jobId, stage, shotIndex),
+    jobId: remakeBillingJobId(jobId, stage, shotIndex, billingAttempt),
     action,
     units,
-    meta: { remakeJobId: jobId, stage, ...(shotIndex !== undefined ? { shotIndex } : {}) },
+    meta: {
+      remakeJobId: jobId,
+      stage,
+      ...(shotIndex !== undefined ? { shotIndex } : {}),
+      ...(billingAttempt !== undefined ? { attempt: billingAttempt } : {}),
+    },
   });
 }
 

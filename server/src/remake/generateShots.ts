@@ -29,13 +29,19 @@ export interface ShotRowUpdate {
   retryCount?: number;
 }
 
+export interface ExistingShotState {
+  status: string;
+  retryCount?: number;
+}
+
 export interface RunRemakeGenerateInput {
   jobId: string;
   script: RemakeScript;
   refImages: string[];
   generateClip?: ShotClipGenerator;
+  existingShots?: Record<number, ExistingShotState>;
   upsertShot: (jobId: string, shotIndex: number, data: ShotRowUpdate) => Promise<void>;
-  chargeShot?: (shotIndex: number) => Promise<void>;
+  chargeShot?: (shotIndex: number, retryCount: number) => Promise<void>;
   refundShot?: (shotIndex: number) => Promise<void>;
   concurrency?: number;
 }
@@ -103,10 +109,13 @@ export async function generateShotClip(
 }
 
 export async function runRemakeGenerate(input: RunRemakeGenerateInput): Promise<RunRemakeGenerateResult> {
-  const { jobId, script, refImages, generateClip, upsertShot, chargeShot, refundShot } = input;
+  const { jobId, script, refImages, generateClip, upsertShot, chargeShot, refundShot, existingShots } =
+    input;
   const concurrency = Math.max(1, input.concurrency ?? DEFAULT_CONCURRENCY);
   const shots = script.shots;
-  let succeededCount = 0;
+  let succeededCount = Object.values(existingShots ?? {}).filter(
+    (shot) => shot.status === "succeeded",
+  ).length;
   let failedCount = 0;
   let cursor = 0;
 
@@ -115,6 +124,11 @@ export async function runRemakeGenerate(input: RunRemakeGenerateInput): Promise<
       const shot = shots[cursor];
       cursor += 1;
       const shotIndex = shot.index;
+      const existing = existingShots?.[shotIndex];
+      if (existing?.status === "succeeded") {
+        continue;
+      }
+      const retryCount = existing?.retryCount ?? 0;
       await upsertShot(jobId, shotIndex, {
         status: "running",
         prompt: shot.prompt,
@@ -122,7 +136,7 @@ export async function runRemakeGenerate(input: RunRemakeGenerateInput): Promise<
         errorMessage: null,
       });
       try {
-        await chargeShot?.(shotIndex);
+        await chargeShot?.(shotIndex, retryCount);
         const clip = await generateShotClip(
           {
             prompt: `${script.styleLock}. ${shot.prompt}`,
