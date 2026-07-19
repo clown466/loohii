@@ -251,15 +251,15 @@ export function ClipVideoPromptList({
     return (
       <div className="flex min-h-[220px] flex-col items-center justify-center p-6 text-center">
         <Film className="mb-3 h-6 w-6 text-zinc-700" />
-        <div className="text-[13px] font-medium text-zinc-300">还没有 Clip 视频任务</div>
-        <div className="mt-1 text-[12px] text-zinc-600">先完成分镜拆解，再在这里生成 Seedance 视频提示词。</div>
+        <div className="text-[15px] font-medium text-zinc-300">还没有 Clip 视频任务</div>
+        <div className="mt-1 text-[14px] text-zinc-600">先完成分镜拆解，再在这里生成 Seedance 视频提示词。</div>
       </div>
     );
   }
 
   return (
     <div className="divide-y divide-zinc-800">
-      <div className="flex flex-col gap-3 px-4 py-3 text-[11px] text-zinc-500 xl:flex-row xl:items-end xl:justify-between">
+      <div className="flex flex-col gap-3 px-4 py-3 text-[13px] text-zinc-500 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="font-medium text-zinc-300">视频提示词文本模型</div>
           <div className="mt-1">
@@ -268,7 +268,7 @@ export function ClipVideoPromptList({
               : `Seedance 多参模式会直接结合资产图、分镜脚本和状态连续性推理视频提示词。${generationStrategy ? ` 当前策略：${generationStrategy}` : ''}`}
           </div>
           {generationBlockMessage ? (
-            <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-5 text-amber-100">
+            <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[14px] leading-5 text-amber-100">
               {generationBlockMessage}
             </div>
           ) : null}
@@ -277,7 +277,7 @@ export function ClipVideoPromptList({
           <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
             <button
               type="button"
-              className="h-8 rounded-md border border-zinc-800 px-2 text-[11px] text-zinc-400 transition-colors hover:border-border hover:text-zinc-100"
+              className="h-8 rounded-md border border-zinc-800 px-2 text-[13px] text-zinc-400 transition-colors hover:border-border hover:text-zinc-100"
               onClick={() => setSelectedVideoPromptClipIds(allVideoPromptsSelected ? [] : clips.map((clip) => clip.id))}
             >
               {allVideoPromptsSelected ? '清空选择' : '全选 Clip'}
@@ -286,7 +286,7 @@ export function ClipVideoPromptList({
               value={batchInferenceScope}
               onChange={(event) => setBatchInferenceScope(event.target.value as 'video' | 'storyboard' | 'positioning')}
               disabled={videoPromptBatchBusy}
-              className="h-8 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[11px] text-zinc-100 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 rounded-md border border-zinc-800 bg-zinc-950 px-2 text-[13px] text-zinc-100 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
               title="选择批量重新推理的目标：视频任务走文本模型推理；故事板/定位板重建确定性提示词节点"
             >
               <option value="video">视频任务</option>
@@ -296,7 +296,7 @@ export function ClipVideoPromptList({
             <Button
               type="button"
               size="sm"
-              className="h-8 bg-sky-500 text-[11px] text-black hover:bg-sky-400"
+              className="h-8 bg-sky-500 text-[13px] text-black hover:bg-sky-400"
               disabled={selectedVideoPromptClipIds.length === 0 || videoPromptBatchBusy || generationBlocked}
               onClick={() => void runSelectedBatchInference()}
             >
@@ -307,7 +307,7 @@ export function ClipVideoPromptList({
               type="button"
               size="sm"
               variant="secondary"
-              className="h-8 border border-border bg-zinc-900 text-[11px] text-zinc-100 hover:bg-layer-4"
+              className="h-8 border border-border bg-zinc-900 text-[13px] text-zinc-100 hover:bg-layer-4"
               disabled={selectedVideoPromptClipIds.length === 0 || videoPromptBatchBusy || generationBlocked}
               onClick={() => void addSelectedToCanvas()}
               title="批量放入故事板/定位板与视频任务（无提示词的 Clip 会跳过视频任务）"
@@ -321,14 +321,14 @@ export function ClipVideoPromptList({
               value={workflowAiModelId}
               onChange={(event) => setWorkflowAiModelId(event.target.value)}
               disabled={workflowModelsLoading || videoPromptBatchBusy || workflowModels.length === 0}
-              className="h-8 w-full rounded-md border border-border bg-zinc-950 px-2 text-[12px] text-zinc-100 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-8 w-full rounded-md border border-border bg-zinc-950 px-2 text-[14px] text-zinc-100 outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <option value="">{workflowModelsLoading ? '加载模型中...' : '使用后端默认文本模型'}</option>
               {workflowModels.map((model) => (
                 <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
               ))}
             </select>
-            {workflowModelError ? <div className="mt-1 text-[10px] text-red-300">{workflowModelError}</div> : null}
+            {workflowModelError ? <div className="mt-1 text-[12px] text-red-300">{workflowModelError}</div> : null}
           </div>
         </div>
       </div>
@@ -348,21 +348,21 @@ export function ClipVideoPromptList({
                   onChange={() => toggleVideoPromptSelection(clip.id)}
                   className="h-3.5 w-3.5 accent-sky-500"
                 />
-                <span className="font-mono text-[11px] text-zinc-500">C{String(index + 1).padStart(2, '0')}</span>
-                <span className="text-[13px] font-semibold text-zinc-100">{clip.title}</span>
-                <Badge className="border border-border bg-zinc-900 text-[10px] text-zinc-400 hover:bg-zinc-900">
+                <span className="font-mono text-[13px] text-zinc-500">C{String(index + 1).padStart(2, '0')}</span>
+                <span className="text-[15px] font-semibold text-zinc-100">{clip.title}</span>
+                <Badge className="border border-border bg-zinc-900 text-[12px] text-zinc-400 hover:bg-zinc-900">
                   {formatClipDuration(clip)}
                 </Badge>
-                <Badge className="border border-sky-500/20 bg-sky-500/10 text-[10px] text-sky-200 hover:bg-sky-500/10">
+                <Badge className="border border-sky-500/20 bg-sky-500/10 text-[12px] text-sky-200 hover:bg-sky-500/10">
                   {references.length} 参考图
                 </Badge>
               </div>
-              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+              <div className="mt-2 flex flex-wrap gap-2 text-[13px] text-zinc-500">
                 <span className="rounded border border-zinc-800 bg-[#0d0d0f] px-2 py-1">场景：{clip.setting || '未指定'}</span>
                 <span className="rounded border border-zinc-800 bg-[#0d0d0f] px-2 py-1">角色：{compactList(clip.characters, '未指定', 8)}</span>
                 <span className="rounded border border-zinc-800 bg-[#0d0d0f] px-2 py-1">分镜：{clipScenes.length}/{clip.shotIds?.length ?? 0}</span>
               </div>
-              <div className="mt-3 max-h-[260px] overflow-y-auto rounded-md border border-zinc-800 bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-300 whitespace-pre-wrap">
+              <div className="mt-3 max-h-[260px] overflow-y-auto rounded-md border border-zinc-800 bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-300 whitespace-pre-wrap">
                 {prompt || '未生成。点击右侧“生成视频提示词”。'}
               </div>
             </div>

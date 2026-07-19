@@ -173,8 +173,8 @@ export function ProjectRecordsPage() {
     <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:mb-8 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight text-[#E8E8EC] sm:text-2xl">生成记录</h1>
-          <div className="mt-1 text-[12px] text-muted-foreground">显示当前项目真实生成记录、实际提示词、模型和生成结果。</div>
+          <h1 className="text-[24px] font-extrabold tracking-tight text-[#E8E8EC] sm:text-2xl">生成记录</h1>
+          <div className="mt-1 text-[14px] text-muted-foreground">显示当前项目真实生成记录、实际提示词、模型和生成结果。</div>
         </div>
         <div className="relative w-full sm:w-72 lg:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -217,7 +217,7 @@ export function ProjectRecordsPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-red-200">
+        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[14px] text-red-200">
           {error}
         </div>
       )}
@@ -235,7 +235,7 @@ export function ProjectRecordsPage() {
           ))}
         </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-[#141417] p-8 text-center text-[13px] text-muted-foreground">暂无生成记录。</div>
+        <div className="rounded-xl border border-dashed border-border bg-[#141417] p-8 text-center text-[15px] text-muted-foreground">暂无生成记录。</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {filteredRecords.map((item) => (
@@ -331,7 +331,7 @@ function RecordCard({
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground">
             <ImageIcon className="h-8 w-8" />
-            <span className="text-[12px]">此记录没有图片资产</span>
+            <span className="text-[14px]">此记录没有图片资产</span>
           </div>
         )}
 
@@ -363,7 +363,7 @@ function RecordCard({
         </div>
 
         {addedToCanvas && (
-          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full border border-[#7ED88733] bg-[#7ED88733] px-2 py-0.5 text-[11px] font-medium text-[#7ED887] backdrop-blur">
+          <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full border border-[#7ED88733] bg-[#7ED88733] px-2 py-0.5 text-[13px] font-medium text-[#7ED887] backdrop-blur">
             <Check className="h-3 w-3" /> 已放入画布
           </div>
         )}
@@ -398,13 +398,13 @@ function RecordMeta({ item, onEditPrompt }: { item: RecordItem; onEditPrompt?: (
     <div className="relative z-10 border-t border-border p-3 text-xs">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1 truncate font-medium text-[#7ED887]">&#10003; {item.model}</span>
-        <span className="shrink-0 text-[10px] text-muted-foreground">{item.type}</span>
+        <span className="shrink-0 text-[12px] text-muted-foreground">{item.type}</span>
       </div>
-      {item.provider && <div className="mb-1 truncate text-[10px] text-muted-foreground/70">{item.provider}</div>}
-      {item.paramsLabel && <div className="mb-1 truncate text-[10px] text-muted-foreground">{item.paramsLabel}</div>}
+      {item.provider && <div className="mb-1 truncate text-[12px] text-muted-foreground/70">{item.provider}</div>}
+      {item.paramsLabel && <div className="mb-1 truncate text-[12px] text-muted-foreground">{item.paramsLabel}</div>}
       {item.prompt && (
         <div
-          className="mb-2 max-h-28 cursor-pointer overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-[#101014] px-2 py-1.5 text-[11px] leading-4 text-muted-foreground transition-colors hover:border-primary/40 hover:text-zinc-300"
+          className="mb-2 max-h-28 cursor-pointer overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-[#101014] px-2 py-1.5 text-[13px] leading-4 text-muted-foreground transition-colors hover:border-primary/40 hover:text-zinc-300"
           onClick={() => onEditPrompt?.(item)}
           title="点击编辑提示词"
         >

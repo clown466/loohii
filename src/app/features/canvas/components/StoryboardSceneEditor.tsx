@@ -30,8 +30,8 @@ export function StoryboardSceneEditor({
   }, [scene]);
 
   const update = (patch: Partial<BreakdownScene>) => setDraft((current) => ({ ...current, ...patch }));
-  const fieldClass = "w-full rounded-md border border-zinc-800 bg-background px-3 py-2 text-[12px] leading-5 text-zinc-100 outline-none focus:border-amber-500";
-  const labelClass = "mb-1.5 block text-[11px] font-medium text-zinc-500";
+  const fieldClass = "w-full rounded-md border border-zinc-800 bg-background px-3 py-2 text-[14px] leading-5 text-zinc-100 outline-none focus:border-amber-500";
+  const labelClass = "mb-1.5 block text-[13px] font-medium text-zinc-500";
   const pacing = getDialoguePacing(draft);
 
   const save = () => {
@@ -49,11 +49,11 @@ export function StoryboardSceneEditor({
     <section className="min-h-full rounded-lg border border-zinc-800 bg-[#141416]">
       <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
-          <button type="button" className="mb-2 text-[12px] text-zinc-500 hover:text-zinc-200" onClick={onBack}>
+          <button type="button" className="mb-2 text-[14px] text-zinc-500 hover:text-zinc-200" onClick={onBack}>
             ← 返回分镜列表
           </button>
-          <div className="text-[15px] font-semibold text-zinc-100">{selectedEpisode} · 分镜修改</div>
-          <div className="mt-1 truncate text-[12px] text-zinc-500">{draft.title}</div>
+          <div className="text-[17px] font-semibold text-zinc-100">{selectedEpisode} · 分镜修改</div>
+          <div className="mt-1 truncate text-[14px] text-zinc-500">{draft.title}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" className="h-8 border border-border bg-zinc-900 text-zinc-100 hover:bg-layer-4" onClick={save}>
@@ -184,15 +184,15 @@ export function StoryboardSceneEditor({
 
         <aside className="space-y-4">
           <div className="rounded-lg border border-zinc-800 bg-[#0d0d0f] p-4">
-            <div className="text-[13px] font-semibold text-zinc-100">故事板层级</div>
-            <div className="mt-2 text-[12px] leading-5 text-zinc-500">
+            <div className="text-[15px] font-semibold text-zinc-100">故事板层级</div>
+            <div className="mt-2 text-[14px] leading-5 text-zinc-500">
               当前页面只编辑单个镜头。多宫格导演故事板应按 Clip 生成，请返回 Clip 列表，在对应 Clip 详情里生成和修改故事板提示词。
             </div>
           </div>
 
           <div className="rounded-lg border border-zinc-800 bg-[#0d0d0f] p-4">
-            <div className="text-[13px] font-semibold text-zinc-100">脚本检查</div>
-            <div className="mt-3 space-y-2 text-[12px] text-zinc-500">
+            <div className="text-[15px] font-semibold text-zinc-100">脚本检查</div>
+            <div className="mt-3 space-y-2 text-[14px] text-zinc-500">
               <div className="flex justify-between"><span>角色</span><span>{(draft.characters ?? []).length}</span></div>
               <div className="flex justify-between"><span>时长</span><span>{draft.durationSeconds ?? 0}s</span></div>
               <div className="flex justify-between"><span>台词词数</span><span>{pacing.words}</span></div>
@@ -201,7 +201,7 @@ export function StoryboardSceneEditor({
               <div className="flex justify-between"><span>故事板入口</span><span>Clip 层</span></div>
             </div>
             {pacing.tooDense && (
-              <div className="mt-3 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] leading-5 text-red-200">
+              <div className="mt-3 rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] leading-5 text-red-200">
                 台词过密。美式快节奏动画建议约 2.8-3.4 w/s，超过 3.6 w/s 应拆成多个反应镜头或动作切镜。
               </div>
             )}

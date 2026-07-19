@@ -230,13 +230,13 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '智能体'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+            <div className="mt-0.5 truncate text-[13px] text-zinc-500">
               {linkedNodes.length ? `已连接 ${linkedNodes.length} 个节点` : '连接节点后让智能体修改提示词/画布'}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Badge className={cn(
-              'border text-[10px] hover:bg-[#141417]',
+              'border text-[12px] hover:bg-[#141417]',
               status === 'running'
                 ? 'border-violet-500/30 bg-violet-500/10 text-violet-200'
                 : status === 'failed'
@@ -249,7 +249,7 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
             </Badge>
             <Button
               size="sm"
-              className="nodrag nopan h-7 gap-1 bg-violet-500 px-2 text-[11px] text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="nodrag nopan h-7 gap-1 bg-violet-500 px-2 text-[13px] text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={status === 'running'}
               onClick={runAgent}
               onPointerDown={(event) => event.stopPropagation()}
@@ -261,8 +261,8 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
 
         <div className="space-y-3 p-3">
           <div className="rounded-md border border-[#26262B] bg-[#0d0d0f] p-2">
-            <div className="mb-1 text-[11px] font-medium text-zinc-400">连接上下文</div>
-            <div className="line-clamp-3 text-[12px] leading-5 text-zinc-300">
+            <div className="mb-1 text-[13px] font-medium text-zinc-400">连接上下文</div>
+            <div className="line-clamp-3 text-[14px] leading-5 text-zinc-300">
               {linkedNodes.length
                 ? linkedNodes.map((node) => {
                     const promptLength = canvasNodePromptText(node).length;
@@ -273,9 +273,9 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-zinc-400">智能体文本模型</span>
+            <span className="mb-1 block text-[13px] font-medium text-zinc-400">智能体文本模型</span>
             <select
-              className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-950 px-2 text-[12px] text-zinc-200 outline-none focus:border-violet-400"
+              className="nodrag nopan h-8 w-full rounded-md border border-border bg-zinc-950 px-2 text-[14px] text-zinc-200 outline-none focus:border-violet-400"
               value={String(data.modelId || '')}
               onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -289,13 +289,13 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
                 <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
               ))}
             </select>
-            {modelLoadFailed ? <span className="mt-1 block text-[11px] text-amber-300">文本模型列表加载失败。</span> : null}
+            {modelLoadFailed ? <span className="mt-1 block text-[13px] text-amber-300">文本模型列表加载失败。</span> : null}
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-[11px] font-medium text-zinc-400">给智能体的要求</span>
+            <span className="mb-1 block text-[13px] font-medium text-zinc-400">给智能体的要求</span>
             <PromptTextarea
-              className="nodrag nopan h-28 w-full resize-none rounded-md border border-border bg-zinc-950 p-2 font-mono text-[12px] leading-5 text-zinc-100 outline-none focus:border-violet-400"
+              className="nodrag nopan h-28 w-full resize-none rounded-md border border-border bg-zinc-950 p-2 font-mono text-[14px] leading-5 text-zinc-100 outline-none focus:border-violet-400"
               value={String(data.request || '')}
               placeholder="例如：把连接的视频节点提示词重新整理，补全每个 S 镜头动作，不要截断对白。"
               onChange={(value) => updateNodeData(id, { request: value })}
@@ -306,16 +306,16 @@ export const AgentNode = ({ id, data, selected }: CanvasNodeProps) => {
             />
           </label>
 
-          {data.error ? <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-[12px] text-red-200">{String(data.error)}</div> : null}
-          {data.lastSentAt ? <div className="text-[11px] text-zinc-500">最近提交：{new Date(String(data.lastSentAt)).toLocaleString()}</div> : null}
+          {data.error ? <div className="rounded-md border border-red-500/30 bg-red-500/10 p-2 text-[14px] text-red-200">{String(data.error)}</div> : null}
+          {data.lastSentAt ? <div className="text-[13px] text-zinc-500">最近提交：{new Date(String(data.lastSentAt)).toLocaleString()}</div> : null}
 
           <div className="rounded-md border border-[#26262B] bg-[#0d0d0f] p-2">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">智能体返回草稿</span>
-              {data.lastCompletedAt ? <span className="text-[10px] text-zinc-600">{new Date(String(data.lastCompletedAt)).toLocaleString()}</span> : null}
+              <span className="text-[13px] font-medium text-zinc-400">智能体返回草稿</span>
+              {data.lastCompletedAt ? <span className="text-[12px] text-zinc-600">{new Date(String(data.lastCompletedAt)).toLocaleString()}</span> : null}
             </div>
             <PromptTextarea
-              className="nodrag nopan h-40 w-full resize-none rounded border border-zinc-900 bg-black/30 p-2 font-mono text-[12px] leading-5 text-zinc-200 outline-none focus:border-violet-400"
+              className="nodrag nopan h-40 w-full resize-none rounded border border-zinc-900 bg-black/30 p-2 font-mono text-[14px] leading-5 text-zinc-200 outline-none focus:border-violet-400"
               value={resultText}
               placeholder="发送后返回消息会显示在这里。双击可放大查看/编辑。"
               onChange={(value) => updateNodeData(id, { resultText: value })}

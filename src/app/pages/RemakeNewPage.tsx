@@ -62,7 +62,7 @@ export function RemakeNewPage() {
           <ArrowLeft className="h-4 w-4" />
           返回任务列表
         </Link>
-        <h1 className="text-[22px] font-extrabold tracking-tight sm:text-[24px]">新建复刻任务</h1>
+        <h1 className="text-[24px] font-extrabold tracking-tight sm:text-[26px]">新建复刻任务</h1>
         <p className="mt-1 text-sm text-muted-foreground">支持 TikTok 链接或本地上传，系统将自动拆解并复刻</p>
       </div>
 

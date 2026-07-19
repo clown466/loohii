@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Plus, Search, LayoutGrid, List, Play, Edit2, Copy, Trash2 } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, Play, Edit2, Copy, Trash2, PenTool } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { ThumbImage } from "../components/ThumbImage";
 import { Input } from "../components/ui/input";
@@ -53,9 +53,9 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-y-auto p-4 text-[14px] sm:p-6 lg:p-8">
+    <div className="mx-auto flex h-full w-full max-w-7xl flex-col overflow-y-auto p-4 text-[16px] sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:mb-8 lg:flex-row lg:items-center lg:justify-between">
-        <h1 className="text-[22px] font-extrabold tracking-tight sm:text-[24px]">我的项目</h1>
+        <h1 className="text-[24px] font-extrabold tracking-tight sm:text-[26px]">我的项目</h1>
         <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:items-center">
           <div className="relative w-full sm:w-72 lg:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#71717a]" />
@@ -81,7 +81,7 @@ export function DashboardPage() {
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`shrink-0 px-4 py-1.5 text-[14px] font-medium rounded-md transition-colors ${
+              className={`shrink-0 px-4 py-1.5 text-[16px] font-medium rounded-md transition-colors ${
                 activeTab === tab 
                   ? "bg-layer-4 text-foreground shadow-sm" 
                   : "text-[#71717a] hover:text-foreground hover:bg-card"
@@ -112,13 +112,7 @@ export function DashboardPage() {
       ) : filteredProjects.length === 0 ? (
         <div className="flex min-h-[360px] flex-1 flex-col items-center justify-center text-center">
           <div className="mb-6 flex h-36 w-36 items-center justify-center text-[#71717a] opacity-80 sm:h-48 sm:w-48">
-            {/* Simple drawing icon for empty state */}
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="w-24 h-24">
-              <path d="M12 19l7-7 3 3-7 7-3-3z" />
-              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-              <path d="M2 2l7.586 7.586" />
-              <circle cx="11" cy="11" r="2" />
-            </svg>
+            <PenTool className="h-24 w-24" strokeWidth={1} aria-hidden />
           </div>
           <h3 className="text-lg font-medium text-foreground mb-2">{searchQuery ? "没有匹配的项目" : "还没有项目"}</h3>
           <p className="text-muted-foreground mb-6">{searchQuery ? "试试其他关键词" : "创建你的第一个 AI 动画项目"}</p>
@@ -138,7 +132,7 @@ export function DashboardPage() {
             <div className="h-12 w-12 rounded-full bg-card group-hover:bg-primary/20 flex items-center justify-center mb-4 transition-colors">
               <Plus className="h-6 w-6" />
             </div>
-            <span className="font-medium text-[14px]">新建项目</span>
+            <span className="font-medium text-[16px]">新建项目</span>
           </Link>
 
           {/* Project Cards */}
@@ -166,12 +160,12 @@ export function DashboardPage() {
               {/* Info 40% */}
               <div className="p-4 flex flex-col h-[40%]">
                 <div className="flex justify-between items-start mb-1">
-                  <Link to={`/app/project/${project.id}/canvas`} className="font-medium text-[14px] text-foreground truncate pr-2 hover:text-primary transition-colors">{project.title}</Link>
-                  <span className="lh-tnum text-[12px] text-muted-foreground shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
+                  <Link to={`/app/project/${project.id}/canvas`} className="font-medium text-[16px] text-foreground truncate pr-2 hover:text-primary transition-colors">{project.title}</Link>
+                  <span className="lh-tnum text-[14px] text-muted-foreground shrink-0">{project.completedScenes}/{project.scenes} 分镜</span>
                 </div>
-                <div className="mt-auto flex min-w-0 items-center gap-2 pt-2 text-[12px] text-[#71717a]">
-                  <Badge variant="secondary" className="text-[11px] h-5 px-1.5 font-normal bg-layer-4 text-muted-foreground hover:bg-accent border-0">{project.ratio}</Badge>
-                  <Badge variant="secondary" className="h-5 max-w-[120px] truncate border-0 bg-layer-4 px-1.5 text-[11px] font-normal text-muted-foreground hover:bg-accent">{project.style}</Badge>
+                <div className="mt-auto flex min-w-0 items-center gap-2 pt-2 text-[14px] text-[#71717a]">
+                  <Badge variant="secondary" className="text-[13px] h-5 px-1.5 font-normal bg-layer-4 text-muted-foreground hover:bg-accent border-0">{project.ratio}</Badge>
+                  <Badge variant="secondary" className="h-5 max-w-[120px] truncate border-0 bg-layer-4 px-1.5 text-[13px] font-normal text-muted-foreground hover:bg-accent">{project.style}</Badge>
                   <span className="ml-auto shrink-0">{getTimeAgo(project.createdAt)}</span>
                 </div>
               </div>

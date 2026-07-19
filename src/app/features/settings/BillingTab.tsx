@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Coins } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
 import { request } from "../../lib/api/httpClient";
 import { chargeDisplayOf } from "./billingRecordDisplay";
@@ -77,8 +78,8 @@ export function BillingSettings() {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-[24px] font-extrabold text-[#E8E8EC]">账单充值</h1>
-        <p className="text-muted-foreground mt-1 text-[14px]">积分与 aijiekou 平台（拆剧助手）统一，同一账号两边通用</p>
+        <h1 className="text-[26px] font-extrabold text-[#E8E8EC]">账单充值</h1>
+        <p className="text-muted-foreground mt-1 text-[16px]">积分与 aijiekou 平台（拆剧助手）统一，同一账号两边通用</p>
       </div>
 
       <div className="grid gap-8">
@@ -88,15 +89,16 @@ export function BillingSettings() {
 
           <div className="relative z-10 flex flex-col items-start justify-between gap-4 sm:flex-row">
             <div>
-              <h3 className="text-[14px] font-medium text-muted-foreground mb-2">平台积分余额</h3>
+              <h3 className="text-[16px] font-medium text-muted-foreground mb-2">平台积分余额</h3>
               <div className="flex items-end gap-2">
-                <span className="text-[28px] font-bold leading-none text-primary sm:text-[32px]">
-                  💰 {loading ? "…" : (platform ? platform.points.toLocaleString() : "—")}
+                <span className="inline-flex items-end gap-2 text-[30px] font-bold leading-none text-primary sm:text-[34px]">
+                  <Coins className="h-7 w-7 sm:h-8 sm:w-8" aria-hidden />
+                  {loading ? "…" : (platform ? platform.points.toLocaleString() : "—")}
                 </span>
-                <span className="text-[14px] font-medium text-muted-foreground mb-1">积分</span>
+                <span className="text-[16px] font-medium text-muted-foreground mb-1">积分</span>
               </div>
               {platform && (
-                <p className="text-[12px] text-muted-foreground mt-2">平台账号：{platform.email}</p>
+                <p className="text-[14px] text-muted-foreground mt-2">平台账号：{platform.email}</p>
               )}
             </div>
             {platform?.membershipActive && (
@@ -107,8 +109,8 @@ export function BillingSettings() {
 
         {/* Top up */}
         <div>
-          <h3 className="text-[16px] font-medium text-foreground mb-4">充值</h3>
-          <div className="lh-card rounded-xl border border-border p-5 text-[14px] text-muted-foreground leading-relaxed">
+          <h3 className="text-[18px] font-medium text-foreground mb-4">充值</h3>
+          <div className="lh-card rounded-xl border border-border p-5 text-[16px] text-muted-foreground leading-relaxed">
             充值请前往 aijiekou 平台（拆剧助手）下单，或联系管理员充值。
             充值到账后积分在这里和拆剧助手同时可见，无需其他操作。
           </div>
@@ -116,9 +118,9 @@ export function BillingSettings() {
 
         {/* History */}
         <div className="pt-2">
-          <h3 className="text-[16px] font-medium text-foreground mb-4">消费记录（生成扣点）</h3>
+          <h3 className="text-[18px] font-medium text-foreground mb-4">消费记录（生成扣点）</h3>
           <div className="lh-card overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[520px] text-left text-[13px]">
+            <table className="w-full min-w-[520px] text-left text-[15px]">
               <thead className="bg-layer-4 text-muted-foreground border-b border-border">
                 <tr>
                   <th className="px-5 py-3 font-medium">时间</th>
@@ -147,10 +149,10 @@ export function BillingSettings() {
                         <span className="inline-flex items-center gap-1.5">
                           {row.status}
                           {charge.refunded && (
-                            <Badge className="bg-emerald-500/15 text-emerald-400 border-0 text-[11px] py-0">已退款</Badge>
+                            <Badge className="bg-emerald-500/15 text-emerald-400 border-0 text-[13px] py-0">已退款</Badge>
                           )}
                           {charge.refundPending && (
-                            <Badge className="bg-amber-500/15 text-amber-400 border-0 text-[11px] py-0">退款处理中</Badge>
+                            <Badge className="bg-amber-500/15 text-amber-400 border-0 text-[13px] py-0">退款处理中</Badge>
                           )}
                         </span>
                       </td>

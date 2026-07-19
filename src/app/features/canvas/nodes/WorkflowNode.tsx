@@ -24,14 +24,14 @@ export const WorkflowNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             {iconMap[String(data.kind ?? 'workflow')] ?? iconMap.workflow}
-            <div className="truncate text-[13px] font-semibold text-zinc-100">{data.title ?? '流程节点'}</div>
+            <div className="truncate text-[15px] font-semibold text-zinc-100">{data.title ?? '流程节点'}</div>
           </div>
-          <Badge className="border border-border bg-[#141417] text-[10px] text-zinc-400 hover:bg-[#141417]">
+          <Badge className="border border-border bg-[#141417] text-[12px] text-zinc-400 hover:bg-[#141417]">
             {data.statusLabel ?? '待处理'}
           </Badge>
         </div>
-        <p className="min-h-[40px] text-[12px] leading-5 text-zinc-400">{data.description ?? '等待接入生产任务'}</p>
-        <div className="mt-3 flex items-center gap-2 border-t border-[#26262B] pt-2 text-[11px] text-zinc-500">
+        <p className="min-h-[40px] text-[14px] leading-5 text-zinc-400">{data.description ?? '等待接入生产任务'}</p>
+        <div className="mt-3 flex items-center gap-2 border-t border-[#26262B] pt-2 text-[13px] text-zinc-500">
           <Sparkles className="h-3.5 w-3.5" />
           <span className="truncate">{data.scope ?? '当前项目'}</span>
         </div>

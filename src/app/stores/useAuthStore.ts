@@ -28,7 +28,7 @@ function demoUser(name: string, email: string): User {
     id: crypto.randomUUID(),
     name,
     email,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
+    avatar: "", // 默认头像走 UserAvatar 渐变首字方案（P5-D），不再用 dicebear
     credits: 1250,
   }
 }

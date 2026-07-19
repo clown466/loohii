@@ -216,12 +216,12 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '提示词翻译'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+            <div className="mt-0.5 truncate text-[13px] text-zinc-500">
               {incomingSource ? `读取：${canvasNodePromptLabel(incomingSource)}` : '可从左侧连接提示词节点'}
             </div>
           </div>
           <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-[#141417]",
+            "shrink-0 border text-[12px] hover:bg-[#141417]",
             status === 'completed'
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : status === 'failed' || translationStalled
@@ -237,7 +237,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className="space-y-3 p-3">
           <div className="grid grid-cols-2 gap-2">
             <select
-              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 outline-none focus:border-primary"
               value={sourceLanguage}
               onChange={(event) => updateNodeData(id, { sourceLanguage: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -248,7 +248,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               <option value="English">英文</option>
             </select>
             <select
-              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 outline-none focus:border-primary"
               value={targetLanguage}
               onChange={(event) => updateNodeData(id, { targetLanguage: event.target.value })}
               onPointerDown={(event) => event.stopPropagation()}
@@ -260,7 +260,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
 
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 outline-none focus:border-primary"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
@@ -275,7 +275,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
             ))}
           </select>
 
-          <label className="nodrag nopan flex items-center gap-2 text-[11px] text-zinc-400" onPointerDown={(event) => event.stopPropagation()}>
+          <label className="nodrag nopan flex items-center gap-2 text-[13px] text-zinc-400" onPointerDown={(event) => event.stopPropagation()}>
             <input
               type="checkbox"
               checked={data.preserveStructure !== false}
@@ -286,12 +286,12 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">原提示词</span>
+              <span className="text-[13px] font-medium text-zinc-400">原提示词</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
+                className="nodrag nopan h-6 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -302,7 +302,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.sourcePrompt || incomingPrompt || '')}
               placeholder="输入要翻译的提示词，或从左侧连入图片/视频/分镜节点。"
               modalTitle={`${data.title || '提示词翻译'} · 原提示词`}
@@ -317,12 +317,12 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">翻译结果</span>
+              <span className="text-[13px] font-medium text-zinc-400">翻译结果</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
+                className="nodrag nopan h-6 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
                 disabled={!translatedPrompt}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
@@ -334,7 +334,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan min-h-[120px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={translatedPrompt}
               placeholder="翻译完成后显示在这里。"
               modalTitle={`${data.title || '提示词翻译'} · 翻译结果`}
@@ -349,20 +349,20 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
 
           {data.error ? (
             <div className={cn(
-              "rounded border px-2 py-1 text-[11px] leading-4",
+              "rounded border px-2 py-1 text-[13px] leading-4",
               status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-[#F5A623]/20 bg-[#F5A623]/10 text-[#F7C24E]",
             )}>
               {data.error}
             </div>
           ) : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
+          {modelLoadFailed ? <div className="text-[13px] text-amber-300">文本模型列表加载失败。</div> : null}
         </div>
 
         <div className="flex items-center gap-2 border-t border-[#26262B] px-3 py-2">
           <Button
             type="button"
             size="sm"
-            className="nodrag nopan h-8 flex-1 bg-[linear-gradient(135deg,#F5A623,#E08D0C)] text-[12px] font-bold text-[#0D0D0F] hover:opacity-90"
+            className="nodrag nopan h-8 flex-1 bg-[linear-gradient(135deg,#F5A623,#E08D0C)] text-[14px] font-bold text-[#0D0D0F] hover:opacity-90"
             disabled={isTranslating && !translationStalled}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -378,7 +378,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
               type="button"
               variant="ghost"
               size="sm"
-              className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
+              className="nodrag nopan h-8 text-[13px] text-zinc-400 hover:text-zinc-100"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
@@ -392,7 +392,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
             type="button"
             variant="secondary"
             size="sm"
-            className="nodrag nopan h-8 bg-layer-4 text-[11px] text-zinc-200 hover:bg-zinc-700"
+            className="nodrag nopan h-8 bg-layer-4 text-[13px] text-zinc-200 hover:bg-zinc-700"
             disabled={!translatedPrompt || outgoingTargets.length === 0}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -407,7 +407,7 @@ export const TranslationNode = ({ id, data, selected }: CanvasNodeProps) => {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
+            className="nodrag nopan h-8 text-[13px] text-zinc-400 hover:text-zinc-100"
             disabled={!translatedPrompt || !incomingSource}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {

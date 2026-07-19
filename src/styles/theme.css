@@ -1,7 +1,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 14px;
+  --font-size: 16px; /* P5-D：14→16，全站 rem 级联放大约 1.14 倍 */
   --background: #0D0D0F;
   --foreground: #E8E8EC;
   --card: #1A1A1E;
@@ -469,7 +469,7 @@
     align-items: center;
     height: 3rem; /* 顶栏 h-12 全高，下划线贴底 */
     padding: 0 2px;
-    font-size: 13px;
+    font-size: 14px; /* P5-D：13→14，随全站放大 */
     font-weight: 500;
     color: #71717a;
     white-space: nowrap;
@@ -495,5 +495,45 @@
   }
   .lh-topnav[data-active="true"]::after {
     transform: scaleX(1);
+  }
+}
+
+/* ===========================================================================
+   P5-D 全局尺寸放大（站长反馈"太小了看不清"）
+   方案：--font-size 14px→16px（rem 级联约 1.14x）+ 源码 text-[Npx] 统一 +2px
+   本块只补 rem 覆盖不到的 React Flow 固定尺寸控件，避免 CSS zoom（保护画布坐标）
+=========================================================================== */
+@layer base {
+  /* ---- React Flow 控制条（缩放/适配/锁定按钮）：26px → 34px，图标同步 ---- */
+  .react-flow__controls {
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .react-flow__controls button {
+    width: 34px;
+    height: 34px;
+  }
+  .react-flow__controls button svg {
+    width: 16px;
+    height: 16px;
+    max-width: 16px;
+    max-height: 16px;
+  }
+
+  /* ---- MiniMap：默认 200x150 → 240x170，节点缩略更清楚 ---- */
+  .react-flow__minimap {
+    width: 240px;
+    height: 170px;
+  }
+
+  /* ---- 连接句柄：8px → 10px，拖拽连线更好点 ---- */
+  .react-flow__handle {
+    width: 10px;
+    height: 10px;
+  }
+
+  /* ---- 画布内 Panel 工具条与控件文字随根字号，补充最小字号兜底 ---- */
+  .react-flow__panel {
+    font-size: 14px;
   }
 }

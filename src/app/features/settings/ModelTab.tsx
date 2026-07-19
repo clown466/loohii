@@ -795,8 +795,8 @@ export function ModelsSettings() {
     <div className="animate-in fade-in slide-in-from-bottom-4">
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-[24px] font-extrabold text-[#E8E8EC]">模型配置</h1>
-          <p className="text-muted-foreground mt-1 text-[14px]">管理真实供应商、模型 API Key 和可用模型</p>
+          <h1 className="text-[26px] font-extrabold text-[#E8E8EC]">模型配置</h1>
+          <p className="text-muted-foreground mt-1 text-[16px]">管理真实供应商、模型 API Key 和可用模型</p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <Button onClick={openDreaminaWebSetup} variant="outline" className="h-9 w-full gap-2 border-[#a78bfa]/40 text-[#ddd6fe] hover:bg-[#a78bfa]/10 sm:w-auto">
@@ -819,7 +819,7 @@ export function ModelsSettings() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-[13px] text-[#fecaca]">
+        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-[15px] text-[#fecaca]">
           <div className="mb-3 font-medium text-foreground">模型配置接口不可用</div>
           <div className="break-words">{error}</div>
           <Button onClick={loadConfigs} variant="outline" className="mt-4 h-8 border-destructive/40 text-[#fecaca] hover:bg-destructive/20">重试</Button>
@@ -836,8 +836,8 @@ export function ModelsSettings() {
           {providers.length === 0 && models.length === 0 && !error && (
             <div className="rounded-xl border border-dashed border-border bg-[#141417] p-6 text-center">
               <Cpu className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-              <h3 className="text-[15px] font-medium text-foreground">还没有模型配置</h3>
-              <p className="mt-1 text-[13px] text-muted-foreground">先添加供应商，再为每个模型配置对应 API Key。</p>
+              <h3 className="text-[17px] font-medium text-foreground">还没有模型配置</h3>
+              <p className="mt-1 text-[15px] text-muted-foreground">先添加供应商，再为每个模型配置对应 API Key。</p>
               <Button onClick={() => openProviderForm()} className="mt-4 h-9">管理供应商</Button>
             </div>
           )}
@@ -845,17 +845,17 @@ export function ModelsSettings() {
           {providers.length > 0 && (
             <section>
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-[16px] font-medium text-foreground">供应商</h2>
-                <span className="text-[12px] text-muted-foreground">{providers.length} 个</span>
+                <h2 className="text-[18px] font-medium text-foreground">供应商</h2>
+                <span className="text-[14px] text-muted-foreground">{providers.length} 个</span>
               </div>
               <div className="lh-card flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <div className="text-[15px] font-medium text-foreground">已配置 {providers.length} 个供应商</div>
-                  <div className="mt-1 text-[12px] text-muted-foreground">
+                  <div className="text-[17px] font-medium text-foreground">已配置 {providers.length} 个供应商</div>
+                  <div className="mt-1 text-[14px] text-muted-foreground">
                     在供应商管理里选择具体供应商，修改 Base URL、API Key、测试连接或删除。
                   </div>
                 </div>
-                <Button onClick={() => openProviderForm()} variant="outline" className="h-8 w-full gap-1 border-border text-[13px] text-foreground hover:bg-accent sm:w-auto">
+                <Button onClick={() => openProviderForm()} variant="outline" className="h-8 w-full gap-1 border-border text-[15px] text-foreground hover:bg-accent sm:w-auto">
                   <Pencil className="h-3.5 w-3.5" />
                   管理供应商
                 </Button>
@@ -866,8 +866,8 @@ export function ModelsSettings() {
           {modelGroups.length > 0 && (
             <section>
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-[16px] font-medium text-foreground">模型配置</h2>
-                <span className="text-[12px] text-muted-foreground">{modelGroups.length} 组 / {models.length} 个模型</span>
+                <h2 className="text-[18px] font-medium text-foreground">模型配置</h2>
+                <span className="text-[14px] text-muted-foreground">{modelGroups.length} 组 / {models.length} 个模型</span>
               </div>
               <div className="grid gap-3">
                 {modelGroups.map((group) => {
@@ -883,11 +883,11 @@ export function ModelsSettings() {
                         </div>
                         <div className="min-w-0">
                           <div className="mb-1 flex flex-wrap items-center gap-2">
-                            <h3 className="truncate text-[16px] font-medium text-foreground">{provider?.displayName ?? group.provider}</h3>
+                            <h3 className="truncate text-[18px] font-medium text-foreground">{provider?.displayName ?? group.provider}</h3>
                             <Badge className="border border-[#7ED88733] bg-[#7ED88733] px-1.5 py-0 font-normal text-[#7ED887] hover:bg-[#7ED88733]">已启用</Badge>
                             <Badge variant="secondary" className="border-0 bg-layer-4 px-1.5 py-0 font-normal text-muted-foreground">{group.models.length} 个模型</Badge>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground sm:gap-3">
+                          <div className="flex flex-wrap items-center gap-2 text-[14px] text-muted-foreground sm:gap-3">
                             <span>{modalities.map((item) => `${item.label}${item.count > 1 ? ` x${item.count}` : ""}`).join(" / ")}</span>
                             <span className="h-1 w-1 rounded-full bg-accent" />
                             <span className="break-all font-mono">Key: <span className="text-muted-foreground">{displayModelGroupApiKey(group)}</span></span>
@@ -900,13 +900,13 @@ export function ModelsSettings() {
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {group.models.map((model) => (
-                              <Badge key={model.id} variant="secondary" className="border-0 bg-layer-4 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                              <Badge key={model.id} variant="secondary" className="border-0 bg-layer-4 px-2 py-0.5 font-mono text-[13px] text-muted-foreground">
                                 {labelForModality(normalizeModelKindStrict(model.modality))}: {model.displayName || model.model}
                               </Badge>
                             ))}
                           </div>
                           {result && (
-                            <div className={cn("mt-1 text-[12px]", result.ok ? "text-[#7ED887]" : "text-destructive")}>
+                            <div className={cn("mt-1 text-[14px]", result.ok ? "text-[#7ED887]" : "text-destructive")}>
                               {result.message}
                             </div>
                           )}
@@ -914,12 +914,12 @@ export function ModelsSettings() {
                       </div>
                       <div className="flex w-full gap-2 sm:w-auto sm:shrink-0">
                         {representative && (
-                          <Button onClick={() => testModel(representative.id)} disabled={testingModelId === representative.id} variant="outline" className="h-8 flex-1 border-border text-[13px] text-foreground hover:bg-accent sm:flex-none">
+                          <Button onClick={() => testModel(representative.id)} disabled={testingModelId === representative.id} variant="outline" className="h-8 flex-1 border-border text-[15px] text-foreground hover:bg-accent sm:flex-none">
                             {testingModelId === representative.id ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
                             测试
                           </Button>
                         )}
-                        <Button onClick={() => openModelForm(group)} variant="outline" className="h-8 flex-1 border-border text-[13px] text-foreground hover:bg-accent sm:flex-none">编辑</Button>
+                        <Button onClick={() => openModelForm(group)} variant="outline" className="h-8 flex-1 border-border text-[15px] text-foreground hover:bg-accent sm:flex-none">编辑</Button>
                         {representative && (
                           <Button onClick={() => disableModel(representative.id)} variant="ghost" size="icon" className="h-8 w-10 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                             <Trash2 className="h-4 w-4" />
@@ -939,7 +939,7 @@ export function ModelsSettings() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm animate-in fade-in sm:items-center sm:p-4">
           <div className="lh-card flex max-h-[92vh] w-full max-w-4xl flex-col rounded-t-2xl border border-border bg-card shadow-2xl sm:rounded-2xl">
             <div className="flex shrink-0 items-center justify-between border-b border-border p-4 sm:p-5">
-              <h2 className="text-[16px] font-medium text-foreground">
+              <h2 className="text-[18px] font-medium text-foreground">
                 {modalMode === "provider" ? (editingProvider ? "编辑供应商" : "添加供应商") : (editingModel || editingModelGroup ? "编辑模型" : "添加模型")}
               </h2>
               <button onClick={closeModal} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
@@ -954,11 +954,11 @@ export function ModelsSettings() {
                     <div className="rounded-lg border border-border bg-[#141417] p-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                         <div className="min-w-0 flex-1">
-                          <label className="mb-1.5 block text-[14px] font-medium text-foreground">选择供应商</label>
+                          <label className="mb-1.5 block text-[16px] font-medium text-foreground">选择供应商</label>
                           <select
                             value={editingProvider?.id ?? "__new__"}
                             onChange={(event) => selectProviderForEdit(event.target.value)}
-                            className="h-10 w-full rounded-md border border-border bg-layer-4 px-3 text-[14px] text-foreground outline-none focus:border-primary"
+                            className="h-10 w-full rounded-md border border-border bg-layer-4 px-3 text-[16px] text-foreground outline-none focus:border-primary"
                           >
                             {providers.map((provider) => (
                               <option key={provider.id} value={provider.id}>{provider.displayName}</option>
@@ -975,7 +975,7 @@ export function ModelsSettings() {
                   )}
 
                   {editingProvider && (
-                    <div className="rounded-lg border border-border bg-[#141417] p-3 text-[12px] text-muted-foreground">
+                    <div className="rounded-lg border border-border bg-[#141417] p-3 text-[14px] text-muted-foreground">
                       <div className="mb-2 flex flex-wrap items-center gap-2">
                         <Badge variant="secondary" className="border-0 bg-layer-4 text-muted-foreground">{providerModelCounts.get(editingProvider.id) ?? 0} 模型</Badge>
                       </div>
@@ -989,31 +989,31 @@ export function ModelsSettings() {
                   )}
 
                   <div>
-                    <label className="mb-1.5 block text-[14px] font-medium text-foreground">显示名称</label>
-                    <Input value={providerForm.displayName} onChange={(e) => setProviderForm({ ...providerForm, displayName: e.target.value })} placeholder="OpenAI / Volcengine / 自定义供应商" className="h-10 border-border bg-layer-4 text-[14px]" />
+                    <label className="mb-1.5 block text-[16px] font-medium text-foreground">显示名称</label>
+                    <Input value={providerForm.displayName} onChange={(e) => setProviderForm({ ...providerForm, displayName: e.target.value })} placeholder="OpenAI / Volcengine / 自定义供应商" className="h-10 border-border bg-layer-4 text-[16px]" />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[14px] font-medium text-foreground">供应商类型</label>
-                    <Input value={providerForm.providerType} onChange={(e) => setProviderForm({ ...providerForm, providerType: e.target.value })} placeholder="openai-compatible" className="h-10 border-border bg-layer-4 text-[14px]" />
+                    <label className="mb-1.5 block text-[16px] font-medium text-foreground">供应商类型</label>
+                    <Input value={providerForm.providerType} onChange={(e) => setProviderForm({ ...providerForm, providerType: e.target.value })} placeholder="openai-compatible" className="h-10 border-border bg-layer-4 text-[16px]" />
                     {providerFormIsDreaminaWeb ? (
-                      <p className="mt-1.5 text-[12px] leading-5 text-[#ddd6fe]">
+                      <p className="mt-1.5 text-[14px] leading-5 text-[#ddd6fe]">
                         Dreamina Web 使用服务器云浏览器登录态，不在这里配置 API Key 或 session。先保存供应商，再添加图片模型。
                       </p>
                     ) : providerFormIsJimengApi ? (
-                      <p className="mt-1.5 text-[12px] leading-5 text-[#fde68a]">
+                      <p className="mt-1.5 text-[14px] leading-5 text-[#fde68a]">
                         Jimeng/Dreamina 视频接入请使用 providerType: jimeng-api。session 不填在供应商里，填到视频模型的 API Key。
                       </p>
                     ) : null}
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[14px] font-medium text-foreground">Base URL</label>
-                    <Input value={providerForm.baseUrl} onChange={(e) => setProviderForm({ ...providerForm, baseUrl: e.target.value })} placeholder="https://api.example.com/v1" className="h-10 border-border bg-layer-4 text-[14px]" />
+                    <label className="mb-1.5 block text-[16px] font-medium text-foreground">Base URL</label>
+                    <Input value={providerForm.baseUrl} onChange={(e) => setProviderForm({ ...providerForm, baseUrl: e.target.value })} placeholder="https://api.example.com/v1" className="h-10 border-border bg-layer-4 text-[16px]" />
                     {providerFormIsDreaminaWeb ? (
-                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                      <p className="mt-1.5 text-[14px] leading-5 text-muted-foreground">
                         Base URL 留空。服务器会连接本机 Dreamina 云浏览器：/dreamina-browser/。
                       </p>
                     ) : providerFormIsJimengApi ? (
-                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                      <p className="mt-1.5 text-[14px] leading-5 text-muted-foreground">
                         默认本机服务地址是 http://127.0.0.1:5100。需要先部署 iptag/jimeng-api 容器。
                       </p>
                     ) : null}
@@ -1022,8 +1022,8 @@ export function ModelsSettings() {
               ) : (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-[14px] font-medium text-foreground">供应商</label>
-                    <select value={modelForm.providerConfigId} onChange={(e) => setModelForm({ ...modelForm, providerConfigId: e.target.value })} className="h-10 w-full rounded-md border border-border bg-layer-4 px-3 text-[14px] text-foreground outline-none focus:border-primary">
+                    <label className="mb-1.5 block text-[16px] font-medium text-foreground">供应商</label>
+                    <select value={modelForm.providerConfigId} onChange={(e) => setModelForm({ ...modelForm, providerConfigId: e.target.value })} className="h-10 w-full rounded-md border border-border bg-layer-4 px-3 text-[16px] text-foreground outline-none focus:border-primary">
                       {providers.map((provider) => (
                         <option key={provider.id} value={provider.id}>{provider.displayName}</option>
                       ))}
@@ -1031,14 +1031,14 @@ export function ModelsSettings() {
                   </div>
                   {!modelFormUsesDreaminaWeb && (
                   <div>
-                    <label className="mb-1.5 block text-[14px] font-medium text-foreground">{modelFormUsesJimengSession ? "Session ID" : "API Key"}</label>
+                    <label className="mb-1.5 block text-[16px] font-medium text-foreground">{modelFormUsesJimengSession ? "Session ID" : "API Key"}</label>
                     <div className="flex rounded-md border border-border bg-layer-4 focus-within:border-primary">
                       <Input
                         type={showModelApiKey || isMaskedModelApiKeyInput(modelForm.apiKey, currentModelApiKeyOwner(editingModel, editingModelGroup)) ? "text" : "password"}
                         value={visibleModelApiKeyValue(modelForm, currentModelApiKeyOwner(editingModel, editingModelGroup), showModelApiKey)}
                         onChange={(e) => setModelForm({ ...modelForm, apiKey: e.target.value })}
                         placeholder={modelFormUsesJimengSession ? "Dreamina/Jimeng sessionid，例如 us-xxx / hk-xxx / xxx" : editingModel?.hasApiKey ? "输入新 API Key 将替换当前 Key" : "输入这一批模型使用的 API Key"}
-                        className="h-10 flex-1 border-0 bg-transparent font-mono text-[14px] shadow-none focus-visible:ring-0"
+                        className="h-10 flex-1 border-0 bg-transparent font-mono text-[16px] shadow-none focus-visible:ring-0"
                       />
                       <button
                         type="button"
@@ -1049,7 +1049,7 @@ export function ModelsSettings() {
                         {showModelApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                    <p className="mt-1.5 text-[14px] leading-5 text-muted-foreground">
                       {modelFormUsesJimengSession
                         ? "这里填写浏览器 Cookie 里的 sessionid；国际站按 jimeng-api 规则加 us-/hk-/jp-/sg- 前缀。测试只检查 session，不会生成视频。"
                         : "这一批模型共用这里的 Key；需要另一组 Key 时，再新建同供应商下的模型即可。"}
@@ -1057,13 +1057,13 @@ export function ModelsSettings() {
                   </div>
                   )}
                   {modelFormUsesDreaminaWeb && (
-                    <div className="rounded-lg border border-[#a78bfa]/25 bg-[#a78bfa]/10 p-3 text-[12px] leading-5 text-[#ddd6fe]">
+                    <div className="rounded-lg border border-[#a78bfa]/25 bg-[#a78bfa]/10 p-3 text-[14px] leading-5 text-[#ddd6fe]">
                       Dreamina Web 模型不需要 API Key。测试会连接服务器云浏览器并检查是否已登录；未登录时请打开 /dreamina-browser/ 手动登录。
                     </div>
                   )}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-[14px] font-medium text-foreground">模型大类</label>
+                      <label className="mb-1.5 block text-[16px] font-medium text-foreground">模型大类</label>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {modelModalityOptions.map((option) => (
                           <button
@@ -1084,8 +1084,8 @@ export function ModelsSettings() {
                               {modelForm.modalities.includes(option.id) ? <Check className="h-3 w-3 text-primary-foreground" /> : null}
                             </span>
                             <span className="min-w-0">
-                              <span className="block text-[13px] font-medium text-foreground">{option.label}</span>
-                              <span className="mt-0.5 block text-[11px] leading-4 text-muted-foreground">{option.description}</span>
+                              <span className="block text-[15px] font-medium text-foreground">{option.label}</span>
+                              <span className="mt-0.5 block text-[13px] leading-4 text-muted-foreground">{option.description}</span>
                             </span>
                           </button>
                         ))}
@@ -1100,8 +1100,8 @@ export function ModelsSettings() {
                               <div key={option.id} className="rounded-lg border border-border bg-[#141417] p-3">
                                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
-                                    <div className="text-[13px] font-medium text-foreground">{option.label}模型</div>
-                                    <div className="mt-1 text-[11px] leading-5 text-muted-foreground">
+                                    <div className="text-[15px] font-medium text-foreground">{option.label}模型</div>
+                                    <div className="mt-1 text-[13px] leading-5 text-muted-foreground">
                                       能力：{inferredCapabilitiesForModality(option.id).join(" / ")}
                                     </div>
                                   </div>
@@ -1125,10 +1125,10 @@ export function ModelsSettings() {
                                     }}
                                     onBlur={() => commitModelDraft(modality)}
                                     placeholder={`${option.label}模型名称，回车添加多个`}
-                                    className="h-8 border-0 bg-transparent px-1 text-[14px] shadow-none focus-visible:ring-0"
+                                    className="h-8 border-0 bg-transparent px-1 text-[16px] shadow-none focus-visible:ring-0"
                                   />
                                 </div>
-                                <p className="mt-1.5 text-[12px] text-muted-foreground">只会保存为{option.label}模型，不会套用到其他大类。</p>
+                                <p className="mt-1.5 text-[14px] text-muted-foreground">只会保存为{option.label}模型，不会套用到其他大类。</p>
                                 {entries.length > 0 && (
                                   <div className="mt-3 space-y-2">
                                     {entries.map((entry) => {
@@ -1143,8 +1143,8 @@ export function ModelsSettings() {
                                           className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
                                         >
                                           <div className="min-w-0">
-                                            <div className="truncate font-mono text-[13px] text-foreground">{entry.model || "未命名模型"}</div>
-                                            <div className="truncate text-[11px] text-muted-foreground">显示：{entry.displayName || entry.model || "默认同模型名称"}</div>
+                                            <div className="truncate font-mono text-[15px] text-foreground">{entry.model || "未命名模型"}</div>
+                                            <div className="truncate text-[13px] text-muted-foreground">显示：{entry.displayName || entry.model || "默认同模型名称"}</div>
                                           </div>
                                           <div className="flex shrink-0 items-center gap-2">
                                             {(!editingModel || entries.length > 1 || modelForm.modalities.length > 1) && (
@@ -1178,16 +1178,16 @@ export function ModelsSettings() {
                                           <div className="border-t border-border p-3">
                                             <div className="grid gap-3 sm:grid-cols-2">
                                               <div>
-                                              <label className="mb-1.5 block text-[12px] font-medium text-[#d4d4d8]">模型名称</label>
-                                              <Input value={entry.model} onChange={(e) => updateModelEntry(modality, entry.id, { model: e.target.value })} className="h-9 border-border bg-layer-4 font-mono text-[13px]" />
+                                              <label className="mb-1.5 block text-[14px] font-medium text-[#d4d4d8]">模型名称</label>
+                                              <Input value={entry.model} onChange={(e) => updateModelEntry(modality, entry.id, { model: e.target.value })} className="h-9 border-border bg-layer-4 font-mono text-[15px]" />
                                               </div>
                                               <div>
-                                              <label className="mb-1.5 block text-[12px] font-medium text-[#d4d4d8]">显示名称</label>
-                                              <Input value={entry.displayName} onChange={(e) => updateModelEntry(modality, entry.id, { displayName: e.target.value })} placeholder="可留空，默认使用模型名称" className="h-9 border-border bg-layer-4 text-[13px]" />
+                                              <label className="mb-1.5 block text-[14px] font-medium text-[#d4d4d8]">显示名称</label>
+                                              <Input value={entry.displayName} onChange={(e) => updateModelEntry(modality, entry.id, { displayName: e.target.value })} placeholder="可留空，默认使用模型名称" className="h-9 border-border bg-layer-4 text-[15px]" />
                                               </div>
                                             </div>
                                             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                              <div className="min-h-5 text-[12px]">
+                                              <div className="min-h-5 text-[14px]">
                                                 {entryTestResult && (
                                                   <span className={entryTestResult.ok ? "text-[#7ED887]" : "text-destructive"}>
                                                     {entryTestResult.message}
@@ -1199,7 +1199,7 @@ export function ModelsSettings() {
                                                 onClick={() => testModelFormEntry(modality, entry)}
                                                 disabled={saving || entryTesting || !modelForm.providerConfigId || !entry.model.trim()}
                                                 variant="outline"
-                                                className="h-8 w-full border-border text-[13px] text-foreground hover:bg-accent sm:w-auto"
+                                                className="h-8 w-full border-border text-[15px] text-foreground hover:bg-accent sm:w-auto"
                                               >
                                                 {entryTesting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
                                                 测试{option.label}模型
@@ -1218,8 +1218,8 @@ export function ModelsSettings() {
                       </div>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-[14px] font-medium text-foreground">单次积分</label>
-                      <Input value={modelForm.costCredits} onChange={(e) => setModelForm({ ...modelForm, costCredits: e.target.value })} inputMode="numeric" className="h-10 border-border bg-layer-4 text-[14px]" />
+                      <label className="mb-1.5 block text-[16px] font-medium text-foreground">单次积分</label>
+                      <Input value={modelForm.costCredits} onChange={(e) => setModelForm({ ...modelForm, costCredits: e.target.value })} inputMode="numeric" className="h-10 border-border bg-layer-4 text-[16px]" />
                     </div>
                   </div>
                 </>

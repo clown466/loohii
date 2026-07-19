@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import {
   Bell,
+  Bot,
   ChevronRight,
   Coins,
   MessageSquare,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "../utils/cn";
 import { Button } from "../components/ui/button";
+import { UserAvatar } from "../components/UserAvatar";
 import { useAuthStore } from "../stores/useAuthStore";
 import { useAgentStore } from "../stores/useAgentStore";
 import { useCanvasStore } from "../stores/useCanvasStore";
@@ -145,7 +147,7 @@ export function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen h-[100dvh] w-full flex-col overflow-hidden bg-background text-[14px] text-foreground">
+    <div className="flex h-screen h-[100dvh] w-full flex-col overflow-hidden bg-background text-[16px] text-foreground">
       {/* Topbar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#222226] bg-[#141417] px-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
@@ -158,7 +160,6 @@ export function MainLayout() {
           {/* 顶栏文字导航（原侧栏入口）：当前页琥珀下划线 */}
           <nav className="ml-3 hidden items-stretch gap-4 self-stretch md:flex">
             <Link to="/app/dashboard" data-active={location.pathname === '/app/dashboard'} className="lh-topnav">主页</Link>
-            <Link to="/app/remake" data-active={location.pathname.startsWith('/app/remake')} className="lh-topnav">爆款复刻</Link>
             {isProjectPage && projectId && projectId !== 'new' && (
               <>
                 <Link to={`/app/project/${projectId}/setup`} data-active={location.pathname.includes('/setup')} className="lh-topnav">全局设定</Link>
@@ -181,18 +182,17 @@ export function MainLayout() {
             </button>
             {isNavMenuOpen && (
               <div className="lh-anim-menu absolute left-0 top-full z-50 mt-2 w-40 rounded-lg border border-border bg-card py-1 shadow-xl">
-                <Link to="/app/dashboard" className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">主页</Link>
-                <Link to="/app/remake" className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">爆款复刻</Link>
+                <Link to="/app/dashboard" className="block px-3 py-2 text-[15px] text-foreground transition-colors hover:bg-accent">主页</Link>
                 {isProjectPage && projectId && projectId !== 'new' && (
                   <>
                     <div className="mx-3 my-1 h-px bg-layer-4" />
-                    <Link to={`/app/project/${projectId}/setup`} className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">全局设定</Link>
-                    <Link to={`/app/project/${projectId}/canvas`} className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">节点画布</Link>
-                    <Link to={`/app/project/${projectId}/records`} className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">生成记录</Link>
+                    <Link to={`/app/project/${projectId}/setup`} className="block px-3 py-2 text-[15px] text-foreground transition-colors hover:bg-accent">全局设定</Link>
+                    <Link to={`/app/project/${projectId}/canvas`} className="block px-3 py-2 text-[15px] text-foreground transition-colors hover:bg-accent">节点画布</Link>
+                    <Link to={`/app/project/${projectId}/records`} className="block px-3 py-2 text-[15px] text-foreground transition-colors hover:bg-accent">生成记录</Link>
                   </>
                 )}
                 <div className="mx-3 my-1 h-px bg-layer-4" />
-                <Link to="/app/settings/profile" className="block px-3 py-2 text-[13px] text-foreground transition-colors hover:bg-accent">设置</Link>
+                <Link to="/app/settings/profile" className="block px-3 py-2 text-[15px] text-foreground transition-colors hover:bg-accent">设置</Link>
               </div>
             )}
           </div>
@@ -232,13 +232,13 @@ export function MainLayout() {
               onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
               className="h-8 w-8 rounded-full border border-border overflow-hidden ml-1 hover:border-primary transition-colors"
             >
-              <img loading="lazy" decoding="async" src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User" className="h-full w-full object-cover" />
+              <UserAvatar name={user?.name} seed={user?.id || user?.email} src={user?.avatar} alt="User" className="h-full w-full" />
             </button>
             {isAvatarMenuOpen && (
               <div className="lh-anim-menu absolute right-0 top-full z-50 mt-2 w-40 rounded-lg border border-border bg-card py-1 shadow-xl">
                 <button
                   onClick={handleSignOut}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-foreground hover:bg-accent transition-colors"
+                  className="flex items-center gap-2 w-full px-3 py-2 text-[15px] text-foreground hover:bg-accent transition-colors"
                 >
                   <LogOut className="h-4 w-4 text-[#71717a]" />
                   退出登录
@@ -275,10 +275,11 @@ export function MainLayout() {
             )}
           >
             <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#222226] bg-card px-3 sm:h-14 sm:px-4">
-              <div className="flex min-w-0 items-center gap-2 font-medium text-[14px]">
-                🤖 项目总控
+              <div className="flex min-w-0 items-center gap-2 font-medium text-[16px]">
+                <Bot className="h-4 w-4 shrink-0 text-primary" />
+                项目总控
                 <span className="h-2 w-2 rounded-full bg-[#22c55e]"></span>
-                <span className="truncate rounded border border-border bg-[#141417] px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                <span className="truncate rounded border border-border bg-[#141417] px-1.5 py-0.5 text-[12px] font-normal text-muted-foreground">
                   {agentModeLabel}
                 </span>
               </div>
@@ -315,10 +316,10 @@ export function MainLayout() {
             {isAgentHistoryOpen && (
               <div className="shrink-0 border-b border-[#222226] bg-[#141417] p-3">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[12px] font-medium text-[#d4d4d8]">历史对话</span>
+                  <span className="text-[14px] font-medium text-[#d4d4d8]">历史对话</span>
                   <button
                     type="button"
-                    className="text-[12px] text-primary transition-colors hover:text-foreground"
+                    className="text-[14px] text-primary transition-colors hover:text-foreground"
                     onClick={() => projectId && void loadAgentConversations(projectId)}
                   >
                     刷新
@@ -326,12 +327,12 @@ export function MainLayout() {
                 </div>
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                   {isLoadingConversations && (
-                    <div className="rounded-md border border-border bg-[#141417] px-3 py-2 text-[12px] text-muted-foreground">
+                    <div className="rounded-md border border-border bg-[#141417] px-3 py-2 text-[14px] text-muted-foreground">
                       正在加载历史...
                     </div>
                   )}
                   {!isLoadingConversations && conversations.length === 0 && (
-                    <div className="rounded-md border border-border bg-[#141417] px-3 py-2 text-[12px] text-muted-foreground">
+                    <div className="rounded-md border border-border bg-[#141417] px-3 py-2 text-[14px] text-muted-foreground">
                       还没有历史对话
                     </div>
                   )}
@@ -350,9 +351,9 @@ export function MainLayout() {
                         className="block w-full px-3 py-2 text-left"
                         onClick={() => handleLoadAgentConversation(conversation.id)}
                       >
-                        <div className="truncate text-[13px] font-medium text-foreground">{conversation.title}</div>
-                        <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-muted-foreground">{conversation.preview}</div>
-                        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-[#71717a]">
+                        <div className="truncate text-[15px] font-medium text-foreground">{conversation.title}</div>
+                        <div className="mt-1 line-clamp-2 text-[14px] leading-5 text-muted-foreground">{conversation.preview}</div>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-[13px] text-[#71717a]">
                           <span>{formatAgentConversationTime(conversation.updatedAt)}</span>
                           <span>{conversation.messageCount} 条</span>
                         </div>
@@ -375,13 +376,13 @@ export function MainLayout() {
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto bg-[#141417] p-3 sm:gap-5 sm:p-4">
               {/* Welcome message with suggestions */}
               {isLoadingMessages && (
-                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-muted-foreground shadow-sm sm:w-[90%]">
+                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[16px] text-muted-foreground shadow-sm sm:w-[90%]">
                   正在加载对话...
                 </div>
               )}
 
               {!isLoadingMessages && messages.length === 0 && (
-                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-foreground shadow-sm sm:w-[90%]">
+                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[16px] text-foreground shadow-sm sm:w-[90%]">
                   <p className="mb-2">{currentProject ? `${currentProject.title} 总控已就绪。` : '项目总控已就绪。'}</p>
                   <p className="mb-1 text-muted-foreground">需要我帮你：</p>
                   <ul className="list-disc pl-4 space-y-1.5 text-primary cursor-pointer">
@@ -397,7 +398,7 @@ export function MainLayout() {
                 <div
                   key={msg.id}
                   className={cn(
-                    "whitespace-pre-wrap break-words rounded-lg p-3.5 text-[14px] leading-relaxed text-foreground shadow-sm",
+                    "whitespace-pre-wrap break-words rounded-lg p-3.5 text-[16px] leading-relaxed text-foreground shadow-sm",
                     msg.role === 'user'
                       ? "w-[92%] self-end bg-primary/15 sm:w-[85%]"
                       : "w-full border-l-2 border-primary bg-[#1c1c1f] sm:w-[90%]"
@@ -412,7 +413,7 @@ export function MainLayout() {
 
               {/* Typing indicator */}
               {isTyping && (
-                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[14px] text-muted-foreground shadow-sm sm:w-[90%]">
+                <div className="w-full rounded-lg border-l-2 border-primary bg-[#1c1c1f] p-3.5 text-[16px] text-muted-foreground shadow-sm sm:w-[90%]">
                   <div className="flex items-center gap-1">
                     <span className="inline-block h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="inline-block h-2 w-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -442,7 +443,7 @@ export function MainLayout() {
                   ref={agentInputRef}
                   placeholder="消息输入或 / 命令..."
                   rows={2}
-                  className="min-h-[52px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-2 py-2 text-[14px] leading-5 text-foreground placeholder:text-[#71717a] focus:outline-none"
+                  className="min-h-[52px] min-w-0 flex-1 resize-none overflow-hidden border-none bg-transparent px-2 py-2 text-[16px] leading-5 text-foreground placeholder:text-[#71717a] focus:outline-none"
                   value={agentInput}
                   onChange={(e) => setAgentInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -497,14 +498,14 @@ function AgentActionLog({ metadata }: { metadata?: Record<string, unknown> }) {
   if (!actionResults.length && !metadata?.source && !metadata?.status) return null;
 
   return (
-    <div className="mt-3 space-y-2 border-t border-border pt-2 text-[12px] leading-5 text-muted-foreground">
+    <div className="mt-3 space-y-2 border-t border-border pt-2 text-[14px] leading-5 text-muted-foreground">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded border border-[#3f3f46] bg-[#141417] px-1.5 py-0.5 text-[11px] text-[#d4d4d8]">
+        <span className="rounded border border-[#3f3f46] bg-[#141417] px-1.5 py-0.5 text-[13px] text-[#d4d4d8]">
           {sourceLabel}
         </span>
         {statusLabel && (
           <span className={cn(
-            "rounded border px-1.5 py-0.5 text-[11px]",
+            "rounded border px-1.5 py-0.5 text-[13px]",
             metadata?.status === "FAILED"
               ? "border-[#7f1d1d] bg-[#3f1f25] text-[#fca5a5]"
               : metadata?.status === "RUNNING"

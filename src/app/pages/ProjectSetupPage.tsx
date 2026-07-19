@@ -238,9 +238,9 @@ export function ProjectSetupPage() {
   const contentMaxWidth = step === 4 ? "max-w-[980px]" : "max-w-[640px]";
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background text-[14px]">
+    <div className="flex h-full flex-col overflow-hidden bg-background text-[16px]">
       {isEditMode && isLoadingProject && (
-        <div className="border-b border-[#222226] bg-[#141417] px-4 py-2 text-center text-[12px] text-muted-foreground">
+        <div className="border-b border-[#222226] bg-[#141417] px-4 py-2 text-center text-[14px] text-muted-foreground">
           正在从后端加载项目全局设定...
         </div>
       )}
@@ -278,7 +278,7 @@ export function ProjectSetupPage() {
                   >
                     {isCompleted ? <Check className="h-3 w-3" /> : num}
                   </button>
-                  <span className={cn("max-w-[72px] truncate text-[11px] font-medium min-[420px]:max-w-none min-[420px]:text-[12px]", isActive ? "text-primary" : "text-muted-foreground")}>{label}</span>
+                  <span className={cn("max-w-[72px] truncate text-[13px] font-medium min-[420px]:max-w-none min-[420px]:text-[14px]", isActive ? "text-primary" : "text-muted-foreground")}>{label}</span>
                 </div>
               );
             })}
@@ -288,29 +288,29 @@ export function ProjectSetupPage() {
         {/* Content Area */}
         <div className={cn("flex w-full flex-col", contentMaxWidth, step === 4 ? "justify-start" : "justify-center sm:min-h-[400px]")}>
           {loadError && (
-            <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
+            <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[14px] text-red-200">
               {loadError}
             </div>
           )}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">给项目起个名字</h2>
+                <h2 className="mb-2 text-[24px] font-extrabold text-[#E8E8EC] sm:text-[26px]">给项目起个名字</h2>
                 <p className="text-muted-foreground">好的开始是成功的一半</p>
               </div>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目名称 <span className="text-destructive">*</span></label>
+                  <label className="block text-[16px] font-medium text-foreground mb-1.5">项目名称 <span className="text-destructive">*</span></label>
                   <Input
                     placeholder="例如：赛博朋克 2077 第一季"
-                    className={cn("h-10 text-[14px] bg-layer-4 border-border focus-visible:ring-primary", nameError && "border-destructive focus-visible:ring-destructive")}
+                    className={cn("h-10 text-[16px] bg-layer-4 border-border focus-visible:ring-primary", nameError && "border-destructive focus-visible:ring-destructive")}
                     value={projectName}
                     onChange={(e) => { setProjectName(e.target.value); setNameError(false); }}
                   />
-                  {nameError && <p className="text-[12px] text-destructive mt-1">项目名称不能为空</p>}
+                  {nameError && <p className="text-[14px] text-destructive mt-1">项目名称不能为空</p>}
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目描述 <span className="text-muted-foreground font-normal">(选填)</span></label>
+                  <label className="block text-[16px] font-medium text-foreground mb-1.5">项目描述 <span className="text-muted-foreground font-normal">(选填)</span></label>
                   <Textarea
                     placeholder="一句话描述这个项目的故事背景..."
                     className="h-20 resize-none bg-layer-4 border-border focus-visible:ring-primary"
@@ -319,7 +319,7 @@ export function ProjectSetupPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-foreground mb-1.5">项目封面 <span className="text-muted-foreground font-normal">(选填)</span></label>
+                  <label className="block text-[16px] font-medium text-foreground mb-1.5">项目封面 <span className="text-muted-foreground font-normal">(选填)</span></label>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -337,7 +337,7 @@ export function ProjectSetupPage() {
                       <>
                         <UploadCloud className="h-8 w-8 mb-2 text-muted-foreground" />
                         <p className="font-medium text-foreground mb-1">点击或拖拽上传封面图</p>
-                        <p className="text-[12px]">支持 JPG, PNG, WEBP，最大 5MB</p>
+                        <p className="text-[14px]">支持 JPG, PNG, WEBP，最大 5MB</p>
                       </>
                     )}
                   </div>
@@ -349,7 +349,7 @@ export function ProjectSetupPage() {
           {step === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">选择画面比例</h2>
+                <h2 className="mb-2 text-[24px] font-extrabold text-[#E8E8EC] sm:text-[26px]">选择画面比例</h2>
                 <p className="text-muted-foreground">设定全局的默认输出尺寸</p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 lg:gap-6">
@@ -382,8 +382,8 @@ export function ProjectSetupPage() {
                         />
                       </div>
                       <div className="mb-1 text-lg font-bold text-foreground">{item.ratio}</div>
-                      <div className="text-[14px] font-medium mb-0.5">{item.label}</div>
-                      <div className="text-[12px] opacity-70">{item.desc}</div>
+                      <div className="text-[16px] font-medium mb-0.5">{item.label}</div>
+                      <div className="text-[14px] opacity-70">{item.desc}</div>
                     </div>
                   );
                 })}
@@ -394,7 +394,7 @@ export function ProjectSetupPage() {
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">风格预设</h2>
+                <h2 className="mb-2 text-[24px] font-extrabold text-[#E8E8EC] sm:text-[26px]">风格预设</h2>
                 <p className="text-muted-foreground">选择一个基础的艺术风格</p>
               </div>
               
@@ -410,7 +410,7 @@ export function ProjectSetupPage() {
                     }}
                     variant={activeStyleTab === tab ? "default" : "secondary"}
                     className={cn(
-                      "px-3 py-1 cursor-pointer rounded-md font-normal text-[12px]",
+                      "px-3 py-1 cursor-pointer rounded-md font-normal text-[14px]",
                       activeStyleTab === tab ? "bg-primary hover:bg-primary" : "bg-layer-4 text-muted-foreground hover:bg-accent border-0"
                     )}
                   >
@@ -439,7 +439,7 @@ export function ProjectSetupPage() {
                           </div>
                         )}
                       </div>
-                      <div className={cn("p-1.5 text-center text-[12px] font-medium bg-[#141417]", isActive ? "text-foreground" : "text-muted-foreground")}>
+                      <div className={cn("p-1.5 text-center text-[14px] font-medium bg-[#141417]", isActive ? "text-foreground" : "text-muted-foreground")}>
                         {style.name}
                       </div>
                     </div>
@@ -466,7 +466,7 @@ export function ProjectSetupPage() {
                       </div>
                     )}
                   </div>
-                  <div className={cn("p-1.5 text-center text-[12px] font-medium bg-[#141417] border-t border-border", selectedStyle === "自定义" ? "text-foreground" : "text-muted-foreground")}>
+                  <div className={cn("p-1.5 text-center text-[14px] font-medium bg-[#141417] border-t border-border", selectedStyle === "自定义" ? "text-foreground" : "text-muted-foreground")}>
                     + 自定义
                   </div>
                 </div>
@@ -474,21 +474,21 @@ export function ProjectSetupPage() {
               {selectedStyle === "自定义" && (
                 <div className="lh-card grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-foreground">自定义风格名称</label>
+                    <label className="mb-1.5 block text-[15px] font-medium text-foreground">自定义风格名称</label>
                     <Input
                       value={customStyleName}
                       onChange={(event) => setCustomStyleName(event.target.value)}
                       placeholder="例如：拟人水果美剧"
-                      className="h-10 border-border bg-layer-4 text-[14px]"
+                      className="h-10 border-border bg-layer-4 text-[16px]"
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[13px] font-medium text-foreground">风格关键词</label>
+                    <label className="mb-1.5 block text-[15px] font-medium text-foreground">风格关键词</label>
                     <Input
                       value={customStylePrompt}
                       onChange={(event) => setCustomStylePrompt(event.target.value)}
                       placeholder="例如：黑色幽默、3D 美式动画、夸张表演"
-                      className="h-10 border-border bg-layer-4 text-[14px]"
+                      className="h-10 border-border bg-layer-4 text-[16px]"
                     />
                   </div>
                 </div>
@@ -499,15 +499,15 @@ export function ProjectSetupPage() {
           {step === 4 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
               <div className="mb-6 text-center sm:mb-8">
-                <h2 className="mb-2 text-[22px] font-extrabold text-[#E8E8EC] sm:text-[24px]">导演指导</h2>
+                <h2 className="mb-2 text-[24px] font-extrabold text-[#E8E8EC] sm:text-[26px]">导演指导</h2>
                 <p className="text-muted-foreground">设定全局生成策略、调性和剧本规则</p>
               </div>
               <div className="space-y-5">
                 <div className="lh-card rounded-xl border border-border p-4">
                   <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[14px] font-medium text-foreground">默认生成策略</div>
-                      <div className="mt-1 text-[12px] text-muted-foreground">后续分镜图、导演板、视频生成会优先使用该策略</div>
+                      <div className="text-[16px] font-medium text-foreground">默认生成策略</div>
+                      <div className="mt-1 text-[14px] text-muted-foreground">后续分镜图、导演板、视频生成会优先使用该策略</div>
                     </div>
                     <Badge className="w-fit border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">{selectedRatio}</Badge>
                   </div>
@@ -530,10 +530,10 @@ export function ProjectSetupPage() {
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-[13px] font-medium text-foreground">{strategy.title}</span>
-                            {disabled ? <span className="text-[10px] text-status-warning">暂未开发</span> : active && <Check className="h-4 w-4 text-primary" />}
+                            <span className="text-[15px] font-medium text-foreground">{strategy.title}</span>
+                            {disabled ? <span className="text-[12px] text-status-warning">暂未开发</span> : active && <Check className="h-4 w-4 text-primary" />}
                           </div>
-                          <div className="mt-1 text-[12px] leading-5 text-muted-foreground">{strategy.desc}</div>
+                          <div className="mt-1 text-[14px] leading-5 text-muted-foreground">{strategy.desc}</div>
                         </button>
                       );
                     })}
@@ -542,70 +542,70 @@ export function ProjectSetupPage() {
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div>
-                    <label className="block text-[14px] font-medium text-foreground mb-1.5">项目调性</label>
+                    <label className="block text-[16px] font-medium text-foreground mb-1.5">项目调性</label>
                     <Textarea
                       placeholder="例如：黑色幽默、快节奏美剧短剧、角色反应夸张但世界观保持一致。"
-                      className="h-24 resize-none text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
+                      className="h-24 resize-none text-[15px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
                       value={projectTone}
                       onChange={(e) => setProjectTone(e.target.value)}
                     />
                   </div>
 	                  <div>
-	                    <label className="block text-[14px] font-medium text-foreground mb-1.5">导演人工指导</label>
+	                    <label className="block text-[16px] font-medium text-foreground mb-1.5">导演人工指导</label>
 	                    <Textarea
 	                      placeholder="例如：每个角色保持统一造型；重要动作先给近景反应，再给环境关系；导演板优先表达空间、站位和镜头推进。"
-	                      className="h-24 resize-none text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
+	                      className="h-24 resize-none text-[15px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
 	                      value={directorNotes}
 	                      onChange={(e) => setDirectorNotes(e.target.value)}
 	                    />
 	                  </div>
 	                  <div>
-	                    <label className="block text-[14px] font-medium text-foreground mb-1.5">角色身份约束</label>
+	                    <label className="block text-[16px] font-medium text-foreground mb-1.5">角色身份约束</label>
 	                    <Textarea
 	                      placeholder="例如：本项目所有角色都是拟人化水果，必须推理并锁定具体水果身份；Chloe 是水蜜桃，Leo 是黄色柠檬。"
-	                      className="h-24 resize-none text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
+	                      className="h-24 resize-none text-[15px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
 	                      value={characterIdentityRules}
 	                      onChange={(e) => setCharacterIdentityRules(e.target.value)}
 	                    />
 	                  </div>
 	                  <div>
-	                    <label className="block text-[14px] font-medium text-foreground mb-1.5">全局画面提示词</label>
+	                    <label className="block text-[16px] font-medium text-foreground mb-1.5">全局画面提示词</label>
                     <Textarea
                       placeholder="例如：最高画质，大师杰作，极其详细的细节。所有人物都要有边缘光..."
-                      className="h-24 resize-none font-mono text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
+                      className="h-24 resize-none font-mono text-[15px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
                       value={globalPrompt}
                       onChange={(e) => setGlobalPrompt(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-[14px] font-medium text-foreground mb-1.5">负面约束</label>
+                    <label className="block text-[16px] font-medium text-foreground mb-1.5">负面约束</label>
                     <Textarea
                       placeholder="例如：不要生成带有血腥暴力的画面..."
-                      className="h-24 resize-none font-mono text-[13px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
+                      className="h-24 resize-none font-mono text-[15px] text-foreground bg-layer-4 border-border focus-visible:ring-primary"
                       value={negativePrompt}
                       onChange={(e) => setNegativePrompt(e.target.value)}
                     />
                   </div>
                 </div>
                 <div>
-                  <div className="mb-3 text-[14px] font-medium text-foreground">详细剧本规则</div>
+                  <div className="mb-3 text-[16px] font-medium text-foreground">详细剧本规则</div>
                   <div className="grid gap-3 md:grid-cols-2">
                     {SCRIPT_RULE_TEMPLATES.map((rule) => (
                       <div key={rule.id} className="lh-card rounded-xl border border-border p-4">
                         <div className="mb-2 flex items-center gap-2">
                           <Badge className="border border-primary/30 bg-primary/10 text-primary hover:bg-primary/10">{rule.id.slice(0, 2).toUpperCase()}</Badge>
-                          <div className="text-[13px] font-medium text-foreground">{rule.title}</div>
+                          <div className="text-[15px] font-medium text-foreground">{rule.title}</div>
                         </div>
                         <Textarea
                           value={scriptRules[rule.id] ?? ""}
                           onChange={(event) => setScriptRules((current) => ({ ...current, [rule.id]: event.target.value }))}
-                          className="h-28 resize-none border-border bg-[#141417] text-[12px] leading-5 text-foreground"
+                          className="h-28 resize-none border-border bg-[#141417] text-[14px] leading-5 text-foreground"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="lh-card rounded-xl border border-border p-3 text-[12px] leading-5 text-muted-foreground">
+                <div className="lh-card rounded-xl border border-border p-3 text-[14px] leading-5 text-muted-foreground">
                   这些设定会保存到项目全局提示词中，影响后续资产、分镜、导演板和视频生成。
                 </div>
               </div>
@@ -618,7 +618,7 @@ export function ProjectSetupPage() {
       <div className="sticky bottom-0 left-0 z-10 flex w-full shrink-0 justify-center border-t border-[#222226] bg-background/95 px-4 py-3 backdrop-blur sm:px-6 sm:py-4">
         <div className={cn("flex w-full flex-col gap-3", contentMaxWidth)}>
           {saveError && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">
+            <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[14px] text-red-200">
               {saveError}
             </div>
           )}

@@ -53,7 +53,7 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
           {data.title || "分镜"}
         </div>
         {referenceImages.length > 0 && (
-          <span className="text-[10px] text-[#F7C24E]">{referenceImages.length} 参考</span>
+          <span className="text-[12px] text-[#F7C24E]">{referenceImages.length} 参考</span>
         )}
       </div>
 
@@ -69,7 +69,7 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
                 onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
                 onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '分镜参考图' })}
               />
-              <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#F5A623] text-[9px] font-bold text-[#0D0D0F]">
+              <span className="absolute -top-1 -left-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#F5A623] text-[11px] font-bold text-[#0D0D0F]">
                 {i + 1}
               </span>
             </div>
@@ -114,14 +114,14 @@ export const SceneNode = ({ id, data, selected }: CanvasNodeProps) => {
           ) : (
             <span className="flex h-2 w-2 rounded-full bg-zinc-600" />
           )}
-          <span className="text-[10px] text-zinc-500">
+          <span className="text-[12px] text-zinc-500">
             {data.status === 'completed' ? '已完成' : data.status === 'generating' ? '生成中' : '等待生成'}
           </span>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 text-[10px] px-2 bg-primary/10 text-primary hover:bg-primary/20"
+          className="h-6 text-[12px] px-2 bg-primary/10 text-primary hover:bg-primary/20"
           onClick={handleGenerate}
         >
           {data.status === 'completed' ? '重新生成' : '生成'}

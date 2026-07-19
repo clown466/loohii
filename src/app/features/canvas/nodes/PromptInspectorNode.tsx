@@ -168,12 +168,12 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '提示词检查'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+            <div className="mt-0.5 truncate text-[13px] text-zinc-500">
               {incomingSource ? `读取：${canvasNodePromptLabel(incomingSource)}` : '可从左侧连接提示词节点'}
             </div>
           </div>
           <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-[#141417]",
+            "shrink-0 border text-[12px] hover:bg-[#141417]",
             status === 'completed'
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : status === 'failed' || inspectStalled
@@ -188,7 +188,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
         <div className="space-y-3 p-3">
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-amber-500"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 outline-none focus:border-amber-500"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
@@ -205,12 +205,12 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">原提示词</span>
+              <span className="text-[13px] font-medium text-zinc-400">原提示词</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
+                className="nodrag nopan h-6 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -221,7 +221,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[105px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
+              className="nodrag nopan min-h-[105px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
               value={String(data.sourcePrompt || incomingPrompt || '')}
               placeholder="输入要检查的提示词，或从左侧连入图片/视频/分镜节点。"
               onChange={(value) => updateNodeData(id, { sourcePrompt: value })}
@@ -235,9 +235,9 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
           </div>
 
           <div>
-            <span className="mb-1.5 block text-[11px] font-medium text-zinc-400">问题</span>
+            <span className="mb-1.5 block text-[13px] font-medium text-zinc-400">问题</span>
             <PromptTextarea
-              className="nodrag nopan min-h-[68px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
+              className="nodrag nopan min-h-[68px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
               value={String(data.question || '')}
               placeholder="例如：这个故事板提示词里有哪些角色有台词？每句台词在哪个格子？"
               onChange={(value) => updateNodeData(id, { question: value })}
@@ -252,12 +252,12 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">检查结果</span>
+              <span className="text-[13px] font-medium text-zinc-400">检查结果</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
+                className="nodrag nopan h-6 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
                 disabled={!answer}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
@@ -269,7 +269,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
+              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-amber-500"
               value={answer}
               placeholder="检查完成后显示在这里。"
               onChange={(value) => updateNodeData(id, { answer: value })}
@@ -284,15 +284,15 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           {data.error ? (
             <div className={cn(
-              "rounded border px-2 py-1 text-[11px] leading-4",
+              "rounded border px-2 py-1 text-[13px] leading-4",
               status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-amber-500/20 bg-amber-500/10 text-amber-200",
             )}>
               {data.error}
             </div>
           ) : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
+          {modelLoadFailed ? <div className="text-[13px] text-amber-300">文本模型列表加载失败。</div> : null}
           {data.lastDurationMs ? (
-            <div className="text-[10px] text-zinc-500">上次检查耗时 {formatDurationMs(Number(data.lastDurationMs))}</div>
+            <div className="text-[12px] text-zinc-500">上次检查耗时 {formatDurationMs(Number(data.lastDurationMs))}</div>
           ) : null}
         </div>
 
@@ -300,7 +300,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
           <Button
             type="button"
             size="sm"
-            className="nodrag nopan h-8 flex-1 bg-amber-600 text-[12px] text-white hover:bg-amber-500"
+            className="nodrag nopan h-8 flex-1 bg-amber-600 text-[14px] text-white hover:bg-amber-500"
             disabled={isInspecting && !inspectStalled}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -316,7 +316,7 @@ export const PromptInspectorNode = ({ id, data, selected }: CanvasNodeProps) => 
               type="button"
               variant="ghost"
               size="sm"
-              className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
+              className="nodrag nopan h-8 text-[13px] text-zinc-400 hover:text-zinc-100"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();

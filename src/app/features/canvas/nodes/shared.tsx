@@ -128,7 +128,7 @@ type PromptTextareaProps = Omit<ComponentProps<'textarea'>, 'value' | 'onChange'
 function PromptCharacterCount({ length, maxChars }: { length: number; maxChars?: number }) {
   const overLimit = typeof maxChars === 'number' && maxChars > 0 && length > maxChars;
   return (
-    <div className={`mt-1 text-right text-[10px] leading-4 ${overLimit ? 'text-red-300' : 'text-zinc-500'}`}>
+    <div className={`mt-1 text-right text-[12px] leading-4 ${overLimit ? 'text-red-300' : 'text-zinc-500'}`}>
       字符数：{length.toLocaleString()}{maxChars ? ` / ${maxChars.toLocaleString()}` : ''}
     </div>
   );
@@ -191,8 +191,8 @@ export function PromptTextarea({
             >
               <div className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-[#26262B] px-5">
                 <div className="min-w-0">
-                  <div className="truncate text-[17px] font-semibold text-zinc-100">{modalTitle}</div>
-                  <div className="mt-1 text-[13px] text-zinc-500">{modalSubtitle}</div>
+                  <div className="truncate text-[19px] font-semibold text-zinc-100">{modalTitle}</div>
+                  <div className="mt-1 text-[15px] text-zinc-500">{modalSubtitle}</div>
                 </div>
                 <Button
                   type="button"
@@ -206,7 +206,7 @@ export function PromptTextarea({
               </div>
               <div className="min-h-0 flex-1 p-5">
                 <textarea
-                  className="nodrag nopan h-full w-full resize-none rounded-md border border-[#26262B] bg-background px-5 py-4 font-mono text-[16px] leading-7 text-zinc-100 outline-none focus:border-primary"
+                  className="nodrag nopan h-full w-full resize-none rounded-md border border-[#26262B] bg-background px-5 py-4 font-mono text-[18px] leading-7 text-zinc-100 outline-none focus:border-primary"
                   value={draft}
                   autoFocus
                   onPointerDown={(event) => event.stopPropagation()}
@@ -233,8 +233,8 @@ export function PromptTextarea({
               </div>
               <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#26262B] px-5 py-4">
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] text-zinc-500">保存后会同步回当前画布节点。</div>
-                  <div className={`mt-1 text-[12px] ${maxChars && draft.length > maxChars ? 'text-red-300' : 'text-zinc-500'}`}>
+                  <div className="truncate text-[15px] text-zinc-500">保存后会同步回当前画布节点。</div>
+                  <div className={`mt-1 text-[14px] ${maxChars && draft.length > maxChars ? 'text-red-300' : 'text-zinc-500'}`}>
                     字符数：{draft.length.toLocaleString()}{maxChars ? ` / ${maxChars.toLocaleString()}` : ''}
                   </div>
                 </div>
@@ -243,7 +243,7 @@ export function PromptTextarea({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-10 px-4 text-[14px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
+                    className="h-10 px-4 text-[16px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
                     onClick={closeExpanded}
                   >
                     <X className="h-4 w-4" />
@@ -252,7 +252,7 @@ export function PromptTextarea({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-10 bg-[linear-gradient(135deg,#F5A623,#E08D0C)] px-5 text-[14px] font-bold text-[#0D0D0F] hover:opacity-90"
+                    className="h-10 bg-[linear-gradient(135deg,#F5A623,#E08D0C)] px-5 text-[16px] font-bold text-[#0D0D0F] hover:opacity-90"
                     onClick={saveExpanded}
                   >
                     保存

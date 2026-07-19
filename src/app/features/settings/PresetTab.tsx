@@ -19,7 +19,7 @@ export function PresetsSettings() {
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 relative">
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:mb-8 sm:flex-row sm:items-center">
-        <h1 className="text-[24px] font-extrabold text-[#E8E8EC]">预设管理</h1>
+        <h1 className="text-[26px] font-extrabold text-[#E8E8EC]">预设管理</h1>
         <Button onClick={() => setShowEditModal(true)} className="h-9 w-full gap-2 sm:w-auto">
           <Plus className="h-4 w-4" />
           新建预设
@@ -31,7 +31,7 @@ export function PresetsSettings() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`shrink-0 px-4 py-1.5 text-[14px] font-medium rounded-md transition-colors ${
+            className={`shrink-0 px-4 py-1.5 text-[16px] font-medium rounded-md transition-colors ${
               activeTab === tab
                 ? "bg-layer-4 text-primary shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-card"
@@ -49,7 +49,7 @@ export function PresetsSettings() {
               <img loading="lazy" decoding="async" src={style.cover} alt={style.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                 <Button variant="secondary" size="icon" className="h-8 w-8 rounded-full bg-card text-foreground hover:bg-primary border-0" onClick={() => setShowEditModal(true)}>
-                  <span className="text-[12px] font-medium">编辑</span>
+                  <span className="text-[14px] font-medium">编辑</span>
                 </Button>
                 {activeTab === "我的预设" && (
                   <Button variant="secondary" size="icon" className="h-8 w-8 rounded-full bg-card text-destructive hover:bg-destructive hover:text-destructive-foreground border-0">
@@ -58,7 +58,7 @@ export function PresetsSettings() {
                 )}
               </div>
             </div>
-            <div className="p-3 text-[13px] font-medium text-foreground">
+            <div className="p-3 text-[15px] font-medium text-foreground">
               {style.name}
             </div>
           </div>
@@ -69,7 +69,7 @@ export function PresetsSettings() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm animate-in fade-in sm:p-4">
           <div className="lh-card flex max-h-[92vh] w-full max-w-lg flex-col rounded-2xl border border-border bg-card shadow-2xl">
             <div className="p-5 border-b border-border flex items-center justify-between shrink-0">
-              <h2 className="text-[16px] font-medium text-foreground">编辑预设</h2>
+              <h2 className="text-[18px] font-medium text-foreground">编辑预设</h2>
               <button onClick={() => setShowEditModal(false)} className="text-muted-foreground hover:text-foreground">
                 <Trash2 className="h-5 w-5 hidden" />
                 <span className="text-xl leading-none">&times;</span>
@@ -78,32 +78,32 @@ export function PresetsSettings() {
 
             <div className="flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
               <div>
-                <label className="block text-[14px] font-medium text-foreground mb-1.5">预设名称</label>
+                <label className="block text-[16px] font-medium text-foreground mb-1.5">预设名称</label>
                 <Input placeholder="输入预设名称" className="h-10 bg-layer-4 border-border" />
               </div>
 
               <div>
-                <label className="block text-[14px] font-medium text-foreground mb-1.5">分类</label>
-                <button className="w-full flex items-center justify-between h-10 px-3 bg-layer-4 border border-border rounded-md text-[14px] text-foreground">
+                <label className="block text-[16px] font-medium text-foreground mb-1.5">分类</label>
+                <button className="w-full flex items-center justify-between h-10 px-3 bg-layer-4 border border-border rounded-md text-[16px] text-foreground">
                   动漫 <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </button>
               </div>
 
               <div>
-                <label className="block text-[14px] font-medium text-foreground mb-1.5">预览图</label>
+                <label className="block text-[16px] font-medium text-foreground mb-1.5">预览图</label>
                 <div className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center bg-layer-4 text-muted-foreground cursor-pointer hover:border-primary/50 h-24">
                   <UploadCloud className="h-6 w-6 mb-1 text-muted-foreground" />
-                  <p className="text-[12px]">点击上传</p>
+                  <p className="text-[14px]">点击上传</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-[14px] font-medium text-foreground mb-1.5">提示词 (Prompt)</label>
-                <Textarea placeholder="输入与此风格相关的提示词..." className="h-24 resize-none bg-layer-4 border-border font-mono text-[13px]" />
+                <label className="block text-[16px] font-medium text-foreground mb-1.5">提示词 (Prompt)</label>
+                <Textarea placeholder="输入与此风格相关的提示词..." className="h-24 resize-none bg-layer-4 border-border font-mono text-[15px]" />
               </div>
 
               <div>
-                <label className="block text-[14px] font-medium text-foreground mb-1.5">参考图 (最多5张)</label>
+                <label className="block text-[16px] font-medium text-foreground mb-1.5">参考图 (最多5张)</label>
                 <div className="flex gap-3">
                   <div className="h-16 w-16 rounded-md bg-background border border-border overflow-hidden">
                     <img loading="lazy" decoding="async" src="https://images.unsplash.com/photo-1605806616949-1e87b487cb2a?w=100&q=80" alt="ref" className="w-full h-full object-cover" />

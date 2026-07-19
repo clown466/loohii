@@ -44,11 +44,11 @@ export function CharacterPropPickerPanel({
     <div className="mt-3 rounded-md border border-orange-500/25 bg-[#111113] p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[12px] font-medium text-orange-100">
+          <div className="flex items-center gap-2 text-[14px] font-medium text-orange-100">
             <Package className="h-3.5 w-3.5 text-orange-300" />
             {characterName} · 绑定道具
           </div>
-          <div className="mt-1 text-[11px] leading-4 text-zinc-500">
+          <div className="mt-1 text-[13px] leading-4 text-zinc-500">
             点选下方道具，再输入本次合成要求生成角色道具版图。
           </div>
         </div>
@@ -63,12 +63,12 @@ export function CharacterPropPickerPanel({
         </Button>
       </div>
       {status && (
-        <div className="mt-2 rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+        <div className="mt-2 rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[13px] leading-4 text-zinc-400">
           {status}
         </div>
       )}
       {props.length === 0 ? (
-        <div className="mt-3 rounded-md border border-dashed border-zinc-800 bg-background px-3 py-3 text-[12px] text-zinc-500">
+        <div className="mt-3 rounded-md border border-dashed border-zinc-800 bg-background px-3 py-3 text-[14px] text-zinc-500">
           暂无道具资产。先在“道具资产”里生成或上传道具图。
         </div>
       ) : (
@@ -98,13 +98,13 @@ export function CharacterPropPickerPanel({
                     </div>
                   )}
                   <span className={cn(
-                    "absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded border text-[10px]",
+                    "absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded border text-[12px]",
                     bound ? "border-orange-300 bg-orange-400 text-black" : "border-border bg-black/60 text-zinc-400"
                   )}>
                     <Package className="h-3 w-3" />
                   </span>
                 </div>
-                <div className="truncate px-2 py-1.5 text-[11px] text-zinc-200">{propName}</div>
+                <div className="truncate px-2 py-1.5 text-[13px] text-zinc-200">{propName}</div>
               </button>
             );
           })}
@@ -117,7 +117,7 @@ export function CharacterPropPickerPanel({
           modalTitle={`${characterName} · 道具版提示词`}
           modalSubtitle="完整自定义提示词"
           placeholder={`自定义道具版提示词，例如：让 ${characterName} 自然拿着已选道具，保持当前角色脸型和服装。`}
-          className="min-h-[84px] w-full resize-y rounded-md border border-zinc-800 bg-background px-3 py-2 text-[12px] leading-5 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-orange-500"
+          className="min-h-[84px] w-full resize-y rounded-md border border-zinc-800 bg-background px-3 py-2 text-[14px] leading-5 text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-orange-500"
         />
         <Button
           type="button"

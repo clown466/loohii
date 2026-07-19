@@ -29,13 +29,13 @@ export const SectionNode = ({ id, data, selected }: CanvasNodeProps) => {
         <div className={cn("flex h-[42px] items-center gap-2 border-b px-3", tone.header)}>
           <Layers3 className={cn("h-3.5 w-3.5 shrink-0", tone.icon)} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[12px] font-semibold text-zinc-100">{data.title || '画布分区'}</div>
+            <div className="truncate text-[14px] font-semibold text-zinc-100">{data.title || '画布分区'}</div>
             {data.description ? (
-              <div className="truncate text-[10px] text-zinc-500">{data.description}</div>
+              <div className="truncate text-[12px] text-zinc-500">{data.description}</div>
             ) : null}
           </div>
           {itemCount ? (
-            <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px]", tone.badge)}>
+            <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[12px]", tone.badge)}>
               {itemCount} 节点
             </span>
           ) : null}

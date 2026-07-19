@@ -247,13 +247,13 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-zinc-100">{data.name}</div>
-          <div className="text-[11px] text-zinc-500 line-clamp-2">{data.traits}</div>
+          <div className="text-[13px] text-zinc-500 line-clamp-2">{data.traits}</div>
         </div>
       </div>
 
       {referenceImages.length > 0 && (
         <div className="border-t border-[#26262B] px-3 py-2 flex items-center gap-1.5">
-          <span className="text-[10px] text-[#F7C24E] shrink-0">{referenceImages.length} 参考</span>
+          <span className="text-[12px] text-[#F7C24E] shrink-0">{referenceImages.length} 参考</span>
           <div className="flex gap-1 overflow-x-auto">
             {referenceImages.map((ref, i) => (
               <div key={i} className="relative shrink-0">
@@ -265,7 +265,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
                   onClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                   onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: '角色参考图' })}
                 />
-                <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#F5A623] text-[8px] font-bold text-[#0D0D0F]">
+                <span className="absolute -top-1 -left-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#F5A623] text-[10px] font-bold text-[#0D0D0F]">
                   {i + 1}
                 </span>
               </div>
@@ -276,10 +276,10 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
 
       <div className="border-t border-[#26262B] px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="text-[10px] font-medium text-zinc-400">最终生图提示词</span>
+          <span className="text-[12px] font-medium text-zinc-400">最终生图提示词</span>
           <button
             type="button"
-            className="text-[10px] text-zinc-500 hover:text-zinc-300"
+            className="text-[12px] text-zinc-500 hover:text-zinc-300"
             onClick={(e) => {
               e.stopPropagation();
               updateNodeData(id, { finalPrompt: '' });
@@ -289,7 +289,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
           </button>
         </div>
         <PromptTextarea
-          className="w-full resize-y rounded border border-border bg-background px-2.5 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none min-h-[80px]"
+          className="w-full resize-y rounded border border-border bg-background px-2.5 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none min-h-[80px]"
           rows={8}
           placeholder="输入最终发送给图片模型的提示词..."
           value={finalPrompt}
@@ -300,7 +300,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
         />
       </div>
 
-      <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[10px]">
+      <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[12px]">
         <select
           className="h-7 min-w-0 flex-1 truncate rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
           value={data.modelId || ''}
@@ -360,7 +360,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="border-t border-[#26262B] px-3 py-2">
         <Button
           size="sm"
-          className="w-full h-8 text-[12px] bg-primary hover:bg-primary/90 text-white gap-1.5"
+          className="w-full h-8 text-[14px] bg-primary hover:bg-primary/90 text-white gap-1.5"
           onClick={handleGenerate}
           disabled={data.genStatus === 'generating' && !generationStalled}
         >
@@ -375,14 +375,14 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
             <div className="h-1.5 w-24 bg-[#26262B] rounded-full overflow-hidden">
               <div className="h-full bg-[linear-gradient(90deg,#F5A623,#F7C24E)] animate-pulse w-[60%]" />
             </div>
-            <span className="px-3 text-center text-[11px] text-zinc-500">
+            <span className="px-3 text-center text-[13px] text-zinc-500">
               {canvasGenerationWaitLabel(data.generationStartedAt)}
             </span>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-6 text-[10px] text-zinc-400 hover:text-zinc-100"
+              className="h-6 text-[12px] text-zinc-400 hover:text-zinc-100"
               onClick={handleStopGeneration}
             >
               停止
@@ -418,7 +418,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-7 text-[10px] bg-layer-4/80 hover:bg-zinc-700"
+                className="h-7 text-[12px] bg-layer-4/80 hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
                   void downloadCanvasImagePreview({ url: data.generatedImage, title: data.name || '生成图片', subtitle: '角色生成结果' });
@@ -429,7 +429,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-7 text-[10px] bg-layer-4/80 hover:bg-zinc-700"
+                className="h-7 text-[12px] bg-layer-4/80 hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
                   handleSetAsAvatar();
@@ -439,16 +439,16 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
               </Button>
             </div>
           </div>
-          {data.avatarError ? <div className="mt-1 text-[10px] text-red-400">{data.avatarError}</div> : null}
+          {data.avatarError ? <div className="mt-1 text-[12px] text-red-400">{data.avatarError}</div> : null}
         </div>
       )}
 
       {data.genStatus === 'failed' && (
-        <div className="px-3 pb-2 text-[10px] text-red-400">{data.genError || '生成失败，请重试'}</div>
+        <div className="px-3 pb-2 text-[12px] text-red-400">{data.genError || '生成失败，请重试'}</div>
       )}
 
       {generationStalled && (
-        <div className="px-3 pb-2 text-[10px] text-amber-400">上次生成状态已中断，可点击重新生成。</div>
+        <div className="px-3 pb-2 text-[12px] text-amber-400">上次生成状态已中断，可点击重新生成。</div>
       )}
 
         <CanvasHandle type="target" position={Position.Left} />

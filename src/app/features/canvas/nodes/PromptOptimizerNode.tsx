@@ -198,12 +198,12 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-zinc-100">{data.title || '提示词优化'}</div>
-            <div className="mt-0.5 truncate text-[11px] text-zinc-500">
+            <div className="mt-0.5 truncate text-[13px] text-zinc-500">
               {incomingSource ? `读取：${canvasNodePromptLabel(incomingSource)}` : '用于手动优化不过审提示词'}
             </div>
           </div>
           <Badge className={cn(
-            "shrink-0 border text-[10px] hover:bg-[#141417]",
+            "shrink-0 border text-[12px] hover:bg-[#141417]",
             status === 'completed'
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : status === 'failed' || optimizeStalled
@@ -218,7 +218,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
         <div className="space-y-3 p-3">
           <select
-            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 outline-none focus:border-primary"
+            className="nodrag nopan h-8 w-full rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 outline-none focus:border-primary"
             value={String(data.modelId || '')}
             onChange={(event) => updateNodeData(id, { modelId: event.target.value })}
             onPointerDown={(event) => event.stopPropagation()}
@@ -235,7 +235,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div className="grid grid-cols-2 gap-2">
             <input
-              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.targetProvider || 'Dreamina Web Seedance 2.0')}
               placeholder="目标平台"
               onChange={(event) => updateNodeData(id, { targetProvider: event.target.value })}
@@ -243,7 +243,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
               onClick={(event) => event.stopPropagation()}
             />
             <input
-              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan h-8 rounded-md border border-border bg-[#141417] px-2 text-[14px] text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.failureReason || '')}
               placeholder="失败原因，例如 prompt may violate"
               onChange={(event) => updateNodeData(id, { failureReason: event.target.value })}
@@ -254,12 +254,12 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">原提示词</span>
+              <span className="text-[13px] font-medium text-zinc-400">原提示词</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
+                className="nodrag nopan h-6 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -270,7 +270,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan min-h-[110px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={String(data.sourcePrompt || incomingPrompt || '')}
               placeholder="输入不过审的提示词，或从左侧连入视频/图片/分镜节点。"
               modalTitle={`${data.title || '提示词优化'} · 原提示词`}
@@ -285,12 +285,12 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           <div>
             <div className="mb-1.5 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-zinc-400">优化结果</span>
+              <span className="text-[13px] font-medium text-zinc-400">优化结果</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="nodrag nopan h-6 px-2 text-[10px] text-zinc-400 hover:text-zinc-100"
+                className="nodrag nopan h-6 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
                 disabled={!optimizedPrompt}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
@@ -302,7 +302,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
               </Button>
             </div>
             <PromptTextarea
-              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
+              className="nodrag nopan min-h-[130px] w-full resize-y rounded-md border border-border bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 outline-none focus:border-primary"
               value={optimizedPrompt}
               placeholder="优化完成后显示在这里。台词和大概原意会被保留。"
               modalTitle={`${data.title || '提示词优化'} · 优化结果`}
@@ -317,15 +317,15 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
 
           {data.error ? (
             <div className={cn(
-              "rounded border px-2 py-1 text-[11px] leading-4",
+              "rounded border px-2 py-1 text-[13px] leading-4",
               status === 'failed' ? "border-red-500/20 bg-red-500/10 text-red-300" : "border-primary/20 bg-primary/10 text-primary",
             )}>
               {data.error}
             </div>
           ) : null}
-          {modelLoadFailed ? <div className="text-[11px] text-amber-300">文本模型列表加载失败。</div> : null}
+          {modelLoadFailed ? <div className="text-[13px] text-amber-300">文本模型列表加载失败。</div> : null}
           {data.lastDurationMs ? (
-            <div className="text-[10px] text-zinc-500">上次优化耗时 {formatDurationMs(Number(data.lastDurationMs))}</div>
+            <div className="text-[12px] text-zinc-500">上次优化耗时 {formatDurationMs(Number(data.lastDurationMs))}</div>
           ) : null}
         </div>
 
@@ -333,7 +333,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
           <Button
             type="button"
             size="sm"
-            className="nodrag nopan h-8 flex-1 bg-primary text-[12px] text-white hover:bg-primary/90"
+            className="nodrag nopan h-8 flex-1 bg-primary text-[14px] text-white hover:bg-primary/90"
             disabled={isOptimizing && !optimizeStalled}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -349,7 +349,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
               type="button"
               variant="ghost"
               size="sm"
-              className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
+              className="nodrag nopan h-8 text-[13px] text-zinc-400 hover:text-zinc-100"
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
@@ -363,7 +363,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
             type="button"
             variant="secondary"
             size="sm"
-            className="nodrag nopan h-8 bg-layer-4 text-[11px] text-zinc-200 hover:bg-zinc-700"
+            className="nodrag nopan h-8 bg-layer-4 text-[13px] text-zinc-200 hover:bg-zinc-700"
             disabled={!optimizedPrompt || outgoingTargets.length === 0}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
@@ -377,7 +377,7 @@ export const PromptOptimizerNode = ({ id, data, selected }: CanvasNodeProps) => 
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag nopan h-8 text-[11px] text-zinc-400 hover:text-zinc-100"
+            className="nodrag nopan h-8 text-[13px] text-zinc-400 hover:text-zinc-100"
             disabled={!optimizedPrompt || !incomingSource}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {

@@ -24,7 +24,7 @@ export function RemakeListPage() {
     <div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight sm:text-[24px]">复刻任务</h1>
+          <h1 className="text-[24px] font-extrabold tracking-tight sm:text-[26px]">复刻任务</h1>
           <p className="mt-1 text-sm text-muted-foreground">爆款视频一键复刻，分阶段审核与生成</p>
         </div>
         <div className="flex gap-2">

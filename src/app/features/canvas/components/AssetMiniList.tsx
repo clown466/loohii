@@ -98,7 +98,7 @@ export function AssetMiniList({
   };
 
   if (items.length === 0) {
-    return <div className="mt-3 rounded-md border border-dashed border-zinc-800 px-3 py-2 text-[12px] text-zinc-500">{emptyText}</div>;
+    return <div className="mt-3 rounded-md border border-dashed border-zinc-800 px-3 py-2 text-[14px] text-zinc-500">{emptyText}</div>;
   }
   const sceneGroups = assetKind === 'scenes' ? getSceneContinuityGroups(items) : [];
 
@@ -106,15 +106,15 @@ export function AssetMiniList({
     <div className="mt-3 space-y-2">
       {sceneGroups.length > 0 ? (
         <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.04] p-2">
-          <div className="mb-1.5 flex items-center gap-2 text-[11px] font-medium text-emerald-200">
+          <div className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-emerald-200">
             <Layers3 className="h-3.5 w-3.5" />
             视觉场景结构
           </div>
           <div className="space-y-1.5">
             {sceneGroups.map((group) => (
               <div key={group.authorityName} className="rounded border border-zinc-800 bg-zinc-950/70 px-2 py-1.5">
-                <div className="flex items-center gap-1.5 text-[11px] text-zinc-100">
-                  <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-200 hover:bg-emerald-500/10">
+                <div className="flex items-center gap-1.5 text-[13px] text-zinc-100">
+                  <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-[12px] text-emerald-200 hover:bg-emerald-500/10">
                     主场景
                   </Badge>
                   <span className="truncate">{group.authorityName}</span>
@@ -122,13 +122,13 @@ export function AssetMiniList({
                 {group.children.length > 0 ? (
                   <div className="mt-1 flex flex-wrap gap-1">
                     {group.children.map((child) => (
-                      <span key={child} className="max-w-full truncate rounded border border-zinc-800 bg-background px-1.5 py-0.5 text-[10px] text-zinc-400">
+                      <span key={child} className="max-w-full truncate rounded border border-zinc-800 bg-background px-1.5 py-0.5 text-[12px] text-zinc-400">
                         子区域：{child}
                       </span>
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-1 text-[10px] text-zinc-500">当前没有拆出独立子区域。</div>
+                  <div className="mt-1 text-[12px] text-zinc-500">当前没有拆出独立子区域。</div>
                 )}
               </div>
             ))}
@@ -183,16 +183,16 @@ export function AssetMiniList({
                     subtitle: item.referenceImageUrl ? '当前参考图' : '当前生成图',
                   })}
                 />
-                <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[10px] text-zinc-100 group-hover:flex">
+                <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[12px] text-zinc-100 group-hover:flex">
                   预览
                 </span>
               </button>
             ) : null}
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <div className="truncate text-[12px] font-medium text-zinc-100">{item.name || `资产 ${index + 1}`}</div>
+                <div className="truncate text-[14px] font-medium text-zinc-100">{item.name || `资产 ${index + 1}`}</div>
                 {(item.role || item.timeOfDay || item.referenceAnalysisStatus) && (
-                  <Badge className="shrink-0 border border-border bg-zinc-900 text-[10px] text-zinc-400 hover:bg-zinc-900">
+                  <Badge className="shrink-0 border border-border bg-zinc-900 text-[12px] text-zinc-400 hover:bg-zinc-900">
                     {item.referenceAnalysisStatus === 'succeeded' ? '已识图' : item.role || item.timeOfDay || item.referenceAnalysisStatus}
                   </Badge>
                 )}
@@ -200,18 +200,18 @@ export function AssetMiniList({
 
               {sceneContinuity ? (
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-[10px] text-emerald-200 hover:bg-emerald-500/10">
+                  <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-[12px] text-emerald-200 hover:bg-emerald-500/10">
                     {sceneContinuity.isChild ? '子场景/区域' : '主场景'}
                   </Badge>
-                  <span className="min-w-0 max-w-full truncate rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[10px] text-zinc-300">
+                  <span className="min-w-0 max-w-full truncate rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[12px] text-zinc-300">
                     主场景：{sceneContinuity.authorityName}
                   </span>
                   {sceneContinuity.isChild && sceneContinuity.zone ? (
-                    <span className="min-w-0 max-w-full truncate rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                    <span className="min-w-0 max-w-full truncate rounded border border-zinc-800 bg-zinc-950 px-1.5 py-0.5 text-[12px] text-zinc-400">
                       区域：{sceneContinuity.zone}
                     </span>
                   ) : null}
-                  <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-200">
+                  <span className="rounded border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[12px] text-amber-200">
                     视觉锁已启用
                   </span>
                 </div>
@@ -221,7 +221,7 @@ export function AssetMiniList({
                 <div className="mt-1 flex items-start gap-1.5">
                   <button
                     type="button"
-                    className="min-w-0 flex-1 rounded border border-transparent px-0 py-0 text-left text-[11px] leading-4 text-zinc-500 hover:border-zinc-800 hover:bg-zinc-950/60 hover:text-zinc-300"
+                    className="min-w-0 flex-1 rounded border border-transparent px-0 py-0 text-left text-[13px] leading-4 text-zinc-500 hover:border-zinc-800 hover:bg-zinc-950/60 hover:text-zinc-300"
                     title="点击编辑资产提示词"
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => {
@@ -241,7 +241,7 @@ export function AssetMiniList({
               ) : onUpdateAssetPrompt ? (
                 <button
                   type="button"
-                  className="mt-1 rounded border border-dashed border-zinc-800 px-2 py-1 text-left text-[11px] text-zinc-600 hover:border-amber-500/40 hover:text-amber-200"
+                  className="mt-1 rounded border border-dashed border-zinc-800 px-2 py-1 text-left text-[13px] text-zinc-600 hover:border-amber-500/40 hover:text-amber-200"
                   title="点击添加资产提示词"
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
@@ -259,7 +259,7 @@ export function AssetMiniList({
                 </button>
               ) : null}
               {assetKind === 'characters' ? (
-                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-zinc-500">
+                <div className="mt-1 flex items-center gap-1.5 text-[12px] text-zinc-500">
                   <Mic className={cn("h-3 w-3", item.referenceAudioUrl ? "text-emerald-300" : "text-zinc-600")} />
                   <span className="truncate">{item.referenceAudioUrl ? (item.voiceReferenceFileName || '已有角色音频参考') : '未上传角色音频参考'}</span>
                 </div>
@@ -276,7 +276,7 @@ export function AssetMiniList({
                         key={mode}
                         type="button"
                         className={cn(
-                          "px-2 text-[11px] transition-colors",
+                          "px-2 text-[13px] transition-colors",
                           selectedSceneImageMode === mode
                             ? "bg-primary/15 text-primary"
                             : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
@@ -294,7 +294,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-primary hover:bg-primary/10 hover:text-primary"
+                    className="h-7 px-2 text-[13px] text-primary hover:bg-primary/10 hover:text-primary"
                     disabled={generationDisabled || generating}
                     onClick={() => onGenerateImage(item, assetKind === 'scenes' ? { sceneImageMode: selectedSceneImageMode } : undefined)}
                   >
@@ -307,7 +307,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
+                    className="h-7 px-2 text-[13px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
                     disabled={generationDisabled || generating}
                     onClick={() => onGenerateImage(item, { useCurrentReference: true })}
                   >
@@ -320,7 +320,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
+                    className="h-7 px-2 text-[13px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
                     onClick={() => onOpenHistory?.(item, 'with-props')}
                   >
                     <Package className="h-3.5 w-3.5" />
@@ -334,7 +334,7 @@ export function AssetMiniList({
                     size="sm"
                     title="选择绑定道具"
                     className={cn(
-                      "h-7 px-2 text-[11px] text-orange-300 hover:bg-orange-500/10 hover:text-orange-100",
+                      "h-7 px-2 text-[13px] text-orange-300 hover:bg-orange-500/10 hover:text-orange-100",
                       propPickerOpen && "bg-orange-500/10 text-orange-100"
                     )}
                     disabled={uploadDisabled || uploading || generating}
@@ -349,7 +349,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
+                    className="h-7 px-2 text-[13px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
                     disabled={uploadDisabled || uploading}
                     onClick={() => onUploadReference(item)}
                   >
@@ -362,7 +362,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
+                    className="h-7 px-2 text-[13px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
                     disabled={uploadDisabled || uploading}
                     onClick={() => onUploadAudioReference(item)}
                   >
@@ -375,7 +375,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
+                    className="h-7 px-2 text-[13px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
                     disabled={uploadDisabled || uploading}
                     onClick={() => void onClearAudioReference(item)}
                   >
@@ -388,7 +388,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-zinc-300 hover:bg-layer-4 hover:text-zinc-100"
+                    className="h-7 px-2 text-[13px] text-zinc-300 hover:bg-layer-4 hover:text-zinc-100"
                     onClick={() => onOpenHistory(item)}
                   >
                     <ImageIcon className="h-3.5 w-3.5" />
@@ -400,7 +400,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
+                    className="h-7 px-2 text-[13px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
                     onClick={() => onAddToCanvas(assetKind, item)}
                   >
                     <Layers3 className="h-3.5 w-3.5" />
@@ -412,7 +412,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
+                    className="h-7 px-2 text-[13px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
                     disabled={generating || uploading}
                     onClick={() => onClearCurrentImage(item)}
                   >
@@ -425,7 +425,7 @@ export function AssetMiniList({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-[11px] text-red-300 hover:bg-red-500/10 hover:text-red-100"
+                    className="h-7 px-2 text-[13px] text-red-300 hover:bg-red-500/10 hover:text-red-100"
                     disabled={generating}
                     onClick={() => onRemoveAsset(assetKind, item)}
                   >
@@ -468,8 +468,8 @@ export function AssetMiniList({
           >
             <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-zinc-800 px-4">
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-semibold text-zinc-100">{editingPromptTarget.title}</div>
-                <div className="mt-0.5 text-[11px] text-zinc-500">完整最终生图提示词</div>
+                <div className="truncate text-[16px] font-semibold text-zinc-100">{editingPromptTarget.title}</div>
+                <div className="mt-0.5 text-[13px] text-zinc-500">完整最终生图提示词</div>
               </div>
               <Button
                 type="button"
@@ -484,7 +484,7 @@ export function AssetMiniList({
             </div>
             <div className="min-h-0 flex-1 p-4">
               <textarea
-                className="h-full w-full resize-none rounded-md border border-zinc-800 bg-background px-3 py-2 font-mono text-[12px] leading-5 text-zinc-100 outline-none focus:border-amber-400"
+                className="h-full w-full resize-none rounded-md border border-zinc-800 bg-background px-3 py-2 font-mono text-[14px] leading-5 text-zinc-100 outline-none focus:border-amber-400"
                 value={editingPromptValue}
                 autoFocus
                 onPointerDown={(event) => event.stopPropagation()}
@@ -513,15 +513,15 @@ export function AssetMiniList({
             </div>
             <div className="flex shrink-0 items-center justify-between gap-3 border-t border-zinc-800 px-4 py-3">
               <div className="min-w-0">
-                <div className="truncate text-[11px] text-zinc-500">保存后，“全新生成/参考生成”会优先提交这份完整提示词。</div>
-                <div className="mt-1 text-[11px] text-zinc-500">字符数：{editingPromptValue.length.toLocaleString()}</div>
+                <div className="truncate text-[13px] text-zinc-500">保存后，“全新生成/参考生成”会优先提交这份完整提示词。</div>
+                <div className="mt-1 text-[13px] text-zinc-500">字符数：{editingPromptValue.length.toLocaleString()}</div>
               </div>
               <div className="flex shrink-0 gap-2">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-3 text-[12px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
+                  className="h-8 px-3 text-[14px] text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
                   disabled={Boolean(savingPromptKey)}
                   onClick={closePromptEdit}
                 >
@@ -531,7 +531,7 @@ export function AssetMiniList({
                 <Button
                   type="button"
                   size="sm"
-                  className="h-8 bg-emerald-500 px-3 text-[12px] text-black hover:bg-emerald-400"
+                  className="h-8 bg-emerald-500 px-3 text-[14px] text-black hover:bg-emerald-400"
                   disabled={Boolean(savingPromptKey)}
                   onClick={() => void saveAssetPromptEdit(
                     editingPromptTarget.kind,

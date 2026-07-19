@@ -145,7 +145,7 @@ export function RemakeJobPage() {
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-[22px] font-extrabold tracking-tight sm:text-[24px]">
+            <h1 className="text-[24px] font-extrabold tracking-tight sm:text-[26px]">
               {job.title || job.sourceUrl || `任务 ${job.id.slice(0, 8)}`}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">

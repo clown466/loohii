@@ -345,7 +345,7 @@ export function ClipStoryboardList({
 
   return (
     <div className="divide-y divide-zinc-800">
-      <div className="flex flex-col gap-3 px-4 py-3 text-[11px] text-zinc-500 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-3 px-4 py-3 text-[13px] text-zinc-500 xl:flex-row xl:items-center xl:justify-between">
         <div className="grid flex-1 gap-2 sm:grid-cols-4">
           <span>Clips {clips.length}</span>
           <span>分镜 {scenes.length}</span>
@@ -355,14 +355,14 @@ export function ClipStoryboardList({
         {storyboardEnabled ? <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="h-7 rounded-md border border-zinc-800 px-2 text-[11px] text-zinc-400 transition-colors hover:border-border hover:text-zinc-100"
+            className="h-7 rounded-md border border-zinc-800 px-2 text-[13px] text-zinc-400 transition-colors hover:border-border hover:text-zinc-100"
             onClick={() => setSelectedStoryboardClipIds(allStoryboardSelected ? [] : clips.map((clip) => clip.id))}
           >
             {allStoryboardSelected ? '清空选择' : '全选 Clip'}
           </button>
           <button
             type="button"
-            className="h-7 rounded-md border border-zinc-800 px-2 text-[11px] text-zinc-400 transition-colors hover:border-border hover:text-zinc-100"
+            className="h-7 rounded-md border border-zinc-800 px-2 text-[13px] text-zinc-400 transition-colors hover:border-border hover:text-zinc-100"
             onClick={() => setSelectedClipId((current) => (current ? null : clips[0]?.id ?? null))}
           >
             {selectedClipId ? '收起详情' : '展开第一个'}
@@ -370,7 +370,7 @@ export function ClipStoryboardList({
           <Button
             type="button"
             size="sm"
-            className="h-7 bg-amber-500 text-[11px] text-black hover:bg-amber-400"
+            className="h-7 bg-amber-500 text-[13px] text-black hover:bg-amber-400"
             disabled={selectedStoryboardClipIds.length === 0 || storyboardBatchBusy}
             onClick={() => void runSelectedStoryboardInference()}
           >
@@ -408,7 +408,7 @@ export function ClipStoryboardList({
 
         return (
           <div key={clip.id} className={cn("bg-[#141416]", active && "bg-card")}>
-            {storyboardEnabled ? <div className="flex items-center gap-2 border-b border-zinc-900/70 px-4 py-2 text-[11px] text-zinc-500">
+            {storyboardEnabled ? <div className="flex items-center gap-2 border-b border-zinc-900/70 px-4 py-2 text-[13px] text-zinc-500">
               <input
                 type="checkbox"
                 checked={selectedStoryboardClipSet.has(clip.id)}
@@ -426,61 +426,61 @@ export function ClipStoryboardList({
               className="grid w-full gap-3 p-4 text-left transition-colors hover:bg-card xl:grid-cols-[112px_minmax(0,1.5fr)_150px_150px_minmax(0,1fr)_170px]"
             >
               <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-[0.16em] text-zinc-600">Clip 编号</div>
-                <div className="mt-1 truncate font-mono text-[13px] font-semibold text-zinc-100">
+                <div className="text-[13px] uppercase tracking-[0.16em] text-zinc-600">Clip 编号</div>
+                <div className="mt-1 truncate font-mono text-[15px] font-semibold text-zinc-100">
                   C{String(index + 1).padStart(2, '0')}
                 </div>
-                <div className="mt-0.5 truncate font-mono text-[10px] text-zinc-600">{clip.id}</div>
+                <div className="mt-0.5 truncate font-mono text-[12px] text-zinc-600">{clip.id}</div>
               </div>
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate text-[13px] font-semibold text-zinc-100">{clip.title}</span>
+                  <span className="truncate text-[15px] font-semibold text-zinc-100">{clip.title}</span>
                   {clip.panelCount !== undefined && (
-                    <Badge className="border border-border bg-zinc-900 text-[10px] text-zinc-400 hover:bg-zinc-900">
+                    <Badge className="border border-border bg-zinc-900 text-[12px] text-zinc-400 hover:bg-zinc-900">
                       {clip.panelCount} panels
                     </Badge>
                   )}
                 </div>
-                <div className="mt-1 line-clamp-2 text-[12px] leading-5 text-zinc-400">
+                <div className="mt-1 line-clamp-2 text-[14px] leading-5 text-zinc-400">
                   {clip.plotGoal || '未写入剧情目标'}
                 </div>
               </div>
 
               <div className="min-w-0">
-                <div className="text-[11px] text-zinc-600">预计时长</div>
-                <div className="mt-1 text-[12px] leading-5 text-zinc-300">{formatClipDuration(clip)}</div>
+                <div className="text-[13px] text-zinc-600">预计时长</div>
+                <div className="mt-1 text-[14px] leading-5 text-zinc-300">{formatClipDuration(clip)}</div>
               </div>
 
               <div className="min-w-0">
-                <div className="text-[11px] text-zinc-600">台词词数/密度</div>
-                <div className="mt-1 text-[12px] leading-5 text-zinc-300">{formatClipDialogue(clip)}</div>
+                <div className="text-[13px] text-zinc-600">台词词数/密度</div>
+                <div className="mt-1 text-[14px] leading-5 text-zinc-300">{formatClipDialogue(clip)}</div>
               </div>
 
               <div className="min-w-0">
-                <div className="text-[11px] text-zinc-600">场景 / 角色</div>
-                <div className="mt-1 truncate text-[12px] text-zinc-300">
+                <div className="text-[13px] text-zinc-600">场景 / 角色</div>
+                <div className="mt-1 truncate text-[14px] text-zinc-300">
                   {[clip.setting, clip.sceneType].filter(Boolean).join(' · ') || '未指定'}
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-zinc-500">{compactList(continuityCharacters.length ? continuityCharacters : clip.characters)}</div>
+                <div className="mt-0.5 truncate text-[13px] text-zinc-500">{compactList(continuityCharacters.length ? continuityCharacters : clip.characters)}</div>
               </div>
 
               <div className="min-w-0">
                 <div className="flex flex-wrap gap-1.5">
-                  <Badge className="border border-primary/20 bg-primary/10 text-[10px] text-primary hover:bg-primary/10">
+                  <Badge className="border border-primary/20 bg-primary/10 text-[12px] text-primary hover:bg-primary/10">
                     {clip.storyboardControlLevel || '控制未定'}
                   </Badge>
-                  <Badge className="border border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-200 hover:bg-amber-500/10">
+                  <Badge className="border border-amber-500/20 bg-amber-500/10 text-[12px] text-amber-200 hover:bg-amber-500/10">
                     {clip.storyboardType || '类型未定'}
                   </Badge>
-                  <Badge className="border border-emerald-500/20 bg-emerald-500/10 text-[10px] text-emerald-200 hover:bg-emerald-500/10">
+                  <Badge className="border border-emerald-500/20 bg-emerald-500/10 text-[12px] text-emerald-200 hover:bg-emerald-500/10">
                     {storyboardAssetReferences.length} 角色/场景参考
                   </Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <Badge
                     className={cn(
-                      "border text-[10px]",
+                      "border text-[12px]",
                       preflightRisky
                         ? "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/10"
                         : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/10"
@@ -488,7 +488,7 @@ export function ClipStoryboardList({
                   >
                     {getClipPreflightStatus(clip)}
                   </Badge>
-                  <span className="truncate text-[11px] text-zinc-500">
+                  <span className="truncate text-[13px] text-zinc-500">
                     {risks.length ? `${risks[0]}${risks.length > 1 ? ` +${risks.length - 1}` : ''}` : '无风险提示'}
                   </span>
                 </div>
@@ -500,10 +500,10 @@ export function ClipStoryboardList({
                 <div className="mb-4 flex flex-col gap-3 rounded-md border border-zinc-800 bg-[#0d0d0f] p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[12px] font-semibold text-zinc-100">Clip 预检</span>
+                      <span className="text-[14px] font-semibold text-zinc-100">Clip 预检</span>
                       <Badge
                         className={cn(
-                          "border text-[10px]",
+                          "border text-[12px]",
                           preflightRisky
                             ? "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/10"
                             : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/10"
@@ -512,7 +512,7 @@ export function ClipStoryboardList({
                         {getClipPreflightStatus(clip)}
                       </Badge>
                     </div>
-                    <div className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-500">
+                    <div className="mt-1 line-clamp-2 text-[13px] leading-4 text-zinc-500">
                       {risks.length ? risks.join('；') : '当前没有风险提示。'}
                     </div>
                   </div>
@@ -547,32 +547,32 @@ export function ClipStoryboardList({
                 </div>
                 <div className="grid gap-3 xl:grid-cols-2">
                   <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-3">
-                    <div className="mb-2 flex items-center gap-2 text-[12px] font-medium text-zinc-300">
+                    <div className="mb-2 flex items-center gap-2 text-[14px] font-medium text-zinc-300">
                       <ArrowRight className="h-3.5 w-3.5 text-emerald-300" />
                       开始状态
                     </div>
-                    <div className="text-[12px] leading-5 text-zinc-500">{clip.startState || '未指定'}</div>
+                    <div className="text-[14px] leading-5 text-zinc-500">{clip.startState || '未指定'}</div>
                   </div>
                   <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-3">
-                    <div className="mb-2 flex items-center gap-2 text-[12px] font-medium text-zinc-300">
+                    <div className="mb-2 flex items-center gap-2 text-[14px] font-medium text-zinc-300">
                       <CheckCircle2 className="h-3.5 w-3.5 text-amber-300" />
                       结束状态
                     </div>
-                    <div className="text-[12px] leading-5 text-zinc-500">{clip.endState || '未指定'}</div>
+                    <div className="text-[14px] leading-5 text-zinc-500">{clip.endState || '未指定'}</div>
                   </div>
                   <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-3">
-                    <div className="mb-2 text-[12px] font-medium text-zinc-300">Layout Memory</div>
-                    <div className="whitespace-pre-wrap text-[12px] leading-5 text-zinc-500">{clip.layoutMemory || '未生成'}</div>
+                    <div className="mb-2 text-[14px] font-medium text-zinc-300">Layout Memory</div>
+                    <div className="whitespace-pre-wrap text-[14px] leading-5 text-zinc-500">{clip.layoutMemory || '未生成'}</div>
                   </div>
                   <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] p-3">
-                    <div className="mb-2 text-[12px] font-medium text-zinc-300">Seedance Prompt</div>
-                    <div className="max-h-[220px] overflow-y-auto rounded border border-zinc-900 bg-background px-3 py-2 whitespace-pre-wrap text-[12px] leading-5 text-zinc-500">
+                    <div className="mb-2 text-[14px] font-medium text-zinc-300">Seedance Prompt</div>
+                    <div className="max-h-[220px] overflow-y-auto rounded border border-zinc-900 bg-background px-3 py-2 whitespace-pre-wrap text-[14px] leading-5 text-zinc-500">
                       {clip.seedancePrompt || '未生成'}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+                <div className="mt-3 flex flex-wrap gap-2 text-[13px] text-zinc-500">
                   <span className="rounded border border-zinc-800 bg-[#0d0d0f] px-2 py-1">
                     shotIds：{shotCount ? (clip.shotIds ?? []).join(', ') : '无'}
                   </span>
@@ -587,12 +587,12 @@ export function ClipStoryboardList({
                 {storyboardEnabled ? <div className="mt-4 rounded-lg border border-zinc-800 bg-[#141416]">
                   <div className="flex flex-col gap-2 border-b border-zinc-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="text-[13px] font-semibold text-zinc-100">已生成故事板图片</div>
-                      <div className="mt-1 text-[11px] leading-4 text-zinc-500">
+                      <div className="text-[15px] font-semibold text-zinc-100">已生成故事板图片</div>
+                      <div className="mt-1 text-[13px] leading-4 text-zinc-500">
                         这里收纳当前 Clip 已生成的故事板图，可直接作为参考图放回画布。
                       </div>
                     </div>
-                    <Badge className="w-fit border border-amber-500/25 bg-amber-500/10 text-[10px] text-amber-200 hover:bg-amber-500/10">
+                    <Badge className="w-fit border border-amber-500/25 bg-amber-500/10 text-[12px] text-amber-200 hover:bg-amber-500/10">
                       {clipStoryboardImages.length} 张
                     </Badge>
                   </div>
@@ -617,12 +617,12 @@ export function ClipStoryboardList({
                             />
                           </button>
                           <div className="space-y-2 p-2">
-                            <div className="line-clamp-1 text-[11px] text-zinc-300">{reference.title || `${clip.title || 'Clip'} 故事板`}</div>
+                            <div className="line-clamp-1 text-[13px] text-zinc-300">{reference.title || `${clip.title || 'Clip'} 故事板`}</div>
                             <Button
                               type="button"
                               variant="secondary"
                               size="sm"
-                              className="h-7 w-full border border-border bg-zinc-900 text-[11px] text-zinc-100 hover:bg-layer-4"
+                              className="h-7 w-full border border-border bg-zinc-900 text-[13px] text-zinc-100 hover:bg-layer-4"
                               onClick={() => onAddClipStoryboardImageReferenceNode(clip, reference)}
                             >
                               <ImageIcon className="h-3.5 w-3.5" />
@@ -633,7 +633,7 @@ export function ClipStoryboardList({
                       ))}
                     </div>
                   ) : (
-                    <div className="p-4 text-[12px] leading-5 text-zinc-500">
+                    <div className="p-4 text-[14px] leading-5 text-zinc-500">
                       暂无已生成故事板图。先点击下方“放入画布生图”，在画布节点生成完成后会自动出现在这里。
                     </div>
                   )}
@@ -642,12 +642,12 @@ export function ClipStoryboardList({
                 {storyboardEnabled ? <div className="mt-4 rounded-lg border border-zinc-800 bg-[#141416]">
                   <div className="flex flex-col gap-3 border-b border-zinc-800 px-4 py-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
-                      <div className="text-[13px] font-semibold text-zinc-100">Clip 故事板提示词</div>
-                      <div className="mt-1 text-[11px] leading-4 text-zinc-500">
+                      <div className="text-[15px] font-semibold text-zinc-100">Clip 故事板提示词</div>
+                      <div className="mt-1 text-[13px] leading-4 text-zinc-500">
                         按整个 Clip 调用文本模型先推理格数和故事板提示词；生成图片请放入画布生图节点。
                       </div>
                       {shortClipWarning && (
-                        <div className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[11px] leading-4 text-amber-200">
+                        <div className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[13px] leading-4 text-amber-200">
                           {shortClipWarning}
                         </div>
                       )}
@@ -689,12 +689,12 @@ export function ClipStoryboardList({
                   </div>
                   <div className="space-y-3 p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[11px] text-zinc-500">宫格</span>
+                      <span className="text-[13px] text-zinc-500">宫格</span>
                       <button
                         type="button"
                         onClick={() => setClipPanelChoices((current) => ({ ...current, [clip.id]: 'ai' }))}
                         className={cn(
-                          "h-8 rounded-md border px-3 text-[12px] transition-colors",
+                          "h-8 rounded-md border px-3 text-[14px] transition-colors",
                           panelChoice === 'ai'
                             ? "border-amber-500 bg-amber-500/10 text-amber-200"
                             : "border-zinc-800 bg-[#0d0d0f] text-zinc-400 hover:border-border"
@@ -708,7 +708,7 @@ export function ClipStoryboardList({
                           type="button"
                           onClick={() => setClipPanelChoices((current) => ({ ...current, [clip.id]: count }))}
                           className={cn(
-                            "h-8 rounded-md border px-3 text-[12px] transition-colors",
+                            "h-8 rounded-md border px-3 text-[14px] transition-colors",
                             panelChoice === count
                               ? "border-amber-500 bg-amber-500/10 text-amber-200"
                               : "border-zinc-800 bg-[#0d0d0f] text-zinc-400 hover:border-border"
@@ -717,24 +717,24 @@ export function ClipStoryboardList({
                           {count}格
                         </button>
                       ))}
-                      <span className="text-[11px] text-zinc-500">
+                      <span className="text-[13px] text-zinc-500">
                         {clipStoryboardPlan?.panelCount
                           ? `AI结果：${clipStoryboardPlan.panelCount}格`
                           : `系统估算：${suggestedPanelCount}格`}
                       </span>
                     </div>
                     {clipStoryboardPlan?.notes && (
-                      <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[11px] leading-4 text-zinc-500">
+                      <div className="rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 text-[13px] leading-4 text-zinc-500">
                         {clipStoryboardPlan.notes}
                       </div>
                     )}
                     {clipStoryboardError && (
-                      <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] leading-4 text-red-200">
+                      <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] leading-4 text-red-200">
                         {clipStoryboardError}
                       </div>
                     )}
                     <PromptTextarea
-                      className="min-h-[220px] w-full resize-y rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 font-mono text-[12px] leading-5 text-zinc-100 outline-none focus:border-amber-500"
+                      className="min-h-[220px] w-full resize-y rounded-md border border-zinc-800 bg-[#0d0d0f] px-3 py-2 font-mono text-[14px] leading-5 text-zinc-100 outline-none focus:border-amber-500"
                       value={clipStoryboardDraft}
                       onChange={(nextPrompt) => {
                         setClipStoryboardDrafts((current) => ({
@@ -753,15 +753,15 @@ export function ClipStoryboardList({
                     />
                   </div>
                 </div> : (
-                  <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-[12px] leading-5 text-sky-100">
+                  <div className="mt-4 rounded-lg border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-[14px] leading-5 text-sky-100">
                     当前为 Seedance 多参流程。视频提示词会直接读取资产图、分镜脚本和状态连续性，不生成 Clip 故事板图。
                   </div>
                 )}
 
                 <div className="mt-4 rounded-lg border border-zinc-800 bg-[#141416]">
                   <div className="flex flex-col gap-2 border-b border-zinc-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-[13px] font-semibold text-zinc-100">Clip 内镜头列表</div>
-                    <div className="flex flex-wrap gap-2 text-[11px] text-zinc-500">
+                    <div className="text-[15px] font-semibold text-zinc-100">Clip 内镜头列表</div>
+                    <div className="flex flex-wrap gap-2 text-[13px] text-zinc-500">
                       <span>{clipScenes.length}/{shotCount} 已匹配</span>
                       {missingShotCount > 0 && <span className="text-amber-300">缺 {missingShotCount}</span>}
                     </div>
@@ -776,7 +776,7 @@ export function ClipStoryboardList({
                       emptyDescription="shotIds 还没有匹配到当前分镜列表。"
                     />
                   ) : (
-                    <div className="p-4 text-[12px] text-zinc-500">
+                    <div className="p-4 text-[14px] text-zinc-500">
                       {shotCount ? 'shotIds 还没有匹配到当前分镜列表。' : '该 Clip 暂无 shotIds。'}
                     </div>
                   )}

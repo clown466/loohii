@@ -5555,7 +5555,7 @@ function CanvasInner() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-2 px-1">
-              <div className="text-[12px] font-semibold text-zinc-400">
+              <div className="text-[14px] font-semibold text-zinc-400">
                 {connectionCreateMenu.handleType === 'target' ? '选择上游引用节点' : '引用该节点生成'}
               </div>
             </div>
@@ -5573,8 +5573,8 @@ function CanvasInner() {
                       <Icon className={cn("h-5 w-5", option.tone)} />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-[15px] font-semibold leading-5 text-zinc-100">{option.label}</span>
-                      <span className="mt-0.5 block truncate text-[12px] leading-4 text-zinc-500">{option.desc}</span>
+                      <span className="block text-[17px] font-semibold leading-5 text-zinc-100">{option.label}</span>
+                      <span className="mt-0.5 block truncate text-[14px] leading-4 text-zinc-500">{option.desc}</span>
                     </span>
                   </button>
                 );
@@ -5587,7 +5587,7 @@ function CanvasInner() {
           <div className="pointer-events-none absolute inset-x-0 top-4 z-[70] flex justify-center px-4">
             <div
               className={cn(
-                "rounded-lg border px-4 py-2 text-[12px] shadow-2xl backdrop-blur",
+                "rounded-lg border px-4 py-2 text-[14px] shadow-2xl backdrop-blur",
                 canvasDropActive
                   ? "border-sky-400/70 bg-sky-500/15 text-sky-100"
                   : "border-border bg-[#141416]/95 text-zinc-200",
@@ -5609,7 +5609,7 @@ function CanvasInner() {
               <>
                 {selectedContentNodes.length > 0 ? (
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                     onClick={handleCreateSectionFromSelection}
                   >
                     <Layers3 className="h-3.5 w-3.5 text-zinc-300" /> 给选中节点分区
@@ -5617,7 +5617,7 @@ function CanvasInner() {
                 ) : null}
                 {(selectedSectionNodes.length > 0 || selectedContentNodes.some((node) => node.parentId)) ? (
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                     onClick={handleUngroupSelection}
                   >
                     <X className="h-3.5 w-3.5 text-zinc-400" /> 取消分区
@@ -5625,13 +5625,13 @@ function CanvasInner() {
                 ) : null}
                 {(selectedContentNodes.length > 0 || selectedSectionNodes.length > 0) ? <div className="my-1 border-t border-zinc-800" /> : null}
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={handleContextDuplicateNode}
                 >
                   <Copy className="h-3.5 w-3.5 text-zinc-400" /> 复制节点
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-red-400 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-red-400 hover:bg-layer-4"
                   onClick={handleContextDeleteNode}
                 >
                   <Trash2 className="h-3.5 w-3.5" /> {contextMenuIsSection ? '删除分区内节点' : '删除节点'}
@@ -5639,82 +5639,82 @@ function CanvasInner() {
               </>
             ) : (
               <>
-                <div className="px-3 py-1.5 text-[11px] font-medium text-zinc-500">添加节点</div>
+                <div className="px-3 py-1.5 text-[13px] font-medium text-zinc-500">添加节点</div>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('scene')}
                 >
                   <ImageIcon className="h-3.5 w-3.5 text-emerald-400" /> 分镜
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('character')}
                 >
                   <Users className="h-3.5 w-3.5 text-primary" /> 角色
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('asset')}
                 >
                   <Package className="h-3.5 w-3.5 text-amber-400" /> 资产
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('episode')}
                 >
                   <Film className="h-3.5 w-3.5 text-sky-400" /> 章节
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('workflow')}
                 >
                   <Layers3 className="h-3.5 w-3.5 text-primary" /> 工作流
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('video')}
                 >
                   <MonitorPlay className="h-3.5 w-3.5 text-sky-400" /> 视频
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('imageInput')}
                 >
                   <ImageIcon className="h-3.5 w-3.5 text-sky-400" /> 图片输入
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('generation')}
                 >
                   <Wand2 className="h-3.5 w-3.5 text-primary" /> 生成图片
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('translation')}
                 >
                   <Languages className="h-3.5 w-3.5 text-cyan-400" /> 翻译提示词
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('promptOptimizer')}
                 >
                   <Wand2 className="h-3.5 w-3.5 text-primary" /> 优化提示词
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('promptInspector')}
                 >
                   <ClipboardCheck className="h-3.5 w-3.5 text-amber-400" /> 检查提示词
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => handleContextAddNode('agent')}
                 >
                   <Bot className="h-3.5 w-3.5 text-violet-300" /> 智能体
                 </button>
                 {selectedContentNodes.length > 0 ? (
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                     onClick={handleCreateSectionFromSelection}
                   >
                     <Layers3 className="h-3.5 w-3.5 text-zinc-300" /> 给选中节点分区
@@ -5722,7 +5722,7 @@ function CanvasInner() {
                 ) : null}
                 {(selectedSectionNodes.length > 0 || selectedContentNodes.some((node) => node.parentId)) ? (
                   <button
-                    className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                     onClick={handleUngroupSelection}
                   >
                     <X className="h-3.5 w-3.5 text-zinc-400" /> 取消分区
@@ -5730,14 +5730,14 @@ function CanvasInner() {
                 ) : null}
                 <div className="my-1 border-t border-zinc-800" />
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-zinc-200 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-zinc-200 hover:bg-layer-4"
                   onClick={() => { handleDeleteSelected(); setContextMenu(null); }}
                   disabled={selectedCanvasNodes.length === 0}
                 >
                   <Trash2 className="h-3.5 w-3.5 text-zinc-400" /> 删除选中
                 </button>
                 <button
-                  className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-red-400 hover:bg-layer-4"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-[15px] text-red-400 hover:bg-layer-4"
                   onClick={() => { handleResetCanvas(); setContextMenu(null); }}
                 >
                   <X className="h-3.5 w-3.5" /> 清空画布
@@ -5751,7 +5751,7 @@ function CanvasInner() {
         {editingNode && editingNodeData && (
           <div className="absolute right-0 top-0 z-30 flex h-full w-[340px] flex-col border-l border-zinc-800 bg-[#141416] shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-              <div className="text-[14px] font-semibold text-zinc-100">
+              <div className="text-[16px] font-semibold text-zinc-100">
                 {editingNodeData.type === 'character' ? '编辑角色' : editingNodeData.type === 'scene' ? '编辑分镜' : editingNodeData.type === 'imageInput' ? '编辑图片输入' : editingNodeData.type === 'translation' ? '编辑翻译节点' : editingNodeData.type === 'promptOptimizer' ? '编辑优化节点' : editingNodeData.type === 'promptInspector' ? '编辑检查节点' : editingNodeData.type === 'agent' ? '编辑智能体' : editingNodeData.type === 'section' ? '编辑分区' : '编辑节点'}
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-zinc-100" onClick={() => setEditingNode(null)}>
@@ -5762,17 +5762,17 @@ function CanvasInner() {
               {editingNodeData.type === 'character' ? (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">角色名称</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">角色名称</label>
                     <input
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       value={editingNodeData.data.name || ''}
                       onChange={(e) => handleEditNodeField('name', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">角色特征</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">角色特征</label>
                     <textarea
-                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[13px] leading-5 text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[15px] leading-5 text-zinc-100 focus:border-primary focus:outline-none"
                       rows={3}
                       value={editingNodeData.data.traits || ''}
                       onChange={(e) => handleEditNodeField('traits', e.target.value)}
@@ -5780,7 +5780,7 @@ function CanvasInner() {
                   </div>
                   {editingNodeData.data.avatar && (
                     <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">头像预览</label>
+                      <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">头像预览</label>
                       <ThumbImage
                         src={editingNodeData.data.avatar}
                         thumbWidth={300}
@@ -5794,17 +5794,17 @@ function CanvasInner() {
               ) : editingNodeData.type === 'scene' ? (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">分镜标题</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">分镜标题</label>
                     <input
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       value={editingNodeData.data.title || ''}
                       onChange={(e) => handleEditNodeField('title', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">场景描述</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">场景描述</label>
                     <textarea
-                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
+                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
                       rows={3}
                       value={editingNodeData.data.description || ''}
                       onChange={(e) => handleEditNodeField('description', e.target.value)}
@@ -5812,7 +5812,7 @@ function CanvasInner() {
                   </div>
                   {editingNodeData.data.image && (
                     <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">当前图片</label>
+                      <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">当前图片</label>
                       <ThumbImage
                         src={editingNodeData.data.image}
                         thumbWidth={300}
@@ -5823,10 +5823,10 @@ function CanvasInner() {
                     </div>
                   )}
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">生图提示词（完整）</label>
-                    <p className="mb-1 text-[11px] text-zinc-600">此提示词将直接发送给生图模型</p>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">生图提示词（完整）</label>
+                    <p className="mb-1 text-[13px] text-zinc-600">此提示词将直接发送给生图模型</p>
                     <PromptTextarea
-                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
+                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
                       rows={6}
                       placeholder="描述场景的完整视觉内容，包括环境、光线、构图、风格等..."
                       value={editingNodeData.data.visualPrompt || ''}
@@ -5836,10 +5836,10 @@ function CanvasInner() {
                     />
                   </div>
                   <div className="rounded-md border border-zinc-800 bg-background p-3">
-                    <div className="text-[11px] font-medium text-zinc-500 mb-1">状态</div>
+                    <div className="text-[13px] font-medium text-zinc-500 mb-1">状态</div>
                     <div className="flex items-center gap-2">
                       <span className={cn("h-2 w-2 rounded-full", editingNodeData.data.status === 'completed' ? 'bg-green-500' : editingNodeData.data.status === 'generating' ? 'bg-yellow-500' : 'bg-zinc-600')} />
-                      <span className="text-[12px] text-zinc-300">
+                      <span className="text-[14px] text-zinc-300">
                         {editingNodeData.data.status === 'completed' ? '已完成' : editingNodeData.data.status === 'generating' ? '生成中' : '等待生成'}
                       </span>
                     </div>
@@ -5848,17 +5848,17 @@ function CanvasInner() {
               ) : editingNodeData.type === 'imageInput' ? (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">标签</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">标签</label>
                     <input
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       value={editingNodeData.data.label || ''}
                       onChange={(e) => handleEditNodeField('label', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">图片 URL</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">图片 URL</label>
                     <input
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       placeholder="https://..."
                       value={editingNodeData.data.imageUrl || ''}
                       onChange={(e) => handleEditNodeField('imageUrl', e.target.value)}
@@ -5866,7 +5866,7 @@ function CanvasInner() {
                   </div>
                   {editingNodeData.data.imageUrl && (
                     <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">预览</label>
+                      <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">预览</label>
                       <ThumbImage
                         src={editingNodeData.data.imageUrl}
                         thumbWidth={300}
@@ -5876,31 +5876,31 @@ function CanvasInner() {
                       />
                     </div>
                   )}
-                  <p className="text-[11px] text-zinc-500">将此节点连线到分镜或角色节点，生成时会作为参考图输入。</p>
+                  <p className="text-[13px] text-zinc-500">将此节点连线到分镜或角色节点，生成时会作为参考图输入。</p>
                 </>
               ) : editingNodeData.type === 'section' ? (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">分区标题</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">分区标题</label>
                     <input
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       value={editingNodeData.data.title || ''}
                       onChange={(e) => handleEditNodeField('title', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">说明</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">说明</label>
                     <textarea
-                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
+                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
                       rows={3}
                       value={editingNodeData.data.description || ''}
                       onChange={(e) => handleEditNodeField('description', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">颜色</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">颜色</label>
                     <select
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       value={editingNodeData.data.tone || 'zinc'}
                       onChange={(e) => handleEditNodeField('tone', e.target.value)}
                     >
@@ -5914,17 +5914,17 @@ function CanvasInner() {
               ) : (
                 <>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">节点标题</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">节点标题</label>
                     <input
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[13px] text-zinc-100 focus:border-primary focus:outline-none"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-[15px] text-zinc-100 focus:border-primary focus:outline-none"
                       value={editingNodeData.data.title || ''}
                       onChange={(e) => handleEditNodeField('title', e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-zinc-400">描述</label>
+                    <label className="mb-1.5 block text-[14px] font-medium text-zinc-400">描述</label>
                     <textarea
-                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
+                      className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
                       rows={4}
                       value={editingNodeData.data.description || ''}
                       onChange={(e) => handleEditNodeField('description', e.target.value)}
@@ -5947,8 +5947,8 @@ function CanvasInner() {
         {projectUnavailable && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4">
             <div className="w-full max-w-md rounded-lg border border-red-500/30 bg-[#141416] p-5 shadow-2xl">
-              <div className="mb-2 text-[15px] font-semibold text-zinc-100">项目不存在</div>
-              <p className="text-[13px] leading-6 text-zinc-400">
+              <div className="mb-2 text-[17px] font-semibold text-zinc-100">项目不存在</div>
+              <p className="text-[15px] leading-6 text-zinc-400">
                 当前链接指向旧本地示例项目或已删除项目，后端没有对应记录。请回到「我的项目」，从真实项目卡片重新进入。
               </p>
               <div className="mt-5 flex justify-end">
@@ -6121,10 +6121,10 @@ function CanvasInner() {
         {activePanel === 'assetLibrary' && (
           <div className="absolute bottom-3 left-16 top-3 z-20 flex w-[34vw] min-w-[520px] max-w-[760px] max-[900px]:w-[calc(100%-5rem)] max-[900px]:min-w-0 flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#111113]/95 shadow-2xl backdrop-blur">
             <div className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-800 px-4">
-              <div className="flex min-w-0 items-center gap-2 text-[14px] font-semibold text-zinc-100">
+              <div className="flex min-w-0 items-center gap-2 text-[16px] font-semibold text-zinc-100">
                 <PackageOpen className="h-4 w-4 shrink-0 text-amber-300" />
                 <span className="truncate">全资产库</span>
-                <span className="rounded border border-border bg-zinc-900 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+                <span className="rounded border border-border bg-zinc-900 px-1.5 py-0.5 text-[12px] font-medium text-zinc-400">
                   {assetLibraryTotalCount}
                 </span>
               </div>
@@ -6133,7 +6133,7 @@ function CanvasInner() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-[11px] text-zinc-400 hover:text-zinc-100"
+                  className="h-7 px-2 text-[13px] text-zinc-400 hover:text-zinc-100"
                   disabled={assetLibraryLoading}
                   onClick={() => void loadAssetLibrary()}
                 >
@@ -6151,7 +6151,7 @@ function CanvasInner() {
                 <select
                   value={assetLibraryEpisodeId}
                   onChange={(event) => setAssetLibraryEpisodeId(event.target.value)}
-                  className="h-8 min-w-[150px] rounded-md border border-zinc-800 bg-background px-2 text-[12px] text-zinc-100 outline-none focus:border-amber-500"
+                  className="h-8 min-w-[150px] rounded-md border border-zinc-800 bg-background px-2 text-[14px] text-zinc-100 outline-none focus:border-amber-500"
                 >
                   <option value="all">全部剧集</option>
                   {assetLibraryEpisodes.map((episode) => (
@@ -6169,7 +6169,7 @@ function CanvasInner() {
                         key={category.key}
                         type="button"
                         className={cn(
-                          "inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-[12px] transition-colors",
+                          "inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-[14px] transition-colors",
                           active
                             ? "border-amber-500 bg-amber-500/10 text-amber-100"
                             : "border-zinc-800 bg-background text-zinc-400 hover:border-border hover:text-zinc-100"
@@ -6184,7 +6184,7 @@ function CanvasInner() {
                 </div>
               </div>
               {assetLibraryStatus && (
-                <div className="mt-2 rounded-md border border-zinc-800 bg-background px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                <div className="mt-2 rounded-md border border-zinc-800 bg-background px-3 py-2 text-[13px] leading-4 text-zinc-400">
                   {assetLibraryStatus}
                 </div>
               )}
@@ -6192,12 +6192,12 @@ function CanvasInner() {
 
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {assetLibraryLoading ? (
-                <div className="rounded-lg border border-dashed border-zinc-800 bg-background px-4 py-8 text-center text-[12px] text-zinc-500">
+                <div className="rounded-lg border border-dashed border-zinc-800 bg-background px-4 py-8 text-center text-[14px] text-zinc-500">
                   正在加载所有剧集资产...
                 </div>
               ) : assetLibraryCategory === 'directorBoards' ? (
                 assetLibraryDirectorItems.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-zinc-800 bg-background px-4 py-8 text-center text-[12px] text-zinc-500">
+                  <div className="rounded-lg border border-dashed border-zinc-800 bg-background px-4 py-8 text-center text-[14px] text-zinc-500">
                     暂无导演板图片记录。
                   </div>
                 ) : (
@@ -6240,20 +6240,20 @@ function CanvasInner() {
                               generationId: item.generationId,
                             })}
                           />
-                          <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[10px] text-zinc-100 group-hover:flex">
+                          <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[12px] text-zinc-100 group-hover:flex">
                             预览 / 拖入
                           </span>
                         </button>
                         <div className="space-y-2 p-2">
                           <div className="min-w-0">
-                            <div className="truncate text-[12px] font-medium text-zinc-100">{item.name}</div>
-                            <div className="mt-0.5 truncate text-[10px] text-zinc-500">{item.episodeTitle}</div>
+                            <div className="truncate text-[14px] font-medium text-zinc-100">{item.name}</div>
+                            <div className="mt-0.5 truncate text-[12px] text-zinc-500">{item.episodeTitle}</div>
                           </div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-full text-[11px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
+                            className="h-7 w-full text-[13px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
                             onClick={() => handleAddLibraryDirectorBoardToCanvas(item)}
                           >
                             <Layers3 className="h-3.5 w-3.5" />
@@ -6265,7 +6265,7 @@ function CanvasInner() {
                   </div>
                 )
               ) : assetLibraryAssetItems.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-zinc-800 bg-background px-4 py-8 text-center text-[12px] text-zinc-500">
+                <div className="rounded-lg border border-dashed border-zinc-800 bg-background px-4 py-8 text-center text-[14px] text-zinc-500">
                   当前筛选下暂无资产。
                 </div>
               ) : (
@@ -6309,7 +6309,7 @@ function CanvasInner() {
                                 assetId: item.imageAssetId,
                               })}
                             />
-                            <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[10px] text-zinc-100 group-hover:flex">
+                            <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[12px] text-zinc-100 group-hover:flex">
                               预览 / 拖入
                             </span>
                           </button>
@@ -6320,15 +6320,15 @@ function CanvasInner() {
                         )}
                         <div className="space-y-2 p-2">
                           <div className="min-w-0">
-                            <div className="truncate text-[12px] font-medium text-zinc-100">{item.name}</div>
-                            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-zinc-500">
+                            <div className="truncate text-[14px] font-medium text-zinc-100">{item.name}</div>
+                            <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-zinc-500">
                               <span className="truncate">{item.episodeTitle}</span>
                               <span className="shrink-0">·</span>
                               <span className="shrink-0">{workflowAssetKindLabel(item.kind)}</span>
                             </div>
                           </div>
                           {item.description && (
-                            <div className="line-clamp-2 text-[10px] leading-4 text-zinc-500">
+                            <div className="line-clamp-2 text-[12px] leading-4 text-zinc-500">
                               {item.description}
                             </div>
                           )}
@@ -6336,7 +6336,7 @@ function CanvasInner() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-full text-[11px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
+                            className="h-7 w-full text-[13px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
                             onClick={() => handleAddLibraryAssetToCanvas(item)}
                           >
                             <Layers3 className="h-3.5 w-3.5" />
@@ -6355,7 +6355,7 @@ function CanvasInner() {
         {activePanel === 'assets' && (
           <div className="absolute bottom-3 left-16 top-3 z-20 flex w-[520px] max-w-[calc(100%-5rem)] flex-col overflow-hidden rounded-lg border border-zinc-800 bg-[#111113]/95 shadow-2xl backdrop-blur">
             <div className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-800 px-4">
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-zinc-100">
+              <div className="flex items-center gap-2 text-[16px] font-semibold text-zinc-100">
                 <Boxes className="h-4 w-4 text-emerald-300" />
                 项目资产
               </div>
@@ -6366,18 +6366,18 @@ function CanvasInner() {
 
             <div className="space-y-3 overflow-y-auto p-4">
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <div className="flex items-center gap-2 text-[13px] font-medium text-primary">
+                <div className="flex items-center gap-2 text-[15px] font-medium text-primary">
                   <ImageIcon className="h-4 w-4 text-primary" />
                   资产图生成
                 </div>
                 <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                  <p className="text-[12px] leading-5 text-primary/60">
+                  <p className="text-[14px] leading-5 text-primary/60">
                     在下方资产卡片直接上传参考图或生成图片；也可以把同名历史图加载回当前集资产。
                   </p>
                   <Button
                     type="button"
                     size="sm"
-                    className="h-7 shrink-0 bg-emerald-500 text-[11px] text-black hover:bg-emerald-400"
+                    className="h-7 shrink-0 bg-emerald-500 text-[13px] text-black hover:bg-emerald-400"
                     disabled={assetHistoryLoadBusy}
                     onClick={() => void handleLoadAssetHistoryImages('all')}
                   >
@@ -6386,13 +6386,13 @@ function CanvasInner() {
                   </Button>
                 </div>
                 <div className="mt-3 space-y-2">
-                  <label className="block text-[11px] font-medium text-primary/70">
+                  <label className="block text-[13px] font-medium text-primary/70">
                     图片模型
                     <select
                       value={assetGenerationModelId}
                       onChange={(event) => setAssetGenerationModelId(event.target.value)}
                       disabled={workflowModelsLoading || assetImageModels.length === 0}
-                      className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 text-[14px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="">{assetImageModels.length === 0 ? '未配置图片模型' : '使用后端默认图片模型'}</option>
                       {assetImageModels.map((model) => (
@@ -6403,24 +6403,24 @@ function CanvasInner() {
                     </select>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    <label className="block text-[11px] font-medium text-primary/70">
+                    <label className="block text-[13px] font-medium text-primary/70">
                       比例
                       <select
                         value={assetGenerationAspectRatio}
                         onChange={(event) => setAssetGenerationAspectRatio(event.target.value)}
-                        className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-2 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-2 text-[14px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {assetImageAspectRatioOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
                       </select>
                     </label>
-                    <label className="block text-[11px] font-medium text-primary/70">
+                    <label className="block text-[13px] font-medium text-primary/70">
                       大小
                       <select
                         value={assetGenerationResolution}
                         onChange={(event) => setAssetGenerationResolution(event.target.value)}
-                        className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-2 text-[12px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-2 text-[14px] text-zinc-100 outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {assetImageResolutionOptions.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
@@ -6428,13 +6428,13 @@ function CanvasInner() {
                       </select>
                     </label>
                   </div>
-                  <label className="block text-[11px] font-medium text-emerald-100/70">
+                  <label className="block text-[13px] font-medium text-emerald-100/70">
                     参考图识别模型
                     <select
                       value={assetUploadModelId}
                       onChange={(event) => setAssetUploadModelId(event.target.value)}
                       disabled={workflowModelsLoading || assetUploadBusyKeys.length > 0 || workflowModels.length === 0}
-                      className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 text-[12px] text-zinc-100 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-1 h-8 w-full rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 text-[14px] text-zinc-100 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <option value="">{workflowModelsLoading ? '加载模型中...' : '使用当前文本模型'}</option>
                       {workflowModels.map((model) => (
@@ -6446,12 +6446,12 @@ function CanvasInner() {
                   </label>
                 </div>
                 {assetUploadStatus && (
-                  <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                  <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[13px] leading-4 text-zinc-400">
                     {assetUploadStatus}
                   </div>
                 )}
                 {assetGenerationStatus && (
-                  <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                  <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[13px] leading-4 text-zinc-400">
                     {assetGenerationStatus}
                   </div>
                 )}
@@ -6460,10 +6460,10 @@ function CanvasInner() {
                 <div className="rounded-lg border border-zinc-800 bg-card p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[13px] font-medium text-zinc-100">
+                      <div className="text-[15px] font-medium text-zinc-100">
                         {assetHistoryTarget.asset.name || '资产'} {assetHistoryVariantFilter === 'with-props' ? '道具版图片' : '历史图片'}
                       </div>
-                      <div className="mt-1 text-[11px] leading-4 text-zinc-500">
+                      <div className="mt-1 text-[13px] leading-4 text-zinc-500">
                         {assetHistoryVariantFilter === 'with-props'
                           ? '这里选择已经生成好的角色道具版图，并设为当前图。新道具版请从小包裹入口生成。'
                           : '每条记录保留当次实际提示词。可拖入画布继续修改，也可设为当前图或参考生成。'}
@@ -6485,7 +6485,7 @@ function CanvasInner() {
                     </Button>
                   </div>
                   {assetHistoryStatus && (
-                    <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[11px] leading-4 text-zinc-400">
+                    <div className="mt-2 rounded-md border border-[#26262B] bg-[#0D0D0F] px-3 py-2 text-[13px] leading-4 text-zinc-400">
                       {assetHistoryStatus}
                     </div>
                   )}
@@ -6545,25 +6545,25 @@ function CanvasInner() {
                                   onDragStart={(event) => setImageDragData(event.dataTransfer, imageUrl, dragPayload)}
                                   onDoubleClick={() => setAssetImagePreview(preview)}
                                 />
-                                <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[10px] text-zinc-100 group-hover:flex">
+                                <span className="pointer-events-none absolute inset-0 hidden items-center justify-center bg-black/35 text-[12px] text-zinc-100 group-hover:flex">
                                   图片输入 / 预览
                                 </span>
                               </button>
                               {image.isCurrent && (
-                                <span className="absolute left-1 top-1 rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] font-medium text-black">
+                                <span className="absolute left-1 top-1 rounded bg-emerald-500 px-1.5 py-0.5 text-[12px] font-medium text-black">
                                   当前
                                 </span>
                               )}
                             </div>
                             <div className="space-y-1 p-2">
-                              <div className="flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+                              <div className="flex items-center justify-between gap-2 text-[12px] text-zinc-500">
                                 <span>{assetImageSourceLabel(image.source)}</span>
                                 <span>{image.createdAt ? new Date(image.createdAt).toLocaleDateString() : ''}</span>
                               </div>
                               {metaItems.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
                                   {metaItems.slice(0, 4).map((meta) => (
-                                    <span key={meta} className="rounded border border-zinc-800 bg-[#141416] px-1.5 py-0.5 text-[9px] text-zinc-500">
+                                    <span key={meta} className="rounded border border-zinc-800 bg-[#141416] px-1.5 py-0.5 text-[11px] text-zinc-500">
                                       {meta}
                                     </span>
                                   ))}
@@ -6571,11 +6571,11 @@ function CanvasInner() {
                               )}
                               <div className="rounded border border-zinc-800 bg-[#101014] p-2">
                                 <div className="mb-1 flex items-center justify-between gap-2">
-                                  <span className="text-[10px] text-zinc-500">本次实际提示词</span>
+                                  <span className="text-[12px] text-zinc-500">本次实际提示词</span>
                                   {actualPrompt ? (
                                     <button
                                       type="button"
-                                      className="inline-flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-100"
+                                      className="inline-flex items-center gap-1 text-[12px] text-zinc-400 hover:text-zinc-100"
                                       onClick={() => void navigator.clipboard?.writeText(actualPrompt).catch(() => undefined)}
                                     >
                                       <Copy className="h-3 w-3" />
@@ -6583,7 +6583,7 @@ function CanvasInner() {
                                     </button>
                                   ) : null}
                                 </div>
-                                <div className="max-h-20 overflow-y-auto whitespace-pre-wrap text-[10px] leading-4 text-zinc-400">
+                                <div className="max-h-20 overflow-y-auto whitespace-pre-wrap text-[12px] leading-4 text-zinc-400">
                                   {actualPrompt || '旧记录未保存提示词。'}
                                 </div>
                               </div>
@@ -6592,7 +6592,7 @@ function CanvasInner() {
                                 variant="ghost"
                                 size="sm"
                                 className={cn(
-                                  "h-7 w-full text-[11px]",
+                                  "h-7 w-full text-[13px]",
                                   image.isCurrent
                                     ? "text-zinc-400 hover:bg-layer-4 hover:text-zinc-100"
                                     : "text-zinc-200 hover:bg-layer-4 hover:text-zinc-50"
@@ -6608,7 +6608,7 @@ function CanvasInner() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 w-full text-[11px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
+                                className="h-7 w-full text-[13px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
                                 onClick={() => handleAddHistoryImageInputToCanvas(imageUrl, assetHistoryTarget.asset.name || image.title || '资产历史图', actualPrompt)}
                               >
                                 作为图片输入
@@ -6617,7 +6617,7 @@ function CanvasInner() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 w-full text-[11px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
+                                className="h-7 w-full text-[13px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
                                 disabled={isAssetGenerationBusy(assetHistoryTarget.kind, assetHistoryTarget.asset)}
                                 onClick={() => handleGenerateAssetImage(assetHistoryTarget.kind, assetHistoryTarget.asset, { referenceImageUrl: imageUrl })}
                               >
@@ -6627,7 +6627,7 @@ function CanvasInner() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 w-full text-[11px] text-red-300 hover:bg-red-500/10 hover:text-red-100"
+                                className="h-7 w-full text-[13px] text-red-300 hover:bg-red-500/10 hover:text-red-100"
                                 disabled={assetHistoryLoading}
                                 onClick={() => handleDeleteAssetHistoryImage(image)}
                               >
@@ -6640,7 +6640,7 @@ function CanvasInner() {
                       })}
                   </div>
                   {assetHistoryLoading && (
-                    <div className="mt-2 text-[11px] text-zinc-500">正在读取资产历史...</div>
+                    <div className="mt-2 text-[13px] text-zinc-500">正在读取资产历史...</div>
                   )}
                 </div>
               )}
@@ -6655,18 +6655,18 @@ function CanvasInner() {
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2 text-[13px] font-medium text-zinc-100">
+                          <div className="flex items-center gap-2 text-[15px] font-medium text-zinc-100">
                             <span>{item.title}</span>
-                            <span className="rounded border border-border bg-zinc-900 px-1.5 py-0.5 text-[10px] text-zinc-400">{items.length}</span>
+                            <span className="rounded border border-border bg-zinc-900 px-1.5 py-0.5 text-[12px] text-zinc-400">{items.length}</span>
                           </div>
-                          <div className="mt-1 text-[12px] leading-5 text-zinc-500">{item.desc}</div>
+                          <div className="mt-1 text-[14px] leading-5 text-zinc-500">{item.desc}</div>
                         </div>
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-7 shrink-0 text-[11px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
+                        className="h-7 shrink-0 text-[13px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
                         onClick={() => handleAddWorkflowNode('asset', item.title, item.desc)}
                       >
                         放入画布
@@ -6676,7 +6676,7 @@ function CanvasInner() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="mt-3 h-7 text-[11px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
+                      className="mt-3 h-7 text-[13px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
                       disabled={assetHistoryLoadBusy || items.length === 0}
                       onClick={() => void handleLoadAssetHistoryImages(item.key)}
                     >
@@ -6688,7 +6688,7 @@ function CanvasInner() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="mt-3 ml-2 h-7 text-[11px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
+                        className="mt-3 ml-2 h-7 text-[13px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
                         disabled={assetUploadBusyKeys.length > 0 || items.length === 0}
                         onClick={handleBatchUploadCharacterAudioReferences}
                         title="一次选择 1-5 音频：1 Bob，2 Chloe，3 Leo，4 Tiffany，5 Eugene"
@@ -6732,16 +6732,16 @@ function CanvasInner() {
                 );
               })}
               <div className="rounded-lg border border-zinc-800 bg-card p-3">
-                <div className="flex items-center gap-2 text-[13px] font-medium text-zinc-100">
+                <div className="flex items-center gap-2 text-[15px] font-medium text-zinc-100">
                   <Film className="h-4 w-4 text-amber-300" />
                   导演板资产
                 </div>
-                <div className="mt-1 text-[12px] leading-5 text-zinc-500">空间图、六宫格、上一板连续性参考</div>
+                <div className="mt-1 text-[14px] leading-5 text-zinc-500">空间图、六宫格、上一板连续性参考</div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="mt-3 h-7 text-[11px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
+                  className="mt-3 h-7 text-[13px] text-amber-300 hover:bg-amber-500/10 hover:text-amber-100"
                   onClick={() => handleAddWorkflowNode('directorBoard', '章节导演板资产', '空间图、六宫格、上一板连续性参考')}
                 >
                   放入画布
@@ -6764,9 +6764,9 @@ function CanvasInner() {
             >
               <div className="flex h-12 shrink-0 items-center justify-between border-b border-zinc-800 px-4">
                 <div className="min-w-0">
-                  <div className="truncate text-[14px] font-semibold text-zinc-100">{assetImagePreview.title}</div>
+                  <div className="truncate text-[16px] font-semibold text-zinc-100">{assetImagePreview.title}</div>
                   {assetImagePreview.subtitle && (
-                    <div className="truncate text-[11px] text-zinc-500">{assetImagePreview.subtitle}</div>
+                    <div className="truncate text-[13px] text-zinc-500">{assetImagePreview.subtitle}</div>
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
@@ -6774,7 +6774,7 @@ function CanvasInner() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 gap-1.5 px-2 text-[12px] text-zinc-400 hover:text-zinc-100"
+                    className="h-8 gap-1.5 px-2 text-[14px] text-zinc-400 hover:text-zinc-100"
                     onClick={() => void downloadCanvasImagePreview(assetImagePreview)}
                   >
                     <Download className="h-3.5 w-3.5" />

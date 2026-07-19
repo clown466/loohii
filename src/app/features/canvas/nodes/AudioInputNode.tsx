@@ -26,13 +26,13 @@ export const AudioInputNode = ({ data, selected }: CanvasNodeProps) => {
         <div className="flex cursor-grab items-center gap-2 border-b border-[#26262B] bg-layer-4/40 px-3 py-2 text-xs font-medium text-zinc-200 active:cursor-grabbing">
           <Mic className={cn("h-3.5 w-3.5 shrink-0", missing ? "text-zinc-500" : "text-emerald-300")} />
           <span className="min-w-0 flex-1 truncate">{title}</span>
-          <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px]", missing ? "bg-layer-4 text-zinc-500" : "bg-emerald-500/15 text-emerald-200")}>
+          <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[12px]", missing ? "bg-layer-4 text-zinc-500" : "bg-emerald-500/15 text-emerald-200")}>
             {missing ? '缺音频' : '已绑定'}
           </span>
         </div>
         <div className="space-y-1 px-3 py-2">
-          <div className="truncate text-[11px] text-zinc-300">{characterName || '未命名角色'}</div>
-          <div className="truncate text-[10px] text-zinc-500" title={fileName || audioUrl || String(data.uploadError || '')}>
+          <div className="truncate text-[13px] text-zinc-300">{characterName || '未命名角色'}</div>
+          <div className="truncate text-[12px] text-zinc-500" title={fileName || audioUrl || String(data.uploadError || '')}>
             {missing ? (data.uploadError || '该角色还没有绑定音频参考') : (fileName || audioUrl)}
           </div>
           {audioUrl ? (

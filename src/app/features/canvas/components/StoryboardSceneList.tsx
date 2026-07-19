@@ -28,8 +28,8 @@ export function StoryboardSceneList({
     return (
       <div className="flex min-h-[180px] flex-col items-center justify-center p-6 text-center">
         <ListChecks className="mb-3 h-6 w-6 text-zinc-700" />
-        <div className="text-[13px] font-medium text-zinc-300">{emptyTitle}</div>
-        <div className="mt-1 text-[12px] text-zinc-600">{emptyDescription}</div>
+        <div className="text-[15px] font-medium text-zinc-300">{emptyTitle}</div>
+        <div className="mt-1 text-[14px] text-zinc-600">{emptyDescription}</div>
       </div>
     );
   }
@@ -42,11 +42,11 @@ export function StoryboardSceneList({
         <div key={scene.id} className="grid gap-3 p-4 xl:grid-cols-[minmax(0,1fr)_210px]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[13px] font-semibold text-zinc-100">
+              <span className="text-[15px] font-semibold text-zinc-100">
                 {String(index + 1).padStart(2, '0')} · {scene.title}
               </span>
               <Badge className={cn(
-                "border text-[10px]",
+                "border text-[12px]",
                 scene.status === 'ready'
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/10"
                   : "border-border bg-zinc-900 text-zinc-400 hover:bg-zinc-900"
@@ -54,13 +54,13 @@ export function StoryboardSceneList({
                 {scene.status === 'ready' ? '可继续' : '待确认'}
               </Badge>
               {scene.durationSeconds !== undefined && (
-                <Badge className="border border-amber-500/20 bg-amber-500/10 text-[10px] text-amber-200 hover:bg-amber-500/10">
+                <Badge className="border border-amber-500/20 bg-amber-500/10 text-[12px] text-amber-200 hover:bg-amber-500/10">
                   {scene.durationSeconds}s
                 </Badge>
               )}
               {pacing.words > 0 && (
                 <Badge className={cn(
-                  "border text-[10px]",
+                  "border text-[12px]",
                   pacing.tooDense
                     ? "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/10"
                     : "border-sky-500/20 bg-sky-500/10 text-sky-200 hover:bg-sky-500/10"
@@ -69,8 +69,8 @@ export function StoryboardSceneList({
                 </Badge>
               )}
             </div>
-            <p className="mt-2 line-clamp-2 text-[12px] leading-5 text-zinc-400">{scene.description}</p>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+            <p className="mt-2 line-clamp-2 text-[14px] leading-5 text-zinc-400">{scene.description}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-[13px] text-zinc-500">
               {scene.setting && <span className="rounded border border-zinc-800 bg-[#0d0d0f] px-2 py-1">场景：{scene.setting}</span>}
               {scene.characters?.length ? <span className="rounded border border-zinc-800 bg-[#0d0d0f] px-2 py-1">角色：{scene.characters.join(', ')}</span> : null}
               {(scene.shotSize || scene.cameraAngle || scene.cameraMove) && (

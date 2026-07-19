@@ -131,15 +131,15 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
         isStoryboardSpecialNode ? "bg-amber-500/15 text-amber-100" : "bg-layer-4/50 text-zinc-300",
       )}>
         <ImageIcon className={cn("h-3.5 w-3.5", isStoryboardSpecialNode ? "text-amber-300" : "text-[#F7C24E]")} />
-        {isPreviousStoryboardReference ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">上一板</span> : null}
-        {isStoryboardSlot ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-100">故事板</span> : null}
+        {isPreviousStoryboardReference ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[12px] text-amber-100">上一板</span> : null}
+        {isStoryboardSlot ? <span className="shrink-0 rounded bg-amber-500/20 px-1.5 py-0.5 text-[12px] text-amber-100">故事板</span> : null}
         {data.label || '图片输入'}
       </div>
       {isLightweightReference ? (
         <div className="p-2">
           <div className="rounded border border-[#26262B] bg-zinc-950/50 px-2 py-2">
-            <div className="truncate text-[11px] font-medium text-zinc-200">{data.assetName || data.label || '参考图'}</div>
-            <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-zinc-500">
+            <div className="truncate text-[13px] font-medium text-zinc-200">{data.assetName || data.label || '参考图'}</div>
+            <div className="mt-1 flex items-center justify-between gap-2 text-[12px] text-zinc-500">
               <span className="truncate">{data.assetKind === 'scenes' ? '场景参考' : data.assetKind === 'props' ? '道具参考' : '角色参考'}</span>
               {displayImageUrl && !imageUnavailable ? (
                 <button
@@ -169,7 +169,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
               )}
             </div>
             {data.uploadError ? (
-              <div className="mt-1 text-[10px] leading-4 text-red-400">{data.uploadError}</div>
+              <div className="mt-1 text-[12px] leading-4 text-red-400">{data.uploadError}</div>
             ) : null}
           </div>
         </div>
@@ -220,7 +220,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 text-[10px] text-zinc-200 hover:bg-zinc-700"
+                className="h-6 text-[12px] text-zinc-200 hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
                   fileRef.current?.click();
@@ -231,7 +231,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 text-[10px] text-red-300 hover:bg-red-500/20"
+                className="h-6 text-[12px] text-red-300 hover:bg-red-500/20"
                 onClick={(event) => {
                   event.stopPropagation();
                   updateNodeData(id, { imageUrl: '', fileName: '', imageLoadError: false, uploadError: '' });
@@ -240,7 +240,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
                 移除
               </Button>
             </div>
-            {data.fileName && <div className="mt-1 truncate text-[10px] text-zinc-500">{data.fileName}</div>}
+            {data.fileName && <div className="mt-1 truncate text-[12px] text-zinc-500">{data.fileName}</div>}
           </div>
         ) : (
           <div
@@ -249,10 +249,10 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
             onClick={() => fileRef.current?.click()}
           >
             <ImageIcon className="h-6 w-6 text-zinc-600" />
-            <span className="text-[11px] text-zinc-500">{uploading ? '上传中...' : imageUnavailable ? '图片已失效，重新上传' : isStoryboardSlot ? '等待故事板' : '点击上传'}</span>
+            <span className="text-[13px] text-zinc-500">{uploading ? '上传中...' : imageUnavailable ? '图片已失效，重新上传' : isStoryboardSlot ? '等待故事板' : '点击上传'}</span>
             <button
               type="button"
-              className="text-[10px] text-[#F5A623] hover:text-[#F7C24E]"
+              className="text-[12px] text-[#F5A623] hover:text-[#F7C24E]"
               onClick={(e) => { e.stopPropagation(); handleUrlPaste(); }}
             >
               或粘贴 URL
@@ -260,9 +260,9 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
           </div>
         )}
         {data.uploadError ? (
-          <div className="mt-1 text-[10px] leading-4 text-red-400">{data.uploadError}</div>
+          <div className="mt-1 text-[12px] leading-4 text-red-400">{data.uploadError}</div>
         ) : displayImageUrl && !effectivePublicImageUrl ? (
-          <div className="mt-1 text-[10px] leading-4 text-amber-400">这不是公网 URL，不能作为图生图参考。</div>
+          <div className="mt-1 text-[12px] leading-4 text-amber-400">这不是公网 URL，不能作为图生图参考。</div>
         ) : null}
       </div>
       )}

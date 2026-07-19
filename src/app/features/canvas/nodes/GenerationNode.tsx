@@ -799,10 +799,10 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-zinc-100">{nodeAssetName}</div>
-	          <div className="line-clamp-2 text-[11px] text-zinc-500">{isStandaloneGeneration && !previousStoryboardReference ? '独立生图节点，不自动写入资产库' : renderedDescription}</div>
+	          <div className="line-clamp-2 text-[13px] text-zinc-500">{isStandaloneGeneration && !previousStoryboardReference ? '独立生图节点，不自动写入资产库' : renderedDescription}</div>
         </div>
         <span className={cn(
-          "shrink-0 text-[10px]",
+          "shrink-0 text-[12px]",
           isSubmittingGeneration ? 'animate-pulse text-[#F7C24E]' : generationStalled ? 'text-red-400' : data.status === 'generating' ? 'animate-pulse text-yellow-400' : data.status === 'completed' ? 'text-green-400' : data.status === 'failed' ? 'text-red-400' : 'text-zinc-500',
         )}>
           {isSubmittingGeneration ? '提交中' : data.status === 'generating' && !generationStalled ? '生成中' : data.status === 'completed' ? '已完成' : data.status === 'failed' || generationStalled ? '失败' : '等待生成'}
@@ -812,11 +812,11 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       {!isLightweightGeneration && referenceImages.length > 0 && (
         <div className="border-t border-[#26262B] px-3 py-2">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] text-[#F7C24E] shrink-0">{referenceImages.length} 参考</span>
+            <span className="text-[12px] text-[#F7C24E] shrink-0">{referenceImages.length} 参考</span>
             {previousStoryboardReference && (
               <button
                 type="button"
-                className="nodrag nopan min-w-0 truncate rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-left text-[10px] font-medium text-amber-200 hover:bg-amber-500/15"
+                className="nodrag nopan min-w-0 truncate rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-left text-[12px] font-medium text-amber-200 hover:bg-amber-500/15"
                 title={previousStoryboardReference.label}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => previewCanvasImage(event, {
@@ -844,7 +844,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                   onDoubleClick={(event) => previewCanvasImage(event, { url: ref.url, title: ref.label, subtitle: `${nodeAssetLabel}参考图` })}
                 />
                 <span className={cn(
-                  "absolute -top-1 -left-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[8px] font-bold text-white",
+                  "absolute -top-1 -left-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white",
                   ref.kind === 'storyboard' ? 'bg-amber-500' : 'bg-[#F5A623]',
                 )}>
                   {canvasReferenceImageBadgeLabel(ref, i)}
@@ -858,10 +858,10 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       {!isLightweightGeneration ? (
       <div className="border-t border-[#26262B] px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <span className="text-[10px] font-medium text-zinc-400">最终生图提示词</span>
+          <span className="text-[12px] font-medium text-zinc-400">最终生图提示词</span>
 	          <button
 	            type="button"
-	            className="nodrag nopan text-[10px] text-zinc-500 hover:text-zinc-300"
+	            className="nodrag nopan text-[12px] text-zinc-500 hover:text-zinc-300"
 	            onPointerDown={(e) => e.stopPropagation()}
 	            onClick={(e) => {
 	              e.stopPropagation();
@@ -874,7 +874,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
           </button>
         </div>
 	        <PromptTextarea
-	          className="nodrag nopan w-full resize-y rounded border border-border bg-background px-2.5 py-2 text-[12px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none min-h-[80px]"
+	          className="nodrag nopan w-full resize-y rounded border border-border bg-background px-2.5 py-2 text-[14px] leading-5 text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none min-h-[80px]"
 	          rows={8}
 	          placeholder="输入最终发送给图片模型的提示词..."
 	          value={promptDraft}
@@ -907,10 +907,10 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       ) : (
         <div className="border-t border-[#26262B] px-3 py-2">
           <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium text-zinc-400">{positioningBoardLabel}提示词</span>
+            <span className="text-[12px] font-medium text-zinc-400">{positioningBoardLabel}提示词</span>
             {isPositioningBoardGeneration ? (
               <div
-                className="nodrag nopan flex shrink-0 rounded border border-[#26262B] bg-zinc-950 p-0.5 text-[10px]"
+                className="nodrag nopan flex shrink-0 rounded border border-[#26262B] bg-zinc-950 p-0.5 text-[12px]"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
@@ -936,11 +936,11 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 </button>
               </div>
             ) : (
-              <span className="text-[10px] text-zinc-600">双击放大编辑</span>
+              <span className="text-[12px] text-zinc-600">双击放大编辑</span>
             )}
           </div>
           <PromptTextarea
-            className="nodrag nopan h-[74px] w-full resize-none rounded border border-[#26262B] bg-zinc-950/50 px-2.5 py-2 text-[11px] leading-4 text-zinc-300 placeholder-zinc-600 focus:border-primary focus:outline-none"
+            className="nodrag nopan h-[74px] w-full resize-none rounded border border-[#26262B] bg-zinc-950/50 px-2.5 py-2 text-[13px] leading-4 text-zinc-300 placeholder-zinc-600 focus:border-primary focus:outline-none"
             placeholder={`输入${positioningBoardLabel}生图提示词...`}
             value={promptDraft}
             onChange={(value) => setPromptDraft(value)}
@@ -971,7 +971,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
         </div>
       )}
 
-      <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[10px]">
+      <div className="px-3 pb-2 flex flex-nowrap items-center gap-1 text-[12px]">
 	        <select
 	          className="nodrag nopan h-7 min-w-0 flex-1 truncate rounded bg-layer-4 border border-border px-1.5 py-1 text-zinc-300 focus:outline-none focus:border-primary"
 	          value={data.modelId || ''}
@@ -1025,7 +1025,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       <div className="border-t border-[#26262B] px-3 py-2">
 	        <Button
 	          size="sm"
-	          className="nodrag nopan w-full h-8 text-[12px] bg-primary hover:bg-primary/90 text-white gap-1.5"
+	          className="nodrag nopan w-full h-8 text-[14px] bg-primary hover:bg-primary/90 text-white gap-1.5"
 	          onClick={handleGenerate}
 	          onPointerDown={(e) => e.stopPropagation()}
 	          disabled={isSubmittingGeneration || (data.status === 'generating' && !generationStalled)}
@@ -1041,14 +1041,14 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
             <div className="h-1.5 w-24 bg-[#26262B] rounded-full overflow-hidden">
               <div className="h-full bg-[linear-gradient(90deg,#F5A623,#F7C24E)] animate-pulse w-[60%]" />
             </div>
-            <span className="px-3 text-center text-[11px] text-zinc-500">
+            <span className="px-3 text-center text-[13px] text-zinc-500">
               {isSubmittingGeneration ? String(data.canvasSubmitError || '正在提交到后端...') : canvasGenerationWaitLabel(data.generationStartedAt)}
             </span>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="nodrag nopan h-6 text-[10px] text-zinc-400 hover:text-zinc-100"
+              className="nodrag nopan h-6 text-[12px] text-zinc-400 hover:text-zinc-100"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1088,7 +1088,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               <Button
                 size="sm"
                 variant="secondary"
-                className="h-7 text-[10px] bg-layer-4/80 hover:bg-zinc-700"
+                className="h-7 text-[12px] bg-layer-4/80 hover:bg-zinc-700"
                 onClick={(event) => {
                   event.stopPropagation();
                   void downloadCanvasImagePreview({ url: data.outputImage, title: nodeAssetName || '生成图片', subtitle: data.revisedPrompt || undefined });
@@ -1100,7 +1100,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-7 text-[10px] bg-layer-4/80 hover:bg-zinc-700"
+                  className="h-7 text-[12px] bg-layer-4/80 hover:bg-zinc-700"
                   onClick={(event) => {
                     event.stopPropagation();
                     handleSetAsCurrentImage();
@@ -1135,7 +1135,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                     }}
                   >
                     <img src={variant.url} alt={`结果 ${index + 1}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                    <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[9px] font-medium text-zinc-100">
+                    <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[11px] font-medium text-zinc-100">
                       {index + 1}
                     </span>
                   </button>
@@ -1147,7 +1147,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
             type="button"
             variant="ghost"
             size="sm"
-            className="nodrag nopan mt-2 h-7 w-full text-[11px] text-[#F7C24E] hover:bg-[#F5A623]/10 hover:text-[#F5A623]"
+            className="nodrag nopan mt-2 h-7 w-full text-[13px] text-[#F7C24E] hover:bg-[#F5A623]/10 hover:text-[#F5A623]"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -1158,23 +1158,23 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
             作为图片输入放入画布
           </Button>
           {data.outputImageInputStatus ? (
-            <div className="mt-1 text-center text-[10px] text-emerald-300">
+            <div className="mt-1 text-center text-[12px] text-emerald-300">
               {String(data.outputImageInputStatus)}
             </div>
           ) : null}
           {isStandaloneGeneration && (
             <div className="mt-2 rounded border border-[#26262B] bg-[#141417] p-2">
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-medium text-zinc-400">写入资产库</span>
+                <span className="text-[12px] font-medium text-zinc-400">写入资产库</span>
                 {data.lastAssignedAssetName ? (
-                  <span className="truncate text-[10px] text-emerald-400">
+                  <span className="truncate text-[12px] text-emerald-400">
                     已设为 {workflowAssetKindSelectLabel(data.lastAssignedAssetKind || targetAssetKind)} / {data.lastAssignedAssetName}
                   </span>
                 ) : null}
               </div>
               <div className="flex gap-1.5">
                 <select
-                  className="nodrag nopan h-7 w-[82px] shrink-0 rounded border border-border bg-[#141417] px-1.5 text-[10px] text-zinc-300 focus:border-primary focus:outline-none"
+                  className="nodrag nopan h-7 w-[82px] shrink-0 rounded border border-border bg-[#141417] px-1.5 text-[12px] text-zinc-300 focus:border-primary focus:outline-none"
                   value={targetAssetKind}
                   onChange={(e) => {
                     const nextKind = e.target.value as WorkflowAssetKind;
@@ -1192,7 +1192,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                 </select>
                 {targetAssetOptions.length > 0 ? (
                   <select
-                    className="nodrag nopan h-7 min-w-0 flex-1 rounded border border-border bg-[#141417] px-2 text-[10px] text-zinc-200 focus:border-primary focus:outline-none"
+                    className="nodrag nopan h-7 min-w-0 flex-1 rounded border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 focus:border-primary focus:outline-none"
                     value={targetAssetCustomMode ? '__custom__' : targetAssetName}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -1216,7 +1216,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               </div>
               {(targetAssetCustomMode || targetAssetOptions.length === 0) ? (
                 <input
-                  className="nodrag nopan mt-1.5 h-7 w-full rounded border border-border bg-[#141417] px-2 text-[10px] text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
+                  className="nodrag nopan mt-1.5 h-7 w-full rounded border border-border bg-[#141417] px-2 text-[12px] text-zinc-200 placeholder-zinc-600 focus:border-primary focus:outline-none"
                   value={targetAssetName}
                   placeholder="输入资产名"
                   onChange={(e) => setTargetAssetName(e.target.value)}
@@ -1224,13 +1224,13 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : null}
-              <div className="mt-1 text-[10px] text-zinc-500">
+              <div className="mt-1 text-[12px] text-zinc-500">
                 已加载 {targetAssetOptions.length} 个{workflowAssetKindSelectLabel(targetAssetKind)}
               </div>
               <Button
                 type="button"
                 size="sm"
-                className="nodrag nopan mt-2 h-7 w-full bg-emerald-600 text-[11px] text-white hover:bg-emerald-500"
+                className="nodrag nopan mt-2 h-7 w-full bg-emerald-600 text-[13px] text-white hover:bg-emerald-500"
                 disabled={data.currentImageStatus === 'saving'}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(event) => {
@@ -1240,19 +1240,19 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
               >
                 {data.currentImageStatus === 'saving' ? '写入中...' : '设为所选资产当前图'}
               </Button>
-              {targetAssetsError ? <div className="mt-1 text-[10px] text-amber-400">{targetAssetsError}</div> : null}
+              {targetAssetsError ? <div className="mt-1 text-[12px] text-amber-400">{targetAssetsError}</div> : null}
             </div>
           )}
-          {data.currentImageError ? <div className="mt-1 text-[10px] text-red-400">{data.currentImageError}</div> : null}
+          {data.currentImageError ? <div className="mt-1 text-[12px] text-red-400">{data.currentImageError}</div> : null}
         </div>
       )}
 
       {data.status === 'failed' && data.error && (
-        <div className="px-3 pb-2 text-[11px] text-red-400">{data.error}</div>
+        <div className="px-3 pb-2 text-[13px] text-red-400">{data.error}</div>
       )}
 
       {generationStalled && (
-        <div className="px-3 pb-2 text-[10px] text-amber-400">上次生成状态已中断，可点击重新生成。</div>
+        <div className="px-3 pb-2 text-[12px] text-amber-400">上次生成状态已中断，可点击重新生成。</div>
       )}
 
         <CanvasHandle type="target" position={Position.Left} />

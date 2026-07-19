@@ -97,7 +97,7 @@ export function StageWorkPanel({
   const hasAssets = assetImageReadiness.total > 0;
   const missingAssetPreview = assetImageReadiness.missing.slice(0, 6).map((item) => item.name).join('、');
   const generationUnavailableNotice = firstFrameUnavailable ? (
-    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] leading-5 text-amber-100">
+    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-[14px] leading-5 text-amber-100">
       首帧衔接模式暂未开发。请切换到 Seedance 多参或章节导演板后继续生成。
     </div>
   ) : null;
@@ -109,11 +109,11 @@ export function StageWorkPanel({
         <section className="rounded-lg border border-zinc-800 bg-[#141416] p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-zinc-100">
+              <div className="flex items-center gap-2 text-[16px] font-semibold text-zinc-100">
                 <Boxes className="h-4 w-4 text-emerald-300" />
                 场景角色道具
               </div>
-              <p className="mt-1 text-[12px] text-zinc-500">先从当前集文本提取角色、场景、道具。资产图可按需要生成或上传，不再作为分镜硬门槛。</p>
+              <p className="mt-1 text-[14px] text-zinc-500">先从当前集文本提取角色、场景、道具。资产图可按需要生成或上传，不再作为分镜硬门槛。</p>
             </div>
             <Button
               size="sm"
@@ -149,7 +149,7 @@ export function StageWorkPanel({
             </Button>
           </div>
           {workflowBusy && workflowProgressText ? (
-            <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] leading-5 text-amber-100">
+            <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[14px] leading-5 text-amber-100">
               {workflowProgressText}
             </div>
           ) : null}
@@ -167,8 +167,8 @@ export function StageWorkPanel({
                       <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-200">
                         <Icon className="h-4 w-4" />
                       </div>
-                      <div className="text-[13px] font-semibold text-zinc-100">{item.title}</div>
-                      <div className="mt-1 text-[12px] leading-5 text-zinc-500">{item.desc}</div>
+                      <div className="text-[15px] font-semibold text-zinc-100">{item.title}</div>
+                      <div className="mt-1 text-[14px] leading-5 text-zinc-500">{item.desc}</div>
                     </div>
                     <Badge className="border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/10">
                       {items.length}
@@ -197,7 +197,7 @@ export function StageWorkPanel({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="mt-3 mr-2 h-7 text-[11px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
+                    className="mt-3 mr-2 h-7 text-[13px] text-sky-300 hover:bg-sky-500/10 hover:text-sky-100"
                     disabled={workflowBusy || items.length === 0}
                     onClick={() => void onLoadAssetHistoryImages(item.key)}
                   >
@@ -208,7 +208,7 @@ export function StageWorkPanel({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="mt-3 h-7 text-[11px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
+                    className="mt-3 h-7 text-[13px] text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-100"
                     onClick={() => onAddWorkflowNode('asset', item.title, `${item.desc} · 已提取 ${items.length} 个`)}
                   >
                     放入画布
@@ -229,32 +229,32 @@ export function StageWorkPanel({
         <section className="rounded-lg border border-zinc-800 bg-[#141416]">
           <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-zinc-100">
+              <div className="flex items-center gap-2 text-[16px] font-semibold text-zinc-100">
                 <ListChecks className="h-4 w-4 text-amber-300" />
                 {clips.length > 0 ? 'Clip-First 分镜脚本' : '分镜脚本'}
               </div>
-              <p className="mt-1 text-[12px] text-zinc-500">
+              <p className="mt-1 text-[14px] text-zinc-500">
                 {clips.length > 0 ? '按 Clip 控制剧情目标、时长、风险和包含分镜。' : '把当前集拆成镜头、对白、动作、时长和导演板输入。'}
               </p>
-              <p className={assetImageReadiness.ready ? "mt-1 text-[11px] text-emerald-300" : "mt-1 text-[11px] text-amber-300"}>
+              <p className={assetImageReadiness.ready ? "mt-1 text-[13px] text-emerald-300" : "mt-1 text-[13px] text-amber-300"}>
                 资产图状态：{assetImageReadiness.summary}{hasAssets ? (assetImageReadiness.ready ? '，可以拆分镜。' : missingAssetPreview ? `。可继续拆分镜；缺图资产会仅按文字设定参与推理：${missingAssetPreview}${assetImageReadiness.missing.length > 6 ? ' 等' : ''}` : '。可继续拆分镜。') : '。请先提取资产。'}
               </p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[240px]">
-                <label className="mb-1 block text-[11px] text-zinc-500">分镜脚本文本模型</label>
+                <label className="mb-1 block text-[13px] text-zinc-500">分镜脚本文本模型</label>
                 <select
                   value={workflowAiModelId}
                   onChange={(event) => setWorkflowAiModelId(event.target.value)}
                   disabled={workflowModelsLoading || workflowBusy || workflowModels.length === 0}
-                  className="h-8 w-full rounded-md border border-border bg-zinc-950 px-2 text-[12px] text-zinc-100 outline-none focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="h-8 w-full rounded-md border border-border bg-zinc-950 px-2 text-[14px] text-zinc-100 outline-none focus:border-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option value="">{workflowModelsLoading ? '加载模型中...' : '使用后端默认文本模型'}</option>
                   {workflowModels.map((model) => (
                     <option key={model.id} value={model.id}>{modelOptionLabel(model)}</option>
                   ))}
                 </select>
-                {workflowModelError ? <div className="mt-1 text-[10px] text-red-300">{workflowModelError}</div> : null}
+                {workflowModelError ? <div className="mt-1 text-[12px] text-red-300">{workflowModelError}</div> : null}
               </div>
               <Button variant="secondary" size="sm" className="h-8 border border-border bg-zinc-900 text-zinc-100 hover:bg-layer-4" onClick={() => setActiveStage('source')}>
                 返回原文
@@ -266,7 +266,7 @@ export function StageWorkPanel({
             </div>
           </div>
           {workflowBusy && workflowProgressText ? (
-            <div className="border-b border-zinc-800 bg-amber-500/10 px-4 py-2 text-[12px] leading-5 text-amber-100">
+            <div className="border-b border-zinc-800 bg-amber-500/10 px-4 py-2 text-[14px] leading-5 text-amber-100">
               {workflowProgressText}
             </div>
           ) : null}
@@ -315,11 +315,11 @@ export function StageWorkPanel({
         <section className="rounded-lg border border-zinc-800 bg-[#141416]">
           <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[14px] font-semibold text-zinc-100">
+              <div className="flex items-center gap-2 text-[16px] font-semibold text-zinc-100">
                 <Film className="h-4 w-4 text-sky-300" />
                 分镜视频提示词
               </div>
-              <p className="mt-1 text-[12px] text-zinc-500">
+              <p className="mt-1 text-[14px] text-zinc-500">
                 {storyboardEnabled
                   ? '按 Clip 生成 Seedance 视频提示词；放入画布时接入故事板坑位、角色、场景和音频参考。'
                   : '按 Clip 生成 Seedance 多参视频提示词；放入画布时直接接入角色、场景、道具资产和音频参考，不使用故事板图。'}
@@ -396,8 +396,8 @@ export function StageWorkPanel({
     <div className="space-y-4">
       <section className="rounded-lg border border-zinc-800 bg-[#141416] p-4">
         <div className="mb-4">
-          <div className="text-[14px] font-semibold text-zinc-100">{titleMap[activeStage]}</div>
-          <p className="mt-1 text-[12px] text-zinc-500">这里是当前阶段的操作区。真实生产 API 接入后，任务进度和结果会在这里显示。</p>
+          <div className="text-[16px] font-semibold text-zinc-100">{titleMap[activeStage]}</div>
+          <p className="mt-1 text-[14px] text-zinc-500">这里是当前阶段的操作区。真实生产 API 接入后，任务进度和结果会在这里显示。</p>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {stageCards[activeStage].map((item) => {
@@ -412,8 +412,8 @@ export function StageWorkPanel({
                 <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-md bg-amber-500/10 text-amber-200">
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="text-[13px] font-semibold text-zinc-100">{item.title}</div>
-                <div className="mt-1 text-[12px] leading-5 text-zinc-500">{item.desc}</div>
+                <div className="text-[15px] font-semibold text-zinc-100">{item.title}</div>
+                <div className="mt-1 text-[14px] leading-5 text-zinc-500">{item.desc}</div>
               </button>
             );
           })}
