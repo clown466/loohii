@@ -32,8 +32,8 @@ test("buildSubtitleBurnFilter escapes windows paths", () => {
 test("buildRemakeFinalVideoPaths uses job-scoped local storage", () => {
   const paths = buildRemakeFinalVideoPaths("job-abc");
   assert.equal(paths.finalVideoKey, "uploads/remake/job-abc/final.mp4");
-  assert.equal(paths.outputPath, "uploads/remake/job-abc/final.mp4");
-  assert.equal(paths.finalVideoUrl, "/local/uploads/remake/job-abc/final.mp4");
+  assert.ok(paths.outputPath.replace(/\\/g, "/").endsWith("uploads/remake/job-abc/final.mp4"));
+  assert.equal(paths.finalVideoUrl, "/api/uploads/public/uploads/remake/job-abc/final.mp4");
 });
 
 test("runRemakeAssemble writes stub output in mock mode", async () => {

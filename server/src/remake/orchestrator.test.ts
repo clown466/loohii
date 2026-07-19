@@ -76,6 +76,32 @@ test("advances to next stage when gate disabled", async () => {
   assert.deepEqual(enqueued, [{ jobId: "job1", stage: "adapt" }]);
 });
 
+test("marks FAILED when enqueueNext throws", async () => {
+  const result = await runRemakeStage(
+    "job1",
+    createDeps(baseJob({ gatesEnabled: { a: false, b: true, c: true } }), {
+      enqueueNext: async () => {
+        throw new Error("redis down");
+      },
+    }),
+  );
+  assert.equal(result.status, "FAILED");
+  assert.equal(result.stage, "adapt");
+  assert.equal(result.errorMessage, "无法入队下一阶段，请重试");
+});
+
+test("marks FAILED when enqueueNext returns false", async () => {
+  const result = await runRemakeStage(
+    "job1",
+    createDeps(baseJob({ gatesEnabled: { a: false, b: true, c: true } }), {
+      enqueueNext: async () => false,
+    }),
+  );
+  assert.equal(result.status, "FAILED");
+  assert.equal(result.stage, "adapt");
+  assert.equal(result.errorMessage, "无法入队下一阶段，请重试");
+});
+
 test("marks FAILED when runner throws", async () => {
   const result = await runRemakeStage(
     "job1",

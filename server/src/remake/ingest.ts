@@ -1,3 +1,10 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import {
+  buildRemakeAssetKey,
+  LOCAL_UPLOAD_ROOT,
+} from "../storage/localUploads";
+
 export interface IngestFetchResult {
   platform: "tiktok";
   externalId: string;
@@ -116,6 +123,67 @@ export function ingestFromUpload(params: {
     width: params.width,
     height: params.height,
   };
+}
+
+export interface IngestPersistResult {
+  videoKey: string;
+  coverKey?: string;
+}
+
+export type IngestPersistFn = (result: IngestFetchResult) => Promise<IngestPersistResult>;
+
+export function createDefaultIngestProvider(): IngestProvider {
+  const apiUrl = process.env.REMAKE_INGEST_API_URL?.trim();
+  const apiKey = process.env.REMAKE_INGEST_API_KEY?.trim();
+  if (apiUrl && apiKey) {
+    return createHttpIngestProvider({ endpoint: apiUrl, apiKey });
+  }
+  return createMockIngestProvider();
+}
+
+export function createDefaultIngestPersist(jobId: string, uploadRoot = LOCAL_UPLOAD_ROOT): IngestPersistFn {
+  return async (result) => {
+    const videoKey = buildRemakeAssetKey(jobId, "source.mp4");
+    const videoPath = path.join(uploadRoot, videoKey);
+    await mkdir(path.dirname(videoPath), { recursive: true });
+    await writeFile(videoPath, result.videoBuffer);
+    let coverKey: string | undefined;
+    if (result.coverBuffer) {
+      coverKey = buildRemakeAssetKey(jobId, "cover.jpg");
+      await writeFile(path.join(uploadRoot, coverKey), result.coverBuffer);
+    }
+    return { videoKey, coverKey };
+  };
+}
+
+export interface RunIngestStageInput {
+  jobId: string;
+  sourceUrl?: string | null;
+  existingVideoKey?: string | null;
+  provider?: IngestProvider;
+  persist?: IngestPersistFn;
+  saveSource?: (payload: IngestSourcePayload) => Promise<void>;
+}
+
+export async function runIngestStage(
+  input: RunIngestStageInput,
+): Promise<{ ok: boolean; error?: string }> {
+  if (input.existingVideoKey) {
+    return { ok: true };
+  }
+  if (!input.sourceUrl) {
+    return { ok: false, error: "缺少 TikTok 链接或上传视频" };
+  }
+  try {
+    const provider = input.provider ?? createDefaultIngestProvider();
+    const persist = input.persist ?? createDefaultIngestPersist(input.jobId);
+    const payload = await ingestFromUrl(input.sourceUrl, provider, persist);
+    await input.saveSource?.(payload);
+    return { ok: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "素材拉取失败";
+    return { ok: false, error: message };
+  }
 }
 
 /** 链接路径：通过可插拔 provider 拉取并持久化视频。 */

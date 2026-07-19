@@ -8,6 +8,11 @@ import { runRemakeAnalyze, shouldForceAnalyzeGate } from "./analyze";
 import { chargeRemakeStage, loadRemakePlatform, refundRemakeStage, remakeBillingAttempt } from "./billing";
 import { runRemakeAssemble } from "./compose";
 import { runRemakeGenerate } from "./generateShots";
+import {
+  createDefaultIngestPersist,
+  runIngestStage,
+  type IngestProvider,
+} from "./ingest";
 import { nextStageAfterSuccess, shouldPauseForGate } from "./stateMachine";
 import type { RemakeBreakdown, RemakeGates, RemakeStageSlug } from "./types";
 import { isRemakeStage } from "./types";
@@ -47,7 +52,7 @@ export interface RunRemakeStageDeps {
     },
   ) => Promise<RemakeJobSnapshot>;
   runners: StageRunners;
-  enqueueNext?: (jobId: string, stage: RemakeStageSlug) => Promise<void>;
+  enqueueNext?: (jobId: string, stage: RemakeStageSlug) => Promise<boolean | void>;
   emitUpdated?: (event: RemakeUpdatedEvent) => void;
 }
 
@@ -131,7 +136,27 @@ export async function runRemakeStage(
     progress: runnerResult.progress ?? loaded.progress ?? null,
   });
   emit(deps, current);
-  await deps.enqueueNext?.(jobId, nextStage);
+
+  try {
+    const enqueued = await deps.enqueueNext?.(jobId, nextStage);
+    if (enqueued === false) {
+      current = await deps.saveJob(jobId, {
+        status: "FAILED",
+        stage: nextStage,
+        errorMessage: "无法入队下一阶段，请重试",
+        progress: runnerResult.progress ?? loaded.progress ?? null,
+      });
+      emit(deps, current);
+    }
+  } catch {
+    current = await deps.saveJob(jobId, {
+      status: "FAILED",
+      stage: nextStage,
+      errorMessage: "无法入队下一阶段，请重试",
+      progress: runnerResult.progress ?? loaded.progress ?? null,
+    });
+    emit(deps, current);
+  }
   return toResult(current);
 }
 
@@ -377,13 +402,68 @@ export function createAssembleStageRunner(): StageRunner {
   };
 }
 
+export function createIngestStageRunner(opts?: {
+  provider?: IngestProvider;
+  uploadRoot?: string;
+}): StageRunner {
+  return async (job) => {
+    const full = await prisma.remakeJob.findUnique({
+      where: { id: job.id },
+      include: { source: true },
+    });
+    const result = await runIngestStage({
+      jobId: job.id,
+      sourceUrl: full?.sourceUrl,
+      existingVideoKey: full?.source?.videoKey,
+      provider: opts?.provider,
+      persist: opts?.uploadRoot ? createDefaultIngestPersist(job.id, opts.uploadRoot) : undefined,
+      saveSource: async (payload) => {
+        await prisma.remakeSourceAsset.upsert({
+          where: { jobId: job.id },
+          create: {
+            jobId: job.id,
+            platform: payload.platform,
+            externalId: payload.externalId ?? null,
+            sourceUrl: payload.sourceUrl ?? null,
+            videoKey: payload.videoKey,
+            coverKey: payload.coverKey ?? null,
+            durationMs: payload.durationMs ?? null,
+            width: payload.width ?? null,
+            height: payload.height ?? null,
+            rawMeta: payload.rawMeta ?? undefined,
+          },
+          update: {
+            platform: payload.platform,
+            externalId: payload.externalId ?? null,
+            sourceUrl: payload.sourceUrl ?? null,
+            videoKey: payload.videoKey,
+            coverKey: payload.coverKey ?? null,
+            durationMs: payload.durationMs ?? null,
+            width: payload.width ?? null,
+            height: payload.height ?? null,
+            rawMeta: payload.rawMeta ?? undefined,
+            ingestError: null,
+          },
+        });
+      },
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error ?? "素材拉取失败" };
+    }
+    return {
+      ok: true,
+      progress: { percent: 100, message: "素材就绪" },
+    };
+  };
+}
+
 export function createStubStageRunners(): StageRunners {
   const stub: StageRunner = async (job) => ({
     ok: true,
     progress: { percent: 100, message: `${job.stage} 阶段完成（stub）` },
   });
   return {
-    ingest: stub,
+    ingest: createIngestStageRunner(),
     analyze: createAnalyzeStageRunner(),
     adapt: createAdaptStageRunner(),
     generate: createGenerateStageRunner(),
@@ -447,9 +527,7 @@ export function createDefaultOrchestratorDeps(
       };
     },
     runners: createStubStageRunners(),
-    enqueueNext: async (jobId, stage) => {
-      await enqueueRemakeJob({ jobId, stage });
-    },
+    enqueueNext: async (jobId, stage) => enqueueRemakeJob({ jobId, stage }),
     emitUpdated: onEvent,
   };
 }

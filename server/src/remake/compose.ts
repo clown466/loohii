@@ -5,6 +5,11 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 import { isRemakeMockVideoEnabled } from "./generateShots";
+import {
+  buildPublicUploadUrl,
+  buildRemakeAssetKey,
+  resolveLocalUploadPath,
+} from "../storage/localUploads";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,13 +40,21 @@ export interface RemakeFinalVideoPaths {
 
 export function buildRemakeFinalVideoPaths(
   jobId: string,
-  baseDir = "uploads/remake",
+  baseDir?: string,
 ): RemakeFinalVideoPaths {
-  const finalVideoKey = join(baseDir, jobId, "final.mp4").replace(/\\/g, "/");
+  const finalVideoKey = buildRemakeAssetKey(jobId, "final.mp4");
+  if (baseDir) {
+    const outputPath = join(baseDir, jobId, "final.mp4").replace(/\\/g, "/");
+    return {
+      outputPath,
+      finalVideoKey,
+      finalVideoUrl: buildPublicUploadUrl(finalVideoKey),
+    };
+  }
   return {
-    outputPath: finalVideoKey,
+    outputPath: resolveLocalUploadPath(finalVideoKey),
     finalVideoKey,
-    finalVideoUrl: `/local/${finalVideoKey}`,
+    finalVideoUrl: buildPublicUploadUrl(finalVideoKey),
   };
 }
 
@@ -154,6 +167,7 @@ export async function runRemakeAssemble(
   if (isRemakeMockVideoEnabled()) {
     clipPaths = sorted.map((clip) => `mock-clip-${clip.shotIndex}.mp4`);
   } else {
+    // TODO: non-mock generate→assemble must download http resultUrl clips to temp before concat.
     clipPaths = [];
     for (const clip of sorted) {
       const localPath = resolveClipLocalPath(clip);

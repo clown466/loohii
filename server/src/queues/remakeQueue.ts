@@ -90,18 +90,20 @@ export async function getRemakeQueue(): Promise<QueueLike> {
   return queuePromise;
 }
 
-export async function enqueueRemakeJob(data: RemakeJobData): Promise<void> {
+export async function enqueueRemakeJob(data: RemakeJobData): Promise<boolean> {
   if (!config.redisUrl) {
     console.warn("Remake queue skipped: REDIS_URL not configured");
-    return;
+    return false;
   }
   try {
     const queue = await getRemakeQueue();
     await queue.add("remake-stage", data, {
       jobId: `${data.jobId}:${data.stage ?? "auto"}-${Date.now()}`,
     });
+    return true;
   } catch (error) {
     console.warn("Failed to enqueue remake job:", error);
+    return false;
   }
 }
 
