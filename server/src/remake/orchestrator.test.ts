@@ -89,6 +89,49 @@ test("marks FAILED when runner throws", async () => {
   assert.equal(result.errorMessage, "ASR failed");
 });
 
+test("stops at gate C after assemble when gates.c true", async () => {
+  const result = await runRemakeStage(
+    "job1",
+    createDeps(
+      baseJob({ stage: "assemble", gatesEnabled: { a: false, b: false, c: true } }),
+      {
+        runners: {
+          assemble: async () => ({
+            ok: true,
+            progress: { percent: 100, message: "成片完成", shotTotal: 2 },
+          }),
+        },
+      },
+    ),
+  );
+  assert.equal(result.status, "WAITING_GATE");
+  assert.equal(result.stage, "assemble");
+});
+
+test("advances to deliver after assemble when gate c disabled", async () => {
+  const enqueued: Array<{ jobId: string; stage: string }> = [];
+  const result = await runRemakeStage(
+    "job1",
+    createDeps(
+      baseJob({ stage: "assemble", gatesEnabled: { a: false, b: false, c: false } }),
+      {
+        runners: {
+          assemble: async () => ({
+            ok: true,
+            progress: { percent: 100, message: "成片完成", shotTotal: 2 },
+          }),
+        },
+        enqueueNext: async (jobId, stage) => {
+          enqueued.push({ jobId, stage });
+        },
+      },
+    ),
+  );
+  assert.equal(result.status, "RUNNING");
+  assert.equal(result.stage, "deliver");
+  assert.deepEqual(enqueued, [{ jobId: "job1", stage: "deliver" }]);
+});
+
 test("deliver success completes job", async () => {
   const result = await runRemakeStage(
     "job1",

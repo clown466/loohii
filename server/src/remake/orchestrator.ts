@@ -6,6 +6,7 @@ import { buildRemakeUpdatedEvent, type RemakeProgress, type RemakeUpdatedEvent }
 import { runRemakeAdapt, type RemakeScript, type TextModelCaller } from "./adapt";
 import { runRemakeAnalyze, shouldForceAnalyzeGate } from "./analyze";
 import { chargeRemakeStage, loadRemakePlatform, refundRemakeStage, remakeBillingAttempt } from "./billing";
+import { runRemakeAssemble } from "./compose";
 import { runRemakeGenerate } from "./generateShots";
 import { nextStageAfterSuccess, shouldPauseForGate } from "./stateMachine";
 import type { RemakeBreakdown, RemakeGates, RemakeStageSlug } from "./types";
@@ -338,6 +339,44 @@ export function createGenerateStageRunner(): StageRunner {
   };
 }
 
+export function createAssembleStageRunner(): StageRunner {
+  return async (job) => {
+    const full = await prisma.remakeJob.findUnique({
+      where: { id: job.id },
+      include: { shots: { where: { status: "succeeded" }, orderBy: { shotIndex: "asc" } } },
+    });
+    const expectedShots = (full?.remakeScript as RemakeScript | null)?.shots?.length ?? 0;
+    const clips = full?.shots ?? [];
+    if (clips.length === 0) {
+      return { ok: false, error: "没有可成片的镜头" };
+    }
+    if (expectedShots > 0 && clips.length < expectedShots) {
+      return { ok: false, error: "部分镜头未生成成功，无法成片" };
+    }
+
+    const result = await runRemakeAssemble({
+      jobId: job.id,
+      clips,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error ?? "成片合成失败" };
+    }
+
+    await prisma.remakeJob.update({
+      where: { id: job.id },
+      data: {
+        finalVideoKey: result.finalVideoKey,
+        finalVideoUrl: result.finalVideoUrl,
+      },
+    });
+
+    return {
+      ok: true,
+      progress: { percent: 100, message: "成片完成", shotTotal: clips.length },
+    };
+  };
+}
+
 export function createStubStageRunners(): StageRunners {
   const stub: StageRunner = async (job) => ({
     ok: true,
@@ -348,7 +387,7 @@ export function createStubStageRunners(): StageRunners {
     analyze: createAnalyzeStageRunner(),
     adapt: createAdaptStageRunner(),
     generate: createGenerateStageRunner(),
-    assemble: stub,
+    assemble: createAssembleStageRunner(),
     deliver: stub,
   };
 }

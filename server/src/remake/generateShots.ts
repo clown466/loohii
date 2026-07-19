@@ -55,10 +55,9 @@ export interface RunRemakeGenerateResult {
 }
 
 const DEFAULT_CONCURRENCY = 2;
-const MOCK_VIDEO_FLAG = process.env.REMAKE_MOCK_VIDEO === "1";
 
 export function isRemakeMockVideoEnabled(): boolean {
-  return MOCK_VIDEO_FLAG;
+  return process.env.REMAKE_MOCK_VIDEO === "1";
 }
 
 export async function generateShotClip(
@@ -68,7 +67,7 @@ export async function generateShotClip(
   if (generator) {
     return generator(input);
   }
-  if (MOCK_VIDEO_FLAG) {
+  if (isRemakeMockVideoEnabled()) {
     const slug = encodeURIComponent(input.prompt.slice(0, 32));
     return {
       resultUrl: `https://mock.loohii.local/remake/${slug}.mp4`,
