@@ -5386,35 +5386,7 @@ function CanvasInner() {
       {/* Toolbar */}
       <div className="z-10 flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-[#141416] px-3 py-2 sm:flex-nowrap sm:px-4">
         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto sm:gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1 border border-[#2E2E34] bg-layer-3 text-zinc-100 transition-colors hover:border-[#3A3A42] hover:bg-layer-4"
-            onClick={handleAddNode}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">添加节点</span>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1 border border-[#2E2E34] bg-layer-3 text-zinc-100 transition-colors hover:border-[#3A3A42] hover:bg-layer-4"
-            onClick={() => canvasImageFileRef.current?.click()}
-          >
-            <UploadCloud className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">上传图片</span>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="h-8 gap-1 border border-[#2E2E34] bg-layer-3 text-zinc-100 transition-colors hover:border-[#3A3A42] hover:bg-layer-4"
-            onClick={openProjectGlobalSettings}
-            disabled={projectUnavailable}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">全局设定</span>
-          </Button>
-          <div className="mx-1 h-4 w-px shrink-0 bg-[#2E2E34] sm:mx-2" />
+          {/* P5-E 工具栏精简：添加节点/上传图片/全局设定/自动布局/适应屏幕/删除选中/给选中分区/取消分区 入口移除，功能保留（右键菜单等） */}
           <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-100" title="撤销">
             <RotateCcw className="h-4 w-4" />
           </Button>
@@ -5422,15 +5394,6 @@ function CanvasInner() {
             <RotateCw className="h-4 w-4" />
           </Button>
           <div className="mx-1 h-4 w-px shrink-0 bg-[#2E2E34] sm:mx-2" />
-          <Button variant="ghost" size="sm" className="h-8 shrink-0 text-zinc-400 hover:text-zinc-100">自动布局</Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 shrink-0 text-zinc-400 hover:text-zinc-100"
-            onClick={handleFitView}
-          >
-            适应屏幕
-          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -5450,36 +5413,6 @@ function CanvasInner() {
           >
             <Languages className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{batchTranslatingPrompts ? '翻译中' : '批量中文翻译'}</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 shrink-0 text-zinc-400 hover:text-zinc-100"
-            onClick={handleDeleteSelected}
-            disabled={selectedCanvasNodes.length === 0 && selectedCanvasEdges.length === 0}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">删除选中</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 shrink-0 text-zinc-400 hover:text-zinc-100"
-            onClick={handleCreateSectionFromSelection}
-            disabled={selectedContentNodes.length === 0}
-          >
-            <Layers3 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">给选中分区</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 shrink-0 text-zinc-400 hover:text-zinc-100"
-            onClick={handleUngroupSelection}
-            disabled={selectedSectionNodes.length === 0 && !selectedContentNodes.some((node) => node.parentId)}
-          >
-            <X className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">取消分区</span>
           </Button>
           <Button
             variant="ghost"
