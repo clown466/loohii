@@ -9,6 +9,7 @@ import { charactersRouter } from "./characters";
 import { generationsRouter } from "./generations";
 import { modelsRouter } from "./models";
 import { projectsRouter } from "./projects";
+import { remakeRouter } from "./remake";
 import { scenesRouter } from "./scenes";
 import { scriptPacksRouter } from "./scriptPacks";
 import { uploadsRouter } from "./uploads";
@@ -51,6 +52,7 @@ export function createApiRouter() {
   router.use("/agent", agentRouter);
   router.use("/generations", generationsRouter);
   router.use("/generation-records", generationsRouter);
+  router.use("/remake", remakeRouter);
   router.use("/models", modelsRouter);
   router.use("/model-configs", modelsRouter);
   router.use("/billing", billingRouter);
