@@ -3,8 +3,9 @@ import { prisma } from "../lib/prisma";
 import { prismaStageFromSlug, slugFromPrismaStage } from "./stage";
 import { enqueueRemakeJob } from "../queues/remakeQueue";
 import { buildRemakeUpdatedEvent, type RemakeProgress, type RemakeUpdatedEvent } from "./events";
+import { runRemakeAnalyze, shouldForceAnalyzeGate } from "./analyze";
 import { nextStageAfterSuccess, shouldPauseForGate } from "./stateMachine";
-import type { RemakeGates, RemakeStageSlug } from "./types";
+import type { RemakeBreakdown, RemakeGates, RemakeStageSlug } from "./types";
 import { isRemakeStage } from "./types";
 
 export interface RemakeJobSnapshot {
@@ -21,6 +22,7 @@ export interface StageRunnerResult {
   ok: boolean;
   error?: string;
   progress?: RemakeProgress;
+  breakdown?: RemakeBreakdown;
 }
 
 export type StageRunner = (job: RemakeJobSnapshot) => Promise<StageRunnerResult>;
@@ -35,6 +37,7 @@ export interface RunRemakeStageDeps {
       stage?: RemakeStageSlug;
       errorMessage?: string | null;
       progress?: RemakeProgress | null;
+      breakdown?: RemakeBreakdown | null;
     },
   ) => Promise<RemakeJobSnapshot>;
   runners: StageRunners;
@@ -86,12 +89,18 @@ export async function runRemakeStage(
     return toResult(current);
   }
 
-  if (shouldPauseForGate(stage, loaded.gatesEnabled)) {
+  const forceAnalyzeGate =
+    stage === "analyze" &&
+    runnerResult.breakdown != null &&
+    shouldForceAnalyzeGate(runnerResult.breakdown);
+
+  if (shouldPauseForGate(stage, loaded.gatesEnabled) || forceAnalyzeGate) {
     current = await deps.saveJob(jobId, {
       status: "WAITING_GATE",
       stage,
       errorMessage: null,
       progress: runnerResult.progress ?? loaded.progress ?? null,
+      breakdown: runnerResult.breakdown,
     });
     emit(deps, current);
     return toResult(current);
@@ -147,6 +156,32 @@ function parseGates(value: unknown): RemakeGates {
   };
 }
 
+export function createAnalyzeStageRunner(): StageRunner {
+  return async (job) => {
+    const full = await prisma.remakeJob.findUnique({
+      where: { id: job.id },
+      include: { source: true },
+    });
+    if (!full?.source?.videoKey) {
+      return { ok: false, error: "缺少源视频，请先完成 ingest" };
+    }
+    const breakdown = await runRemakeAnalyze({
+      videoPath: full.source.videoKey,
+      durationMs: full.source.durationMs ?? full.maxDurationMs,
+      maxShots: full.maxShots,
+    });
+    await prisma.remakeJob.update({
+      where: { id: job.id },
+      data: { breakdown },
+    });
+    return {
+      ok: true,
+      progress: { percent: 100, message: "拆解完成", shotTotal: breakdown.shots.length },
+      breakdown,
+    };
+  };
+}
+
 export function createStubStageRunners(): StageRunners {
   const stub: StageRunner = async (job) => ({
     ok: true,
@@ -154,7 +189,7 @@ export function createStubStageRunners(): StageRunners {
   });
   return {
     ingest: stub,
-    analyze: stub,
+    analyze: createAnalyzeStageRunner(),
     adapt: stub,
     generate: stub,
     assemble: stub,
@@ -185,6 +220,7 @@ export function createDefaultOrchestratorDeps(
         stage?: ReturnType<typeof prismaStageFromSlug>;
         errorMessage?: string | null;
         progress?: RemakeProgress | null;
+        breakdown?: RemakeBreakdown | null;
       } = {};
       if (update.status) {
         data.status = update.status as RemakeJobStatus;
@@ -197,6 +233,9 @@ export function createDefaultOrchestratorDeps(
       }
       if (update.progress !== undefined) {
         data.progress = update.progress;
+      }
+      if (update.breakdown !== undefined) {
+        data.breakdown = update.breakdown;
       }
       const job = await prisma.remakeJob.update({
         where: { id: jobId },

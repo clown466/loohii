@@ -38,6 +38,29 @@ test("stops at gate after analyze when gates.a true", async () => {
   assert.equal(result.stage, "analyze");
 });
 
+test("low analysis confidence forces WAITING_GATE when gate a disabled", async () => {
+  const result = await runRemakeStage(
+    "job1",
+    createDeps(baseJob({ gatesEnabled: { a: false, b: true, c: true } }), {
+      runners: {
+        analyze: async () => ({
+          ok: true,
+          breakdown: {
+            language: "unknown",
+            fullTranscript: "",
+            shots: [],
+            charactersDraft: [],
+            scenesDraft: [],
+            analysisConfidence: 0.3,
+          },
+        }),
+      },
+    }),
+  );
+  assert.equal(result.status, "WAITING_GATE");
+  assert.equal(result.stage, "analyze");
+});
+
 test("advances to next stage when gate disabled", async () => {
   const enqueued: Array<{ jobId: string; stage: string }> = [];
   const result = await runRemakeStage(
