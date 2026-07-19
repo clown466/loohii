@@ -16,7 +16,8 @@ import {
   Menu,
   ChevronLeft,
   LogOut,
-  Trash2
+  Trash2,
+  Clapperboard
 } from "lucide-react";
 import { cn } from "../utils/cn";
 import { Button } from "../components/ui/button";
@@ -238,6 +239,7 @@ export function MainLayout() {
 
           <div className="flex-1 py-4 flex flex-col gap-1 px-2">
             <NavItem icon={<Home />} label="主页" to="/app/dashboard" isOpen={isSidebarOpen} active={location.pathname === '/app/dashboard'} />
+            <NavItem icon={<Clapperboard />} label="爆款复刻" to="/app/remake" isOpen={isSidebarOpen} active={location.pathname.startsWith('/app/remake')} />
             
             {isProjectPage && (
               <div className="mt-2 flex flex-col gap-1">
