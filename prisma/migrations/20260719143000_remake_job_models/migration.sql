@@ -1,4 +1,4 @@
-﻿-- CreateEnum
+-- CreateEnum
 CREATE TYPE "RemakeJobStatus" AS ENUM ('PENDING', 'RUNNING', 'WAITING_GATE', 'SUCCEEDED', 'FAILED', 'CANCELED');
 
 -- CreateEnum
