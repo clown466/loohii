@@ -3,10 +3,15 @@ import { prisma } from "../lib/prisma";
 import { prismaStageFromSlug, slugFromPrismaStage } from "./stage";
 import { enqueueRemakeJob } from "../queues/remakeQueue";
 import { buildRemakeUpdatedEvent, type RemakeProgress, type RemakeUpdatedEvent } from "./events";
+import { runRemakeAdapt, type RemakeScript, type TextModelCaller } from "./adapt";
 import { runRemakeAnalyze, shouldForceAnalyzeGate } from "./analyze";
+import { chargeRemakeStage, loadRemakePlatform, refundRemakeStage } from "./billing";
+import { runRemakeGenerate } from "./generateShots";
 import { nextStageAfterSuccess, shouldPauseForGate } from "./stateMachine";
 import type { RemakeBreakdown, RemakeGates, RemakeStageSlug } from "./types";
 import { isRemakeStage } from "./types";
+import { callConfiguredTextModel } from "../ai/textModel";
+import type { OnceCharge } from "../lib/platformBilling";
 
 export interface RemakeJobSnapshot {
   id: string;
@@ -182,6 +187,145 @@ export function createAnalyzeStageRunner(): StageRunner {
   };
 }
 
+function createDefaultTextModelCaller(): TextModelCaller | undefined {
+  return async (messages) => {
+    const result = await callConfiguredTextModel(messages);
+    return { rawText: result.rawText };
+  };
+}
+
+export function createAdaptStageRunner(opts?: { callTextModel?: TextModelCaller }): StageRunner {
+  return async (job) => {
+    const full = await prisma.remakeJob.findUnique({ where: { id: job.id } });
+    const breakdown = full?.breakdown as RemakeBreakdown | null;
+    if (!breakdown?.shots?.length) {
+      return { ok: false, error: "缺少拆解结果，请先完成 analyze" };
+    }
+
+    let charge: OnceCharge | null = null;
+    const platform = await loadRemakePlatform(job.userId);
+    if (platform) {
+      try {
+        charge = await chargeRemakeStage(platform, job.id, "adapt", "loohii_text", 1);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "改编阶段扣点失败";
+        return { ok: false, error: message };
+      }
+    }
+
+    try {
+      const callTextModel = opts?.callTextModel ?? createDefaultTextModelCaller();
+      const remakeScript = await runRemakeAdapt({ breakdown, callTextModel });
+      await prisma.remakeJob.update({
+        where: { id: job.id },
+        data: { remakeScript },
+      });
+      return {
+        ok: true,
+        progress: { percent: 100, message: "改编完成", shotTotal: remakeScript.shots.length },
+      };
+    } catch (error) {
+      if (charge) await refundRemakeStage(charge);
+      const message = error instanceof Error ? error.message : "改编阶段失败";
+      return { ok: false, error: message };
+    }
+  };
+}
+
+export function createGenerateStageRunner(): StageRunner {
+  return async (job) => {
+    const full = await prisma.remakeJob.findUnique({
+      where: { id: job.id },
+      include: { source: true },
+    });
+    const remakeScript = full?.remakeScript as RemakeScript | null;
+    if (!remakeScript?.shots?.length) {
+      return { ok: false, error: "缺少改编脚本，请先完成 adapt" };
+    }
+
+    const refImages =
+      (full?.breakdown as RemakeBreakdown | null)?.shots
+        ?.flatMap((shot) => shot.keyframeUrls)
+        .filter((url): url is string => typeof url === "string" && /^https?:\/\//i.test(url)) ?? [];
+
+    const platform = await loadRemakePlatform(job.userId);
+    const shotCharges = new Map<number, OnceCharge>();
+
+    const result = await runRemakeGenerate({
+      jobId: job.id,
+      script: remakeScript,
+      refImages,
+      chargeShot: platform
+        ? async (shotIndex) => {
+            const charge = await chargeRemakeStage(
+              platform,
+              job.id,
+              "generate",
+              "loohii_video",
+              1,
+              shotIndex,
+            );
+            shotCharges.set(shotIndex, charge);
+          }
+        : undefined,
+      refundShot: platform
+        ? async (shotIndex) => {
+            const charge = shotCharges.get(shotIndex);
+            if (charge) {
+              await refundRemakeStage(charge);
+              shotCharges.delete(shotIndex);
+            }
+          }
+        : undefined,
+      upsertShot: async (jobId, shotIndex, data) => {
+        const existing = await prisma.remakeShotClip.findUnique({
+          where: { jobId_shotIndex: { jobId, shotIndex } },
+        });
+        const retryCount =
+          data.status === "failed"
+            ? (existing?.retryCount ?? 0) + (data.retryCount ?? 1)
+            : existing?.retryCount ?? 0;
+        await prisma.remakeShotClip.upsert({
+          where: { jobId_shotIndex: { jobId, shotIndex } },
+          create: {
+            jobId,
+            shotIndex,
+            status: data.status,
+            prompt: data.prompt ?? null,
+            durationMs: data.durationMs ?? null,
+            resultUrl: data.resultUrl ?? null,
+            resultKey: data.resultKey ?? null,
+            errorMessage: data.errorMessage ?? null,
+            retryCount,
+          },
+          update: {
+            status: data.status,
+            ...(data.prompt !== undefined ? { prompt: data.prompt } : {}),
+            ...(data.durationMs !== undefined ? { durationMs: data.durationMs } : {}),
+            ...(data.resultUrl !== undefined ? { resultUrl: data.resultUrl } : {}),
+            ...(data.resultKey !== undefined ? { resultKey: data.resultKey } : {}),
+            ...(data.errorMessage !== undefined ? { errorMessage: data.errorMessage } : {}),
+            retryCount,
+          },
+        });
+      },
+    });
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        progress: result.progress,
+      };
+    }
+
+    return {
+      ok: true,
+      progress: result.progress,
+    };
+  };
+}
+
 export function createStubStageRunners(): StageRunners {
   const stub: StageRunner = async (job) => ({
     ok: true,
@@ -190,8 +334,8 @@ export function createStubStageRunners(): StageRunners {
   return {
     ingest: stub,
     analyze: createAnalyzeStageRunner(),
-    adapt: stub,
-    generate: stub,
+    adapt: createAdaptStageRunner(),
+    generate: createGenerateStageRunner(),
     assemble: stub,
     deliver: stub,
   };
