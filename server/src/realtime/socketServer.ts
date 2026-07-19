@@ -2,8 +2,11 @@ import {
   generationEventNames,
   generationRoom,
   projectRoom,
+  remakeEventNames,
+  remakeRoom,
   userRoom,
   type GenerationRealtimeEvent,
+  type RemakeUpdatedEvent,
 } from "../events/index.js";
 
 type DynamicImport = <T = Record<string, unknown>>(specifier: string) => Promise<T>;
@@ -50,6 +53,7 @@ export interface CreateRealtimeServerOptions {
 export interface RealtimeServerHandle {
   io: RealtimeServerLike;
   emitGenerationEvent(event: GenerationRealtimeEvent): void;
+  emitRemakeUpdated(event: RemakeUpdatedEvent): void;
 }
 
 export async function createRealtimeServer(
@@ -73,6 +77,9 @@ export async function createRealtimeServer(
     io,
     emitGenerationEvent(event) {
       emitGenerationEvent(io, event);
+    },
+    emitRemakeUpdated(event) {
+      notifyRemakeUpdated(io, event);
     },
   };
 }
@@ -133,6 +140,17 @@ export function emitGenerationEvent(
     io.to(projectRoom(event.projectId)).emit(eventName, event);
   }
 
+  if (event.userId) {
+    io.to(userRoom(event.userId)).emit(eventName, event);
+  }
+}
+
+export function notifyRemakeUpdated(
+  io: RealtimeServerLike,
+  event: RemakeUpdatedEvent,
+): void {
+  const eventName = remakeEventNames.updated;
+  io.to(remakeRoom(event.jobId)).emit(eventName, event);
   if (event.userId) {
     io.to(userRoom(event.userId)).emit(eventName, event);
   }

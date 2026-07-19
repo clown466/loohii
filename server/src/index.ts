@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { config } from "./config";
 import { createHttpApp } from "./http";
 import { createRealtimeServer } from "./realtime";
+import { createRedisConnection, createRemakeWorker } from "./queues/remakeQueue";
 import { installVncUpgradeProxy } from "./vncProxy";
 import { fetchPlatformMe } from "./lib/aijiekou";
 import { startBillingReconciliation } from "./lib/billingReconciliation";
@@ -31,12 +32,35 @@ async function main() {
 
   app.set("realtime", realtime);
 
+  await startRemakeWorkerIfAvailable(realtime);
+
   httpServer.listen(config.port, () => {
     console.log(`Loohii backend listening on http://localhost:${config.port}`);
   });
 
   // P3-B：计费对账 sweep（refundPending 兜底退点），进程内定时，unref 不阻塞退出
   startBillingReconciliation();
+}
+
+async function startRemakeWorkerIfAvailable(
+  realtime: Awaited<ReturnType<typeof createRealtimeServer>>,
+): Promise<void> {
+  if (!config.redisUrl) {
+    console.warn("Remake worker skipped: REDIS_URL not configured");
+    return;
+  }
+  try {
+    const connection = await createRedisConnection();
+    await createRemakeWorker({
+      connection,
+      onEvent: (event) => {
+        realtime.emitRemakeUpdated(event);
+      },
+    });
+    console.log("Remake worker started");
+  } catch (error) {
+    console.warn("Remake worker failed to start (continuing without queue):", error);
+  }
 }
 
 main().catch((error) => {

@@ -6,18 +6,12 @@ import { prisma } from "../lib/prisma";
 import { created, ok } from "../lib/response";
 import { requireAuth } from "../middleware/auth";
 import { gateForStage, nextStageAfterSuccess } from "../remake/stateMachine";
+import {
+  prismaStageFromSlug as prismaStageFromSlugCore,
+  slugFromPrismaStage as slugFromPrismaStageCore,
+} from "../remake/stage";
 import type { RemakeGates, RemakeStageSlug } from "../remake/types";
-import { isRemakeStage } from "../remake/types";
 import { enqueueRemakeJob } from "../queues/remakeQueue";
-
-const PRISMA_STAGES: RemakeStage[] = [
-  "INGEST",
-  "ANALYZE",
-  "ADAPT",
-  "GENERATE",
-  "ASSEMBLE",
-  "DELIVER",
-];
 
 const GATE_TO_STAGE: Record<keyof RemakeGates, RemakeStageSlug> = {
   a: "analyze",
@@ -195,19 +189,19 @@ remakeRouter.post(
 );
 
 export function slugFromPrismaStage(stage: string): RemakeStageSlug {
-  const slug = stage.toLowerCase();
-  if (!isRemakeStage(slug)) {
+  try {
+    return slugFromPrismaStageCore(stage);
+  } catch {
     throw new HttpError(400, `未知阶段: ${stage}`);
   }
-  return slug;
 }
 
 export function prismaStageFromSlug(slug: RemakeStageSlug): RemakeStage {
-  const upper = slug.toUpperCase() as RemakeStage;
-  if (!PRISMA_STAGES.includes(upper)) {
+  try {
+    return prismaStageFromSlugCore(slug);
+  } catch {
     throw new HttpError(400, `未知阶段: ${slug}`);
   }
-  return upper;
 }
 
 export function gateStageSlug(gate: string): RemakeStageSlug | null {
