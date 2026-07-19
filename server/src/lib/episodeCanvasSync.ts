@@ -2453,7 +2453,7 @@ function canvasAutoEdgeId(prefix: string, sourceId: string, targetId: string): s
   return `${prefix}-${sourceId}-${targetId}`.replace(/[^a-zA-Z0-9_-]+/g, "-");
 }
 
-function stableCanvasIdPart(value: unknown, fallback = "item"): string {
+export function stableCanvasIdPart(value: unknown, fallback = "item"): string {
   return String(value || fallback)
     .trim()
     .toLowerCase()

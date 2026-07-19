@@ -22,6 +22,7 @@ import {
   readObjectString,
   canvasGenerationStartedAt,
   canvasNodeEpisodeId,
+  canvasIncomingRelationKey,
   canvasNodeReferenceUrl,
   canvasVideoPromptText,
   isCanvasPromptWithinApiLimit,
@@ -57,10 +58,11 @@ import { useVideoModelOptions } from './modelOptions';
 export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
   const { id: projectId } = useParams();
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
+  // 只订阅与本节点相连的入边+源节点内容指纹，不裸订整个 edges/nodes 数组（P4-B 性能治理）
+  const relationKey = useCanvasStore((s) => canvasIncomingRelationKey(s, id));
   const { videoModels, failed: modelLoadFailed } = useVideoModelOptions();
   const referenceImages = useMemo(() => {
+    const { nodes, edges } = useCanvasStore.getState();
     const videoNode = nodes.find((node) => node.id === id);
     const incomingEdges = edges.filter((edge) => edge.target === id);
     const incomingSources = incomingEdges
@@ -101,7 +103,8 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
       addRef(storyboardFallback, '对应故事板');
     }
     return refs.slice(0, MAX_VIDEO_REFERENCE_IMAGES);
-  }, [edges, nodes, id, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relationKey 已覆盖 edges/nodes 中与本节点相关的变化
+  }, [relationKey, id, data]);
 
   const referenceImageUrls = useMemo(
     () => referenceImages.slice(0, MAX_VIDEO_REFERENCE_IMAGES).map((ref) => ref.url),
@@ -116,8 +119,12 @@ export const VideoNode = ({ id, data, selected }: CanvasNodeProps) => {
   const selectedDuration = normalizeVideoDuration(data.durationSeconds ?? data.duration);
   const includeAudio = data.includeAudio !== false;
   const characterAudioRefs = useMemo(
-    () => mergeVideoAudioReferencesWithIncoming(characterAudioReferencesFromNodeData(data), id, nodes, edges),
-    [data, id, nodes, edges],
+    () => {
+      const { nodes, edges } = useCanvasStore.getState();
+      return mergeVideoAudioReferencesWithIncoming(characterAudioReferencesFromNodeData(data), id, nodes, edges);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relationKey 已覆盖 edges/nodes 中与本节点相关的变化
+    [data, id, relationKey],
   );
   const referenceAudioUrls = useMemo(
     () => characterAudioRefs.map((ref) => publicAudioUrl(ref.url)).filter((url, index, urls) => Boolean(url) && urls.indexOf(url) === index),

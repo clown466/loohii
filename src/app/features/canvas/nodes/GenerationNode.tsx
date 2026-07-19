@@ -43,6 +43,7 @@ import {
   isCanvasPromptWithinApiLimit,
   canvasPromptTooLongError,
   canvasNodeEpisodeId,
+  canvasIncomingRelationKey,
   compactProjectPromptContext,
   buildCanvasAssetFinalPrompt,
   isRawAssetPrompt,
@@ -110,9 +111,8 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodesTransient = useCanvasStore((s) => s.setNodesTransient);
   const addNode = useCanvasStore((s) => s.addNode);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const { id: projectId } = useParams();
+  // 只订阅与本节点相连的入边+源节点内容指纹，不裸订整个 edges/nodes 数组（P4-B 性能治理）
+  const relationKey = useCanvasStore((s) => canvasIncomingRelationKey(s, id));  const { id: projectId } = useParams();
   const currentProject = useProjectStore((s) => s.projects.find((project) => project.id === projectId));
   const sourceEpisode = typeof data.sourceEpisode === 'string' ? data.sourceEpisode : '';
   const sourceEpisodeId = canvasNodeEpisodeId(data);
@@ -130,6 +130,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
   const [targetAssetsError, setTargetAssetsError] = useState('');
 
   const referenceImages = useMemo(() => {
+    const { nodes, edges } = useCanvasStore.getState();
     const targetNode = nodes.find((node) => node.id === id);
     const incomingEdges = edges
       .filter((e) => e.target === id)
@@ -180,7 +181,8 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
       }
     }
     return refs;
-  }, [edges, nodes, id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relationKey 已覆盖 edges/nodes 中与本节点相关的变化；data 覆盖自身数据变化
+  }, [relationKey, id, data]);
   const explicitAssetKind = normalizeWorkflowAssetKind(data.assetKind);
   const hasBoundAssetName = Boolean(String(data.assetName || '').trim());
   const isStandaloneGeneration = !explicitAssetKind || !hasBoundAssetName;
@@ -745,6 +747,7 @@ export const GenerationNode = ({ id, data, selected }: CanvasNodeProps) => {
   const handleAddOutputAsImageInput = () => {
     const imageUrl = String(data.outputImage || '').trim();
     if (!imageUrl) return;
+    const nodes = useCanvasStore.getState().nodes; // 点击时取最新快照即可，无需订阅
     const currentNode = nodes.find((node) => node.id === id);
     const width = positiveNumber(currentNode?.style?.width) ?? 360;
     const nodeById = new Map(nodes.map((node) => [node.id, node]));

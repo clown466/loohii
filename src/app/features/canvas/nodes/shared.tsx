@@ -291,3 +291,35 @@ export function PromptTextarea({
     </>
   );
 }
+
+/**
+ * 与本节点相连的入边 + 源节点内容指纹（P4-B 画布性能治理）。
+ *
+ * 节点组件原先裸订阅 useCanvasStore 的整个 edges/nodes 数组——任何节点拖动都会让
+ * 数组换引用、触发全画布每个节点组件重渲染。改为订阅这个字符串指纹后，
+ * 只有与本节点相连的边或其源节点 data 实际变化时才重渲染；派生计算在 memo 内
+ * 用 useCanvasStore.getState() 取最新数据完成。
+ */
+interface CanvasRelationState {
+  nodes: Array<{ id: string; type?: string; data?: unknown }>;
+  edges: Array<{ id: string; source: string; target: string }>;
+}
+
+function safeJsonStringify(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return String(value);
+  }
+}
+
+export function canvasIncomingRelationKey(state: CanvasRelationState, nodeId: string): string {
+  let key = '';
+  for (const edge of state.edges) {
+    if (edge.target !== nodeId) continue;
+    const source = state.nodes.find((node) => node.id === edge.source);
+    key += `${edge.id}:${edge.source}→${edge.target}#${source ? `${source.type ?? ''}~${safeJsonStringify(source.data)}` : '∅'};`;
+  }
+  return key;
+}

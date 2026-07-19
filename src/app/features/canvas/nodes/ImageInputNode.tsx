@@ -14,12 +14,13 @@ import {
   previewCanvasImage,
   positiveNumber,
   uploadCanvasReferenceFile,
+  canvasIncomingRelationKey,
 } from './shared';
 
 export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const edges = useCanvasStore((s) => s.edges);
+  // 只订阅与本节点相连的入边+源节点内容指纹，不裸订整个 edges/nodes 数组（P4-B 性能治理）
+  const relationKey = useCanvasStore((s) => canvasIncomingRelationKey(s, id));
   const fileRef = useRef<HTMLInputElement>(null);
   const { id: projectId } = useParams();
   const [uploading, setUploading] = useState(false);
@@ -33,6 +34,7 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
   const isLightweightReference = data.lightweightReference === true || data.positioningBoardFlow === true;
   const upstreamStoryboardOutput = useMemo(() => {
     if (!isStoryboardSlot) return null;
+    const { nodes, edges } = useCanvasStore.getState();
     for (const edge of edges.filter((item) => item.target === id)) {
       const source = nodes.find((node) => node.id === edge.source);
       const sourceUrl = source?.type === 'generation'
@@ -48,7 +50,8 @@ export const ImageInputNode = ({ id, data, selected }: CanvasNodeProps) => {
       };
     }
     return null;
-  }, [data.label, edges, id, isStoryboardSlot, nodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relationKey 已覆盖 edges/nodes 中与本节点相关的变化
+  }, [data.label, relationKey, id, isStoryboardSlot]);
   const displayImageUrl = imageUrl || upstreamStoryboardOutput?.url || '';
   const imageUnavailable = Boolean(data.imageLoadError || (displayImageUrl && displayImageUrl.startsWith('blob:')));
   const effectivePublicImageUrl = publicImageUrl(displayImageUrl);

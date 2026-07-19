@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   CheckCircle2,
   FileText,
+  PackageOpen,
   PanelLeft,
   Save,
   SlidersHorizontal,
@@ -25,6 +26,7 @@ import {
 } from '../canvasUtils';
 import { StageWorkPanel } from './StageWorkPanel';
 import { StoryboardSceneEditor } from './StoryboardSceneEditor';
+import { ScriptPackImportPanel } from './ScriptPackImportPanel';
 
 export function WorkflowCenterOverlay({
   generationStrategy,
@@ -104,8 +106,11 @@ export function WorkflowCenterOverlay({
   generatingSeedanceClipId,
   inferBoardsAndVideoRunning,
   storyboardImageRefs,
+  projectId,
+  onScriptPackImported,
 }: WorkflowCenterOverlayProps) {
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
+  const [scriptPackPanelOpen, setScriptPackPanelOpen] = useState(false);
   const imported = sourceText.trim().length > 0;
   const hasBreakdown = scenes.length > 0;
   const hasStoryboard = hasBreakdown || clips.length > 0;
@@ -259,6 +264,18 @@ export function WorkflowCenterOverlay({
                       <UploadCloud className="h-3.5 w-3.5" />
                       导入文本
                     </Button>
+                    {projectId && projectId !== 'local' && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 border border-border bg-zinc-900 text-zinc-100 hover:bg-layer-4"
+                        disabled={workflowBusy}
+                        onClick={() => setScriptPackPanelOpen(true)}
+                      >
+                        <PackageOpen className="h-3.5 w-3.5" />
+                        从拆剧助手导入
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       size="sm"
@@ -536,6 +553,14 @@ export function WorkflowCenterOverlay({
           </aside>
         </div>
       </main>
+
+      {scriptPackPanelOpen && projectId && projectId !== 'local' && (
+        <ScriptPackImportPanel
+          projectId={projectId}
+          onImported={(firstEpisodeId) => onScriptPackImported?.(firstEpisodeId)}
+          onClose={() => setScriptPackPanelOpen(false)}
+        />
+      )}
     </div>
   );
 }

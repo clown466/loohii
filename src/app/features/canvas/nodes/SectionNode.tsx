@@ -10,8 +10,13 @@ import {
 
 export const SectionNode = ({ id, data, selected }: CanvasNodeProps) => {
   const tone = canvasSectionToneClasses(data.tone);
-  const nodes = useCanvasStore((s) => s.nodes);
-  const itemCount = nodes.filter((node) => node.parentId === id).length || positiveNumber(data.itemCount);
+  // 只订阅子节点计数（数字），不裸订整个 nodes 数组——避免无关节点变动触发重渲染（P4-B）
+  const childCount = useCanvasStore((s) => {
+    let count = 0;
+    for (const node of s.nodes) if (node.parentId === id) count += 1;
+    return count;
+  });
+  const itemCount = childCount || positiveNumber(data.itemCount);
   return (
     <>
       <CanvasNodeResizer selected={selected} minWidth={320} minHeight={180} />

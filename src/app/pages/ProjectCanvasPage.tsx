@@ -6113,6 +6113,8 @@ function CanvasInner() {
             generatingSeedanceClipId={generatingSeedanceClipId}
             inferBoardsAndVideoRunning={workflowInferAllRunning}
             storyboardImageRefs={clipStoryboardImageRefs}
+            projectId={projectId}
+            onScriptPackImported={(firstEpisodeId) => void loadEpisodeWorkspace(firstEpisodeId)}
           />
         )}
 

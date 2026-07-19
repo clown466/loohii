@@ -29,6 +29,7 @@ import {
   isCanvasPromptWithinApiLimit,
   canvasPromptTooLongError,
   canvasNodeEpisodeId,
+  canvasIncomingRelationKey,
   compactProjectPromptContext,
   buildCanvasCharacterFinalPrompt,
   isRawCharacterAssetPrompt,
@@ -42,8 +43,8 @@ import { useImageModelOptions } from './modelOptions';
 
 export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const edges = useCanvasStore((s) => s.edges);
-  const nodes = useCanvasStore((s) => s.nodes);
+  // 只订阅与本节点相连的入边+源节点内容指纹，不裸订整个 edges/nodes 数组（P4-B 性能治理）
+  const relationKey = useCanvasStore((s) => canvasIncomingRelationKey(s, id));
   const { id: projectId } = useParams();
   const currentProject = useProjectStore((s) => s.projects.find((project) => project.id === projectId));
   const sourceEpisode = typeof data.sourceEpisode === 'string' ? data.sourceEpisode : '';
@@ -55,6 +56,7 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
   const { imageModels } = useImageModelOptions();
 
   const referenceImages = useMemo(() => {
+    const { nodes, edges } = useCanvasStore.getState();
     const incomingEdges = edges.filter((e) => e.target === id);
     const refs: { url: string; label: string }[] = [];
     for (const edge of incomingEdges) {
@@ -65,7 +67,8 @@ export const CharacterNode = ({ id, data, selected }: CanvasNodeProps) => {
       }
     }
     return refs;
-  }, [edges, nodes, id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relationKey 已覆盖 edges/nodes 中与本节点相关的变化
+  }, [relationKey, id]);
 
   const autoFinalPrompt = useMemo(() => buildCanvasCharacterFinalPrompt(data, referenceImages.length, projectPromptContext), [data, referenceImages.length, projectPromptContext]);
   const rawFinalPrompt = stripLegacyCanvasAssetPromptScaffold(data.finalPrompt);

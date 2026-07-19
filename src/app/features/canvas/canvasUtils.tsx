@@ -7399,6 +7399,10 @@ export type WorkflowCenterOverlayProps = {
   optimizingClipId: string | null;
   generatingSeedanceClipId: string | null;
   inferBoardsAndVideoRunning: boolean;
+  /** P3-B：当前项目 id（'local' 时不展示剧本包导入入口） */
+  projectId?: string;
+  /** P3-B：剧本包导入完成后回调（参数为首个导入集 id，父组件负责刷新工作区） */
+  onScriptPackImported?: (firstEpisodeId: string) => void;
 };
 
 export type StageWorkPanelProps = {
