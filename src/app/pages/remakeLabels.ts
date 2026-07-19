@@ -10,6 +10,16 @@ export function formatRemakeStage(stage: string): string {
   return labels[stage] ?? stage;
 }
 
+export function formatShotStatus(status: string): string {
+  const labels: Record<string, string> = {
+    pending: "待处理",
+    running: "进行中",
+    succeeded: "成功",
+    failed: "失败",
+  };
+  return labels[status] ?? status;
+}
+
 export function formatRemakeStatus(status: string): string {
   const labels: Record<string, string> = {
     PENDING: "排队中",

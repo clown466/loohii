@@ -17,6 +17,7 @@ import type { RemakeBreakdown, RemakeGate, RemakeScript } from "../lib/api/remak
 import {
   formatRemakeStage,
   formatRemakeStatus,
+  formatShotStatus,
   gateForStage,
   gateLabel,
   getStatusBadgeClass,
@@ -52,7 +53,7 @@ export function RemakeJobPage() {
 
   useEffect(() => {
     if (!jobId || !job) return;
-    const shouldPoll = job.status === "PENDING" || job.status === "RUNNING" || job.status === "WAITING_GATE";
+    const shouldPoll = job.status === "PENDING" || job.status === "RUNNING";
     if (!shouldPoll) return;
     const timer = window.setInterval(() => {
       void loadJob(jobId);
@@ -266,7 +267,7 @@ export function RemakeJobPage() {
               <div key={shot.id} className="flex items-center justify-between rounded-lg border border-border bg-layer-4 px-3 py-2 text-sm">
                 <span>镜头 #{shot.shotIndex + 1}</span>
                 <span className={shot.status === "failed" ? "text-[#fca5a5]" : "text-muted-foreground"}>
-                  {shot.status}
+                  {formatShotStatus(shot.status)}
                   {shot.errorMessage ? ` · ${shot.errorMessage}` : ""}
                 </span>
               </div>
