@@ -10,6 +10,7 @@ import { generationsRouter } from "./generations";
 import { modelsRouter } from "./models";
 import { projectsRouter } from "./projects";
 import { scenesRouter } from "./scenes";
+import { scriptPacksRouter } from "./scriptPacks";
 import { uploadsRouter } from "./uploads";
 import { workflowsRouter } from "./workflows";
 
@@ -57,6 +58,7 @@ export function createApiRouter() {
   router.use("/workflows", workflowsRouter);
   router.use(scenesRouter);
   router.use(charactersRouter);
+  router.use(scriptPacksRouter);
 
   return router;
 }

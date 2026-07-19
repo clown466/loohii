@@ -22,7 +22,8 @@ export const router = createBrowserRouter([
   },
   {
     path: "/register",
-    element: <Suspense fallback={null}><AuthPage /></Suspense>,
+    // 本地注册通道已下线（全站只认 aijiekou 平台账号），老链接一律引导到登录页
+    element: <Navigate to="/login" replace />,
   },
   {
     path: "/app",

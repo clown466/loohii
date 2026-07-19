@@ -22,7 +22,13 @@ export const config = {
     "http://127.0.0.1:5173",
     "https://loohii.com",
   ]),
-  jwtSecret: process.env.JWT_SECRET ?? "loohii-dev-secret-change-me",
+  // aijiekou 平台（统一认证/积分），见《P0-loohii积分统一接口契约》§2
+  aijiekou: {
+    apiBase: (process.env.AIJIEKOU_API_BASE ?? "https://api.aijiekou.online").replace(/\/+$/, ""),
+    timeoutMs: intFromEnv("AIJIEKOU_TIMEOUT_MS", 10000),
+    // /v1/me 验证结果缓存，避免每个请求都打平台；0 表示禁用缓存（测试用）
+    meCacheTtlMs: intFromEnv("AIJIEKOU_ME_CACHE_TTL_MS", 60000),
+  },
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
   openAiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",

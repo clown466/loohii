@@ -17,7 +17,8 @@ import { isRecord, mapProject } from "../lib/mappers";
 import { prisma } from "../lib/prisma";
 import { isSeedanceMultiReferenceStrategy, metadataWithProjectSettings, projectGenerationStrategyFromMetadata } from "../lib/projectGenerationStrategy";
 import { ok } from "../lib/response";
-import { requireAuth } from "../middleware/auth";
+import { chargeOnce, platformTokenFromAuthorization, refundOnceCharge } from "../lib/platformBilling";
+import { getPlatformContext, requireAuth } from "../middleware/auth";
 
 const router = Router();
 
@@ -203,6 +204,33 @@ router.post(
         assistantMessageId = assistantMessage.id;
         content = assistantMessage.content;
         responseMetadata = isRecord(assistantMessage.payload) ? assistantMessage.payload : {};
+
+        // ② 预扣：agent 一轮运行按 loohii_agent 计价（契约 §3.1；其触发的生成在生成路由单独扣）
+        // 幂等键用 assistantMessageId（每轮唯一，重复提交各自计费）
+        let agentBilling: { jobId: string; platformToken: string } | undefined;
+        try {
+          const agentCharge = await chargeOnce(getPlatformContext(req), {
+            action: "loohii_agent",
+            jobId: `agent:${assistantMessage.id}`,
+            meta: { kind: "agent-run", projectId: project.id, conversationId },
+          });
+          agentBilling = { jobId: agentCharge.jobId, platformToken: agentCharge.platformToken };
+        } catch (error) {
+          await prisma.agentMessage.update({
+            where: { id: assistantMessage.id },
+            data: {
+              content: `项目总控未启动：${error instanceof Error ? error.message : "计费失败"}`,
+              payload: {
+                ...(isRecord(assistantMessage.payload) ? assistantMessage.payload : {}),
+                status: "FAILED",
+                billingError: error instanceof Error ? error.message : "charge failed",
+                completedAt: new Date().toISOString(),
+              },
+            },
+          });
+          throw error;
+        }
+
         const reqSnapshot = snapshotAgentRequest(req);
         void completeAgentMessage({
           req: reqSnapshot,
@@ -216,8 +244,11 @@ router.post(
           recentMessages: recentConversationMessages,
           modelId: input.modelId || undefined,
           clientContext: input.context,
-        }).catch((error) => {
+          billing: agentBilling,
+        }).catch(async (error) => {
           console.error(`[agent] background_failed message=${assistantMessageId}`, error);
+          // completeAgentMessage 自身异常（未被内部 catch 兜住）也要退点
+          if (agentBilling) await refundOnceCharge(agentBilling);
         });
       }
     }
@@ -507,6 +538,8 @@ type AgentRequestSnapshot = {
 
 type CompleteAgentMessageContext = AgentRunContext & {
   assistantMessageId: string;
+  /** P2-B 计费：本轮 agent 运行的预扣信息（失败退点用，契约 §3.1 loohii_agent） */
+  billing?: { jobId: string; platformToken: string };
 };
 
 function snapshotAgentRequest(req: { get(name: string): string | undefined; protocol: string }): AgentRequestSnapshot {
@@ -587,6 +620,10 @@ async function completeAgentMessage(context: CompleteAgentMessageContext): Promi
       }
     }
   } catch (error) {
+    // ⑤ agent 运行失败：退点（契约 §3.2，refund 幂等）
+    if (context.billing) {
+      await refundOnceCharge(context.billing);
+    }
     content = `项目总控执行失败：${error instanceof Error ? error.message : "未知错误"}`;
     responseMetadata = {
       source: "backend-placeholder",

@@ -1,21 +1,20 @@
 import React, { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
-import { Github, Mail, Lock, User } from "lucide-react";
+import { Link, useNavigate } from "react-router";
+import { Mail, Lock } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useAuthStore } from "../stores/useAuthStore";
 
+/**
+ * 登录页：全站只认 aijiekou 平台账号（与拆剧助手同一套账号密码）。
+ * 无 loohii 本地注册通道——新用户请先在 aijiekou 平台注册，同 email 首次登录自动建影子账号。
+ */
 export function AuthPage() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const isLogin = location.pathname === "/login";
-
   const signIn = useAuthStore(state => state.signIn);
-  const signUp = useAuthStore(state => state.signUp);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,26 +24,15 @@ export function AuthPage() {
     setLoading(true);
 
     try {
-      let result: { success: boolean; error?: string };
-
-      if (isLogin) {
-        result = await signIn(email, password);
-      } else {
-        result = await signUp(name, email, password);
-      }
-
+      const result = await signIn(email, password);
       if (result.success) {
         navigate("/app/dashboard");
       } else {
-        setError(result.error || "操作失败");
+        setError(result.error || "登录失败");
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleForgotPassword = () => {
-    alert("密码重置功能开发中");
   };
 
   return (
@@ -71,29 +59,13 @@ export function AuthPage() {
       <div className="relative flex flex-1 flex-col items-center justify-center p-4 sm:p-8">
         <div className="w-full max-w-sm lh-card rounded-xl border p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-extrabold text-[#E8E8EC] mb-2">{isLogin ? "欢迎回来" : "创建账号"}</h1>
+            <h1 className="text-2xl font-extrabold text-[#E8E8EC] mb-2">欢迎回来</h1>
             <p className="text-[#6B6B72] text-sm">
-              {isLogin ? "输入您的信息登录到鹿绘AI" : "开始您的 AI 动画创作之旅"}
+              使用 aijiekou 平台账号登录（与拆剧助手同一套账号密码）
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-zinc-300">昵称</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
-                  <Input
-                    type="text"
-                    placeholder="你的昵称"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="pl-9 h-11"
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-zinc-300">邮箱</label>
               <div className="relative">
@@ -109,14 +81,7 @@ export function AuthPage() {
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-zinc-300">密码</label>
-                {isLogin && (
-                  <button type="button" onClick={handleForgotPassword} className="text-xs text-primary hover:underline">
-                    忘记密码？
-                  </button>
-                )}
-              </div>
+              <label className="text-sm font-medium text-zinc-300">密码</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
                 <Input
@@ -138,34 +103,12 @@ export function AuthPage() {
               disabled={loading}
               className="w-full h-11 mt-6 text-base disabled:opacity-50"
             >
-              {loading ? "处理中..." : (isLogin ? "登录" : "注册")}
+              {loading ? "登录中..." : "登录"}
             </Button>
-
-            <div className="relative py-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#2A2A30]" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-[#19191E] px-2 text-[#6B6B72]">或使用以下方式</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-[#2A2A30] hover:bg-layer-4">
-                <Github className="h-4 w-4 mr-2" />
-                GitHub
-              </Button>
-              <Button type="button" variant="outline" className="h-11 bg-[#141416] border-[#2A2A30] hover:bg-layer-4">
-                Google
-              </Button>
-            </div>
           </form>
 
           <p className="text-center text-sm text-[#6B6B72] mt-8">
-            {isLogin ? "没有账号？" : "已有账号？"}
-            <Link to={isLogin ? "/register" : "/login"} className="text-primary hover:underline ml-1 font-medium">
-              {isLogin ? "去注册" : "去登录"}
-            </Link>
+            还没有账号？请先在 aijiekou 平台（拆剧助手）注册，再用同一邮箱登录。
           </p>
         </div>
       </div>

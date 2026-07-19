@@ -12,6 +12,7 @@ enum AccountProvider {
   GOOGLE
   GITHUB
   WECHAT
+  AIJIEKOU
 }
 
 enum TeamRole {
@@ -497,4 +498,22 @@ model AgentMessage {
   @@index([userId])
   @@index([generationId])
   @@index([parentId])
+}
+
+// P3-B 对账 sweep：一次性扣点（txt:/agent:，无 Generation 记录）的本地账本。
+// status: charged | refunded | refundPending | needsManual（连续失败超阈值转人工）
+model BillingCharge {
+  id             String   @id @default(cuid())
+  jobId          String   @unique
+  platformUserId Int
+  action         String
+  points         Int      @default(0)
+  status         String   @default("charged")
+  failCount      Int      @default(0)
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([platformUserId])
 }

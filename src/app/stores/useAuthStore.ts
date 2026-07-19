@@ -14,7 +14,6 @@ interface AuthStore {
   user: User | null
   isAuthenticated: boolean
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
-  signUp: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => void
   clearExpiredSession: () => void
   updateProfile: (data: Partial<User>) => void
@@ -48,6 +47,7 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       isAuthenticated: false,
 
+      // 全站只认 aijiekou 平台账号（契约 §2）；无 loohii 本地注册/登录通道
       signIn: async (email: string, password: string) => {
         if (password.length < 6) {
           return { success: false, error: '密码至少6位' }
@@ -64,32 +64,6 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         const name = email.split('@')[0]
-        const user = demoUser(name, email)
-
-        set({ user, isAuthenticated: true })
-        return { success: true }
-      },
-
-      signUp: async (name: string, email: string, password: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(email)) {
-          return { success: false, error: '邮箱格式不正确' }
-        }
-
-        if (password.length < 6) {
-          return { success: false, error: '密码至少6位' }
-        }
-
-        try {
-          const apiUser = await apiClient.signUp(name, email, password)
-          set({ user: apiUser, isAuthenticated: true })
-          return { success: true }
-        } catch (error) {
-          if (!isAuthMockMode()) {
-            return { success: false, error: errorMessage(error) }
-          }
-        }
-
         const user = demoUser(name, email)
 
         set({ user, isAuthenticated: true })

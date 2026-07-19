@@ -3,9 +3,10 @@ import { z } from "zod";
 import { notifyGenerationUpdated } from "../events/notifyGenerationUpdated.js";
 import { asyncRoute } from "../lib/asyncRoute";
 import { badRequest, notFound, routeParam } from "../lib/httpErrors";
+import { billingParametersForRetry, billingRecordOf, refundGeneration } from "../lib/platformBilling";
 import { prisma } from "../lib/prisma";
 import { created, ok } from "../lib/response";
-import { requireAuth } from "../middleware/auth";
+import { getPlatformContext, requireAuth } from "../middleware/auth";
 
 const router = Router();
 
@@ -153,7 +154,16 @@ router.post(
     if (!generation) notFound("Generation not found");
     const updated = await prisma.generation.update({
       where: { id: generation.id },
-      data: { status: "QUEUED", errorMessage: null, queuedAt: new Date(), startedAt: null, completedAt: null },
+      data: {
+        status: "QUEUED",
+        errorMessage: null,
+        queuedAt: new Date(),
+        startedAt: null,
+        completedAt: null,
+        // 契约 §3.3：已扣过/已退过的重试必须换幂等键（attempt+1），
+        // 否则 refund 后同键 consume 命中平台幂等返回假成功（不扣款白跑）
+        parameters: billingParametersForRetry(generation.parameters),
+      },
       include: generationIncludeActiveAssets(),
     });
     notifyGenerationUpdated(req.app, { projectId: updated.projectId, userId: updated.userId, generationId: updated.id, status: "QUEUED" });
@@ -168,6 +178,11 @@ router.delete(
       where: { id: routeParam(req.params.generationId, "generationId"), userId: req.user!.id },
     });
     if (!generation) notFound("Generation not found");
+    // 取消时若已预扣且未交付（非 SUCCEEDED），按契约 §3.2-⑤ 退点（refund 幂等）
+    const billing = billingRecordOf(generation.parameters);
+    if (billing?.status === "charged" && generation.status !== "SUCCEEDED") {
+      await refundGeneration(getPlatformContext(req).platformToken, generation.id);
+    }
     await prisma.generation.update({
       where: { id: generation.id },
       data: { status: "CANCELED" },

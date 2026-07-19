@@ -20,6 +20,18 @@ import { HttpError, badRequest, notFound, routeParam } from "../lib/httpErrors";
 import { generateImageThumbnails, logThumbnailError } from "../lib/imageThumbnails";
 import { isRecord } from "../lib/mappers";
 import { decryptModelConfigSecret } from "../lib/modelConfigCrypto";
+import {
+  billingRecordFor,
+  billingRecordOf,
+  chargeGeneration,
+  chargeGenerationAndPersist,
+  chargeOnce,
+  needsRechargeOnResume,
+  newChargeJobId,
+  refundGeneration,
+  refundOnceCharge,
+  type GenerationCharge,
+} from "../lib/platformBilling";
 import { prisma } from "../lib/prisma";
 import { hoistRepeatedShotRules } from "../lib/workflowPromptDedupe";
 import { ok } from "../lib/response";
@@ -36,7 +48,7 @@ import {
   stripComicStoryboardLayoutPrompt,
   stripLegacyClipStoryboardImageLayoutPrompt,
 } from "../lib/storyboardPrompt";
-import { requireAuth } from "../middleware/auth";
+import { getPlatformContext, requireAuth } from "../middleware/auth";
 
 const router = Router();
 const activeWorkflowRuns = new Map<string, number>();
@@ -960,6 +972,7 @@ router.post(
 
     let generationId = "";
     let backgroundStarted = false;
+    let charge: GenerationCharge | null = null;
     try {
       const generation = await prisma.generation.create({
         data: {
@@ -982,6 +995,21 @@ router.post(
       generationId = generation.id;
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "RUNNING" });
 
+      // ② 预扣（契约 §3.2）：先扣后做；402/503 时生成置 FAILED 且不进入执行
+      charge = await chargeGeneration(getPlatformContext(req), {
+        generationId: generation.id,
+        action: "loohii_image",
+        units: outputCount,
+        existingParameters: generation.parameters,
+      });
+      await prisma.generation.update({
+        where: { id: generation.id },
+        data: {
+          creditCost: charge.points,
+          parameters: { ...requestParameters, billing: billingRecordFor(charge) },
+        },
+      });
+
       if (input.submitOnly) {
         backgroundStarted = true;
         runCanvasImageGenerationJob({
@@ -997,6 +1025,7 @@ router.post(
           requestMetadata,
           count: outputCount,
           generationLockKey,
+          charge,
         });
         ok(res, {
           generation,
@@ -1018,6 +1047,7 @@ router.post(
         requestParameters,
         requestMetadata,
         count: outputCount,
+        charge,
       });
 
       ok(res, {
@@ -1030,7 +1060,9 @@ router.post(
       });
     } catch (error) {
       if (!generationId) throw error;
-      const message = formatImageGenerationFailure(error, "Canvas image generation failed.");
+      // ⑤ 失败退点（refund 幂等；扣点失败时 charge 为空自然跳过）
+      if (charge) await refundGeneration(charge.platformToken, generationId, charge);
+      const message = error instanceof HttpError ? error.message : formatImageGenerationFailure(error, "Canvas image generation failed.");
       await prisma.generation.update({
         where: { id: generationId },
         data: {
@@ -1041,6 +1073,7 @@ router.post(
       });
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId, status: "FAILED" });
       logRawImageGenerationFailure(generationId, error, message);
+      if (error instanceof HttpError && error.status !== 400) throw error;
       badRequest(message);
     } finally {
       if (!input.submitOnly || !backgroundStarted) {
@@ -1249,7 +1282,50 @@ router.post(
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "RUNNING" });
     }
 
+    // ② 预扣（契约 §3.2）：新生成必扣；submitId 轮询复用旧记录时，若旧记录已退款/退款待对账
+    // （retry 换键后续跑），重新执行前必须按已轮换 attempt 重新预扣（P2-D R2，堵"退点后免费续跑"）；
+    // charged/无 billing 记录的旧记录不重复扣。扣点+落库都在 try 内：落库失败立即退点，
+    // 保证"扣了必能退"（P2-D R1，对齐图片/素材路由）。
+    const resumeRecharge = existingGeneration ? needsRechargeOnResume(existingGeneration.parameters) : false;
+    const chargeUnits = resumeRecharge
+      ? billingRecordOf(existingGeneration?.parameters)?.units ?? input.count ?? 1
+      : input.count ?? 1;
+
+    let charge: GenerationCharge | null = null;
     try {
+      if (!existingGeneration || resumeRecharge) {
+        charge = await chargeGenerationAndPersist(getPlatformContext(req), {
+          generationId: generation.id,
+          action: "loohii_video",
+          units: chargeUnits,
+          existingParameters: generation.parameters,
+          persist: async (currentCharge) => {
+            await prisma.generation.update({
+              where: { id: generation.id },
+              data: {
+                creditCost: currentCharge.points,
+                parameters: {
+                  ...(isRecord(generation.parameters) ? generation.parameters : {}),
+                  billing: billingRecordFor(currentCharge),
+                },
+              },
+            });
+          },
+          refund: (currentCharge) => refundGeneration(currentCharge.platformToken, generation.id, currentCharge),
+        }).catch(async (error: unknown) => {
+          await prisma.generation.update({
+            where: { id: generation.id },
+            data: {
+              status: "FAILED",
+              errorMessage: error instanceof HttpError ? error.message : "计费失败",
+              completedAt: new Date(),
+            },
+          });
+          notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "FAILED" });
+          throw error;
+        });
+      }
+
       const result = await runCanvasVideoGeneration(req, providerContext, {
         userId: req.user!.id,
         projectId: project.id,
@@ -1276,6 +1352,7 @@ router.post(
           completedAt: completed || failed ? new Date() : null,
           errorMessage: resultErrorMessage,
           providerJobId: result.submitId || input.submitId || null,
+          ...(completed && charge ? { creditCost: charge.points } : {}),
           parameters: {
             ...(existingGeneration && isRecord(existingGeneration.parameters) ? existingGeneration.parameters : input.parameters ?? {}),
             referenceImageUrls: generationReferenceImageUrls,
@@ -1286,6 +1363,7 @@ router.post(
             ...providerParameters,
             submitId: result.submitId || input.submitId,
             genStatus: result.genStatus,
+            ...(charge ? { billing: billingRecordFor(charge) } : {}),
             normalizedVideoReferences: {
               source: existingGeneration ? "existing-generation" : normalizedReferences.source,
               storyboardImageUrl: existingGeneration ? generationReferenceImageUrls[0] || "" : normalizedReferences.storyboardImageUrl,
@@ -1299,6 +1377,11 @@ router.post(
         },
       });
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: updatedGeneration.status });
+
+      // ⑤ provider 报失败：退点（轮询路径 charge 为空时按 DB billing 状态退；refund 幂等）
+      if (failed) {
+        await refundGeneration(getPlatformContext(req).platformToken, generation.id, charge);
+      }
 
       let asset: Awaited<ReturnType<typeof prisma.asset.create>> | null = null;
       if (result.video?.url) {
@@ -1343,7 +1426,9 @@ router.post(
         raw: resultRawWithStatus,
       });
     } catch (error) {
-      const message = formatCanvasVideoGenerationFailure(providerContext, error);
+      // ⑤ 异常失败：退点（charge 为空时按 DB billing 状态退）
+      await refundGeneration(getPlatformContext(req).platformToken, generation.id, charge);
+      const message = error instanceof HttpError ? error.message : formatCanvasVideoGenerationFailure(providerContext, error);
       await prisma.generation.update({
         where: { id: generation.id },
         data: {
@@ -1353,6 +1438,7 @@ router.post(
         },
       });
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "FAILED" });
+      if (error instanceof HttpError && error.status !== 400) throw error;
       badRequest(message);
     }
   }),
@@ -1365,49 +1451,59 @@ router.post(
     const input = canvasPromptTranslationSchema.parse(req.body);
     const prompt = input.prompt.trim();
     if (!prompt) badRequest("Prompt is required.");
-    const started = Date.now();
-    const result = await callConfiguredPlainTextModel(
-      [
-        {
-          role: "system",
-          content: [
-            "You are a professional prompt translation engine for AI image and video production.",
-            "Return only the translated prompt text. Do not wrap it in markdown, JSON, quotes, labels, or explanations.",
-            "Translate the prompt faithfully without summarizing, compressing, expanding, rewriting story content, changing dialogue, or adding new requirements.",
-            "Preserve line breaks, numbering, panel labels, parameter names, character names, quoted dialogue, image-reference mentions, model parameters, and technical terms unless translation is necessary.",
-            "If text is already in the target language, return it unchanged except for obviously mixed-language fragments that need translation.",
-          ].join(" "),
-        },
-        {
-          role: "user",
-          content: [
-            `Project: ${project.name}`,
-            project.description ? `Project description: ${project.description}` : "",
-            input.context ? `Canvas context: ${input.context}` : "",
-            `Source language: ${input.sourceLanguage}`,
-            `Target language: ${input.targetLanguage}`,
-            `Preserve structure: ${input.preserveStructure ? "yes" : "no"}`,
-            "",
-            "Prompt to translate:",
-            prompt,
-          ].filter(Boolean).join("\n"),
-        },
-      ],
-      input.aiModelId,
-    );
-    const parsed = tryParseModelJson(result.rawText);
-    const translatedPrompt = parsed.ok && isRecord(parsed.value)
-      ? cleanTranslatedPrompt(stringFrom(parsed.value.translatedPrompt ?? parsed.value.translation ?? parsed.value.prompt, ""))
-      : cleanTranslatedPrompt(result.rawText);
-    if (!translatedPrompt || isTranslationPlaceholder(translatedPrompt)) badRequest("提示词翻译失败：文本模型返回了无效占位内容，请重试或切换文本模型。");
-    ok(res, {
-      prompt,
-      translatedPrompt,
-      sourceLanguage: input.sourceLanguage,
-      targetLanguage: input.targetLanguage,
-      model: result.model,
-      durationMs: Date.now() - started,
+    const textCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "translate-prompt", projectId: project.id },
     });
+    try {
+      const started = Date.now();
+      const result = await callConfiguredPlainTextModel(
+        [
+          {
+            role: "system",
+            content: [
+              "You are a professional prompt translation engine for AI image and video production.",
+              "Return only the translated prompt text. Do not wrap it in markdown, JSON, quotes, labels, or explanations.",
+              "Translate the prompt faithfully without summarizing, compressing, expanding, rewriting story content, changing dialogue, or adding new requirements.",
+              "Preserve line breaks, numbering, panel labels, parameter names, character names, quoted dialogue, image-reference mentions, model parameters, and technical terms unless translation is necessary.",
+              "If text is already in the target language, return it unchanged except for obviously mixed-language fragments that need translation.",
+            ].join(" "),
+          },
+          {
+            role: "user",
+            content: [
+              `Project: ${project.name}`,
+              project.description ? `Project description: ${project.description}` : "",
+              input.context ? `Canvas context: ${input.context}` : "",
+              `Source language: ${input.sourceLanguage}`,
+              `Target language: ${input.targetLanguage}`,
+              `Preserve structure: ${input.preserveStructure ? "yes" : "no"}`,
+              "",
+              "Prompt to translate:",
+              prompt,
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+        input.aiModelId,
+      );
+      const parsed = tryParseModelJson(result.rawText);
+      const translatedPrompt = parsed.ok && isRecord(parsed.value)
+        ? cleanTranslatedPrompt(stringFrom(parsed.value.translatedPrompt ?? parsed.value.translation ?? parsed.value.prompt, ""))
+        : cleanTranslatedPrompt(result.rawText);
+      if (!translatedPrompt || isTranslationPlaceholder(translatedPrompt)) badRequest("提示词翻译失败：文本模型返回了无效占位内容，请重试或切换文本模型。");
+      ok(res, {
+        prompt,
+        translatedPrompt,
+        sourceLanguage: input.sourceLanguage,
+        targetLanguage: input.targetLanguage,
+        model: result.model,
+        durationMs: Date.now() - started,
+      });
+    } catch (error) {
+      await refundOnceCharge(textCharge);
+      throw error;
+    }
   }),
 );
 
@@ -1418,57 +1514,67 @@ router.post(
     const input = canvasPromptOptimizationSchema.parse(req.body);
     const prompt = input.prompt.trim();
     if (!prompt) badRequest("Prompt is required.");
-    const started = Date.now();
-    const result = await callConfiguredPlainTextModel(
-      [
-        {
-          role: "system",
-          content: [
-            "You are a manual prompt safety optimization editor for AI image and video production.",
-            "Return only the optimized prompt text. Do not wrap it in markdown, JSON, quotes, labels, or explanations.",
-            "Make the prompt less likely to fail moderation for the target provider while preserving the broad story meaning, chronology, shot order, panel labels, duration, ratio, character names, reference-image mentions, and production intent.",
-            "Preserve every character dialogue line exactly. Do not change wording, punctuation, speaker names, quoted dialogue, or subtitles.",
-            "Do not summarize, compress, shorten, expand, or add new story beats.",
-            "Only soften risky visual/action wording into production-safe, non-graphic, non-realistic, comedic animation phrasing when needed.",
-            "Prefer terms such as prop, staged, slapstick, malfunction, pressure surge, dramatic recoil, chaotic motion, visible danger, urgent escape, off-screen impact, stylized action, and no-injury aftermath.",
-            "Keep the original language and structure unless a small local wording change is necessary for moderation safety.",
-          ].join(" "),
-        },
-        {
-          role: "user",
-          content: [
-            `Project: ${project.name}`,
-            project.description ? `Project description: ${project.description}` : "",
-            `Target provider: ${input.targetProvider}`,
-            input.failureReason ? `Moderation/failure reason: ${input.failureReason}` : "",
-            input.context ? `Canvas context: ${input.context}` : "",
-            "",
-            "Prompt to optimize manually:",
-            prompt,
-          ].filter(Boolean).join("\n"),
-        },
-      ],
-      input.aiModelId,
-    );
-    const optimizedPrompt = cleanOptimizedPrompt(result.rawText);
-    if (isPromptOptimizationModelRefusal(optimizedPrompt)) {
-      badRequest("提示词优化失败：文本模型拒绝处理该提示词，请切换文本模型，或手动降低敏感动作/画面描述后重试。");
-    }
-    if (!optimizedPrompt || isPromptOptimizationPlaceholder(optimizedPrompt)) {
-      badRequest("提示词优化失败：文本模型返回了无效占位内容，请重试或切换文本模型。");
-    }
-    const missingDialogue = missingPreservedDialogueFragments(prompt, optimizedPrompt);
-    if (missingDialogue.length > 0) {
-      badRequest(`提示词优化失败：模型改动或遗漏了角色台词，请重试或换文本模型。缺少：${missingDialogue.slice(0, 3).join(" / ")}`);
-    }
-    ok(res, {
-      prompt,
-      optimizedPrompt,
-      targetProvider: input.targetProvider,
-      failureReason: input.failureReason || "",
-      model: result.model,
-      durationMs: Date.now() - started,
+    const textCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "optimize-prompt", projectId: project.id },
     });
+    try {
+      const started = Date.now();
+      const result = await callConfiguredPlainTextModel(
+        [
+          {
+            role: "system",
+            content: [
+              "You are a manual prompt safety optimization editor for AI image and video production.",
+              "Return only the optimized prompt text. Do not wrap it in markdown, JSON, quotes, labels, or explanations.",
+              "Make the prompt less likely to fail moderation for the target provider while preserving the broad story meaning, chronology, shot order, panel labels, duration, ratio, character names, reference-image mentions, and production intent.",
+              "Preserve every character dialogue line exactly. Do not change wording, punctuation, speaker names, quoted dialogue, or subtitles.",
+              "Do not summarize, compress, shorten, expand, or add new story beats.",
+              "Only soften risky visual/action wording into production-safe, non-graphic, non-realistic, comedic animation phrasing when needed.",
+              "Prefer terms such as prop, staged, slapstick, malfunction, pressure surge, dramatic recoil, chaotic motion, visible danger, urgent escape, off-screen impact, stylized action, and no-injury aftermath.",
+              "Keep the original language and structure unless a small local wording change is necessary for moderation safety.",
+            ].join(" "),
+          },
+          {
+            role: "user",
+            content: [
+              `Project: ${project.name}`,
+              project.description ? `Project description: ${project.description}` : "",
+              `Target provider: ${input.targetProvider}`,
+              input.failureReason ? `Moderation/failure reason: ${input.failureReason}` : "",
+              input.context ? `Canvas context: ${input.context}` : "",
+              "",
+              "Prompt to optimize manually:",
+              prompt,
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+        input.aiModelId,
+      );
+      const optimizedPrompt = cleanOptimizedPrompt(result.rawText);
+      if (isPromptOptimizationModelRefusal(optimizedPrompt)) {
+        badRequest("提示词优化失败：文本模型拒绝处理该提示词，请切换文本模型，或手动降低敏感动作/画面描述后重试。");
+      }
+      if (!optimizedPrompt || isPromptOptimizationPlaceholder(optimizedPrompt)) {
+        badRequest("提示词优化失败：文本模型返回了无效占位内容，请重试或切换文本模型。");
+      }
+      const missingDialogue = missingPreservedDialogueFragments(prompt, optimizedPrompt);
+      if (missingDialogue.length > 0) {
+        badRequest(`提示词优化失败：模型改动或遗漏了角色台词，请重试或换文本模型。缺少：${missingDialogue.slice(0, 3).join(" / ")}`);
+      }
+      ok(res, {
+        prompt,
+        optimizedPrompt,
+        targetProvider: input.targetProvider,
+        failureReason: input.failureReason || "",
+        model: result.model,
+        durationMs: Date.now() - started,
+      });
+    } catch (error) {
+      await refundOnceCharge(textCharge);
+      throw error;
+    }
   }),
 );
 
@@ -1481,46 +1587,56 @@ router.post(
     const question = input.question.trim();
     if (!prompt) badRequest("Prompt is required.");
     if (!question) badRequest("Question is required.");
-    const started = Date.now();
-    const result = await callConfiguredPlainTextModel(
-      [
-        {
-          role: "system",
-          content: [
-            "You are a prompt inspection assistant for AI storyboard, image, and video production.",
-            "Answer the user's question using only the supplied prompt text.",
-            "Do not rewrite, translate, summarize, compress, expand, or improve the prompt unless the user explicitly asks for that.",
-            "Do not invent missing characters, dialogue, props, shots, scenes, or continuity details.",
-            "Keep character names, quoted dialogue, panel labels, image-reference names, and technical terms exactly as written when citing them.",
-            "Prefer a concise Chinese answer for Chinese questions. Use bullet points or a small table when it makes the answer easier to scan.",
-          ].join(" "),
-        },
-        {
-          role: "user",
-          content: [
-            `Project: ${project.name}`,
-            project.description ? `Project description: ${project.description}` : "",
-            input.context ? `Canvas context: ${input.context}` : "",
-            "",
-            "User question:",
-            question,
-            "",
-            "Prompt to inspect:",
-            prompt,
-          ].filter(Boolean).join("\n"),
-        },
-      ],
-      input.aiModelId,
-    );
-    const answer = cleanPlainModelAnswer(result.rawText);
-    if (!answer) badRequest("提示词检查失败：文本模型没有返回可用答案，请重试或切换文本模型。");
-    ok(res, {
-      prompt,
-      question,
-      answer,
-      model: result.model,
-      durationMs: Date.now() - started,
+    const textCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "inspect-prompt", projectId: project.id },
     });
+    try {
+      const started = Date.now();
+      const result = await callConfiguredPlainTextModel(
+        [
+          {
+            role: "system",
+            content: [
+              "You are a prompt inspection assistant for AI storyboard, image, and video production.",
+              "Answer the user's question using only the supplied prompt text.",
+              "Do not rewrite, translate, summarize, compress, expand, or improve the prompt unless the user explicitly asks for that.",
+              "Do not invent missing characters, dialogue, props, shots, scenes, or continuity details.",
+              "Keep character names, quoted dialogue, panel labels, image-reference names, and technical terms exactly as written when citing them.",
+              "Prefer a concise Chinese answer for Chinese questions. Use bullet points or a small table when it makes the answer easier to scan.",
+            ].join(" "),
+          },
+          {
+            role: "user",
+            content: [
+              `Project: ${project.name}`,
+              project.description ? `Project description: ${project.description}` : "",
+              input.context ? `Canvas context: ${input.context}` : "",
+              "",
+              "User question:",
+              question,
+              "",
+              "Prompt to inspect:",
+              prompt,
+            ].filter(Boolean).join("\n"),
+          },
+        ],
+        input.aiModelId,
+      );
+      const answer = cleanPlainModelAnswer(result.rawText);
+      if (!answer) badRequest("提示词检查失败：文本模型没有返回可用答案，请重试或切换文本模型。");
+      ok(res, {
+        prompt,
+        question,
+        answer,
+        model: result.model,
+        durationMs: Date.now() - started,
+      });
+    } catch (error) {
+      await refundOnceCharge(textCharge);
+      throw error;
+    }
   }),
 );
 
@@ -1578,6 +1694,7 @@ router.post(
     }
 
     let generationId = "";
+    let charge: GenerationCharge | null = null;
     try {
       const generation = await prisma.generation.create({
         data: {
@@ -1605,6 +1722,21 @@ router.post(
       });
       generationId = generation.id;
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId: generation.id, status: "RUNNING" });
+
+      // ② 预扣（契约 §3.2）：素材图片统一按 loohii_image 计价（张数=1）
+      charge = await chargeGeneration(getPlatformContext(req), {
+        generationId: generation.id,
+        action: "loohii_image",
+        units: 1,
+        existingParameters: generation.parameters,
+      });
+      await prisma.generation.update({
+        where: { id: generation.id },
+        data: {
+          creditCost: charge.points,
+          parameters: { ...requestParameters, billing: billingRecordFor(charge) },
+        },
+      });
 
       const result = await callConfiguredImageModel({
         prompt,
@@ -1656,10 +1788,12 @@ router.post(
           aiModelId: result.model.id,
           status: "SUCCEEDED",
           completedAt: new Date(),
+          creditCost: charge.points,
           parameters: {
             ...requestParameters,
             model: result.model,
             durationMs: result.durationMs,
+            billing: billingRecordFor(charge),
           },
         },
       });
@@ -1687,7 +1821,9 @@ router.post(
       });
     } catch (error) {
       if (!generationId) throw error;
-      const message = formatImageGenerationFailure(error, "Asset image generation failed.");
+      // ⑤ 失败退点
+      if (charge) await refundGeneration(charge.platformToken, generationId, charge);
+      const message = error instanceof HttpError ? error.message : formatImageGenerationFailure(error, "Asset image generation failed.");
       await prisma.generation.update({
         where: { id: generationId },
         data: {
@@ -1698,6 +1834,7 @@ router.post(
       });
       notifyGenerationUpdated(req.app, { projectId: project.id, userId: req.user!.id, generationId, status: "FAILED" });
       logRawImageGenerationFailure(generationId, error, message);
+      if (error instanceof HttpError && error.status !== 400) throw error;
       badRequest(message);
     } finally {
       releaseActiveImageGeneration(generationLockKey);
@@ -1720,6 +1857,12 @@ router.post(
       badRequest("当前项目已有 AI 智能拆解任务正在运行，请等待上一条任务完成后再重试。");
     }
     activeWorkflowRuns.set(runLockKey, Date.now());
+    // ② 预扣：智能拆解是文本模型任务，统一按 loohii_text 计价（契约 §3.1）
+    const runCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "workflow-run", projectId: project.id, episodeId: requestEpisodeId },
+    });
     try {
       await persistWorkflowRunStarted(project, input, requestEpisodeId);
       const sourcePreview = input.sourceText.slice(0, 2000);
@@ -1753,6 +1896,8 @@ router.post(
 
       ok(res, saved);
     } catch (error) {
+      // ⑤ 失败退点
+      await refundOnceCharge(runCharge);
       await persistWorkflowRunFailed(project, input, error, requestEpisodeId);
       throw error;
     } finally {
@@ -1779,72 +1924,82 @@ router.post(
     const targetShots = currentWorkflow.breakdownScenes.filter((shot) => shotIdSet.has(shot.id));
     if (targetShots.length === 0) badRequest("当前 Clip 没有关联分镜，无法优化。");
 
-    const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
-    const modelResult = await callWorkflowTextModel(
-      "Clip AI优化",
-      [
-        {
-          role: "system",
-          content:
-            "You are a clip-level storyboard optimizer for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. Optimize only the given clip.",
-        },
-        {
-          role: "user",
-          content: buildClipOptimizationPrompt(project, currentWorkflow, clip, targetShots, authority),
-        },
-      ],
-      input.aiModelId,
-    );
-    const optimizedJson = await parseModelJsonWithRepair("Clip AI优化", modelResult.rawText, input.aiModelId, storyboardJsonShape());
-    const optimizedShots = optimizeWorkflowClipShots(
-      canonicalizeStoryboardShots(normalizeOptimizedClipShots(optimizedJson, targetShots), authority),
-      clip.id,
-    );
-    const optimizedClip = {
-      ...buildWorkflowClip(optimizedShots, clipIndex, workflowClipContext(project, workflowAssetCharacters(currentWorkflow.assets), currentWorkflow.assets, currentWorkflow.sourceText)),
-      id: clip.id,
-      title: clip.title,
-    };
-    const nextBreakdownScenes = currentWorkflow.breakdownScenes.flatMap((shot) => {
-      if (!shotIdSet.has(shot.id)) return [shot];
-      if (shot.id !== targetShots[0].id) return [];
-      return optimizedShots;
+    const textCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "clip-optimize", projectId: project.id, clipId: clip.id },
     });
-    const nextClips = currentWorkflow.clips.map((item, index) =>
-      index === clipIndex
-        ? optimizedClip
-        : {
-            ...item,
-            shotIds: item.shotIds.filter((shotId) => !shotIdSet.has(shotId)),
+    try {
+      const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
+      const modelResult = await callWorkflowTextModel(
+        "Clip AI优化",
+        [
+          {
+            role: "system",
+            content:
+              "You are a clip-level storyboard optimizer for an AI animation studio. Return only valid JSON. Do not wrap it in markdown. Optimize only the given clip.",
           },
-    );
-    const next = {
-      ...currentWorkflow,
-      breakdownScenes: nextBreakdownScenes,
-      clips: nextClips,
-      stageStatuses: {
-        ...currentWorkflow.stageStatuses,
-        storyboard: "done",
-      },
-      lastRun: {
-        ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
-        status: "clip-optimized",
-        stage: "clip-optimize",
-        model: modelResult.model,
-        clipId: clip.id,
-        completedAt: new Date().toISOString(),
-      },
-      updatedAt: new Date().toISOString(),
-    };
+          {
+            role: "user",
+            content: buildClipOptimizationPrompt(project, currentWorkflow, clip, targetShots, authority),
+          },
+        ],
+        input.aiModelId,
+      );
+      const optimizedJson = await parseModelJsonWithRepair("Clip AI优化", modelResult.rawText, input.aiModelId, storyboardJsonShape());
+      const optimizedShots = optimizeWorkflowClipShots(
+        canonicalizeStoryboardShots(normalizeOptimizedClipShots(optimizedJson, targetShots), authority),
+        clip.id,
+      );
+      const optimizedClip = {
+        ...buildWorkflowClip(optimizedShots, clipIndex, workflowClipContext(project, workflowAssetCharacters(currentWorkflow.assets), currentWorkflow.assets, currentWorkflow.sourceText)),
+        id: clip.id,
+        title: clip.title,
+      };
+      const nextBreakdownScenes = currentWorkflow.breakdownScenes.flatMap((shot) => {
+        if (!shotIdSet.has(shot.id)) return [shot];
+        if (shot.id !== targetShots[0].id) return [];
+        return optimizedShots;
+      });
+      const nextClips = currentWorkflow.clips.map((item, index) =>
+        index === clipIndex
+          ? optimizedClip
+          : {
+              ...item,
+              shotIds: item.shotIds.filter((shotId) => !shotIdSet.has(shotId)),
+            },
+      );
+      const next = {
+        ...currentWorkflow,
+        breakdownScenes: nextBreakdownScenes,
+        clips: nextClips,
+        stageStatuses: {
+          ...currentWorkflow.stageStatuses,
+          storyboard: "done",
+        },
+        lastRun: {
+          ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
+          status: "clip-optimized",
+          stage: "clip-optimize",
+          model: modelResult.model,
+          clipId: clip.id,
+          completedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      };
 
-    const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(metadata, next);
-    const nextMetadata = writeWorkflowEpisode(metadata, episodeId, next, true);
-    await prisma.project.update({
-      where: { id: project.id },
-      data: { metadata: nextMetadata },
-    });
+      const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(metadata, next);
+      const nextMetadata = writeWorkflowEpisode(metadata, episodeId, next, true);
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { metadata: nextMetadata },
+      });
 
-    ok(res, { ...next, episodeId, episodes: getWorkflowEpisodeList(nextMetadata) });
+      ok(res, { ...next, episodeId, episodes: getWorkflowEpisodeList(nextMetadata) });
+    } catch (error) {
+      await refundOnceCharge(textCharge);
+      throw error;
+    }
   }),
 );
 
@@ -1866,62 +2021,72 @@ router.post(
     const targetShots = currentWorkflow.breakdownScenes.filter((shot) => shotIdSet.has(shot.id));
     if (targetShots.length === 0) badRequest("当前 Clip 没有关联分镜，无法生成视频提示词。");
 
-    const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
-    const recoveredStoryboardPrompt = await recoverWorkflowClipStoryboardPrompt(project.id, metadata, requestEpisodeId, currentWorkflow, clip);
-    const clipForPrompt = recoveredStoryboardPrompt && recoveredStoryboardPrompt !== clip.storyboardPrompt
-      ? { ...clip, storyboardPrompt: recoveredStoryboardPrompt }
-      : clip;
-    const canonicalTargetShots = canonicalizeStoryboardShots(targetShots, authority);
-    const canonicalClipForPrompt = canonicalizeWorkflowClipCharacters(clipForPrompt, authority);
-    const generated = regenerateWorkflowClipSeedancePrompt(project, currentWorkflow, canonicalClipForPrompt, canonicalTargetShots);
-    if (input.aiModelId) {
-      generated.seedancePrompt = await refineWorkflowClipSeedancePrompt({
-        project,
-        workflow: currentWorkflow,
-        clip: canonicalClipForPrompt,
-        shots: canonicalTargetShots,
-        prompt: generated.seedancePrompt,
-        aiModelId: input.aiModelId,
-        authority,
+    const textCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "seedance-prompt", projectId: project.id, clipId: clip.id },
+    });
+    try {
+      const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
+      const recoveredStoryboardPrompt = await recoverWorkflowClipStoryboardPrompt(project.id, metadata, requestEpisodeId, currentWorkflow, clip);
+      const clipForPrompt = recoveredStoryboardPrompt && recoveredStoryboardPrompt !== clip.storyboardPrompt
+        ? { ...clip, storyboardPrompt: recoveredStoryboardPrompt }
+        : clip;
+      const canonicalTargetShots = canonicalizeStoryboardShots(targetShots, authority);
+      const canonicalClipForPrompt = canonicalizeWorkflowClipCharacters(clipForPrompt, authority);
+      const generated = regenerateWorkflowClipSeedancePrompt(project, currentWorkflow, canonicalClipForPrompt, canonicalTargetShots);
+      if (input.aiModelId) {
+        generated.seedancePrompt = await refineWorkflowClipSeedancePrompt({
+          project,
+          workflow: currentWorkflow,
+          clip: canonicalClipForPrompt,
+          shots: canonicalTargetShots,
+          prompt: generated.seedancePrompt,
+          aiModelId: input.aiModelId,
+          authority,
+        });
+      }
+      const nextClip = {
+        ...clip,
+        ...(canonicalClipForPrompt.storyboardPrompt && canonicalClipForPrompt.storyboardPrompt !== clip.storyboardPrompt
+          ? { storyboardPrompt: canonicalClipForPrompt.storyboardPrompt }
+          : {}),
+        ...generated,
+      };
+      const nextClips = currentWorkflow.clips.map((item, index) => (index === clipIndex ? nextClip : item));
+      const next = {
+        ...currentWorkflow,
+        clips: nextClips,
+        stageStatuses: {
+          ...currentWorkflow.stageStatuses,
+          video: "done",
+        },
+        lastRun: {
+          ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
+          status: "seedance-prompt-generated",
+          stage: "video",
+          clipId: clip.id,
+          completedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+
+      const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(metadata, next);
+      const nextMetadata = writeWorkflowEpisode(metadata, episodeId, next, true);
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { metadata: nextMetadata },
       });
+
+      ok(res, {
+        workflow: { ...next, episodeId, episodes: getWorkflowEpisodeList(nextMetadata) },
+        clip: nextClip,
+        prompt: nextClip.seedancePrompt,
+      });
+    } catch (error) {
+      await refundOnceCharge(textCharge);
+      throw error;
     }
-    const nextClip = {
-      ...clip,
-      ...(canonicalClipForPrompt.storyboardPrompt && canonicalClipForPrompt.storyboardPrompt !== clip.storyboardPrompt
-        ? { storyboardPrompt: canonicalClipForPrompt.storyboardPrompt }
-        : {}),
-      ...generated,
-    };
-    const nextClips = currentWorkflow.clips.map((item, index) => (index === clipIndex ? nextClip : item));
-    const next = {
-      ...currentWorkflow,
-      clips: nextClips,
-      stageStatuses: {
-        ...currentWorkflow.stageStatuses,
-        video: "done",
-      },
-      lastRun: {
-        ...(isRecord(currentWorkflow.lastRun) ? currentWorkflow.lastRun : {}),
-        status: "seedance-prompt-generated",
-        stage: "video",
-        clipId: clip.id,
-        completedAt: new Date().toISOString(),
-      },
-      updatedAt: new Date().toISOString(),
-    };
-
-    const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(metadata, next);
-    const nextMetadata = writeWorkflowEpisode(metadata, episodeId, next, true);
-    await prisma.project.update({
-      where: { id: project.id },
-      data: { metadata: nextMetadata },
-    });
-
-    ok(res, {
-      workflow: { ...next, episodeId, episodes: getWorkflowEpisodeList(nextMetadata) },
-      clip: nextClip,
-      prompt: nextClip.seedancePrompt,
-    });
   }),
 );
 
@@ -1942,78 +2107,88 @@ router.post(
     const targetShots = currentWorkflow.breakdownScenes.filter((shot) => shotIdSet.has(shot.id));
     if (targetShots.length === 0) badRequest("当前 Clip 没有关联分镜，无法推理故事板。");
 
-    const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
-    const modelResult = await callWorkflowTextModel(
-      "Clip故事板推理",
-      [
-        {
-          role: "system",
-          content:
-            "You are a clip-level director storyboard planner for AI video production. Return only strict JSON. Do not wrap it in markdown.",
-        },
-        {
-          role: "user",
-          content: buildClipStoryboardPlanPrompt(project, currentWorkflow, clip, targetShots, authority, input),
-        },
-      ],
-      input.aiModelId,
-    );
-    const structured = await parseModelJsonWithRepair("Clip故事板推理", modelResult.rawText, input.aiModelId, clipStoryboardPlanJsonShape());
-    const continuity = clipStoryboardContinuityContext(currentWorkflow, clip, targetShots);
-    const plan = normalizeClipStoryboardPlan(structured, clip, targetShots, input, project.aspectRatio, currentWorkflow, authority);
-    const prompt = finalizeClipStoryboardImagePrompt(enforceClipStoryboardDialoguePrompt(
-      enforceClipStoryboardContinuityPrompt(plan.prompt, continuity),
-      targetShots,
-    ), plan.panelCount, project.aspectRatio);
-    const nextClip = {
-      ...clip,
-      storyboardPrompt: prompt,
-      storyboardPanelCount: plan.panelCount,
-      storyboardNotes: plan.notes || "",
-      seedancePrompt: "",
-    };
-    const savedMetadata = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${project.id} FOR UPDATE`;
-      const currentProject = await tx.project.findUnique({
-        where: { id: project.id },
-        select: { metadata: true },
-      });
-      const freshMetadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
-      const freshWorkflow = getWorkflowState(freshMetadata, requestEpisodeId);
-      const freshNext = {
-        ...freshWorkflow,
-        clips: freshWorkflow.clips.map((item) => (item.id === clip.id ? nextClip : item)),
-        stageStatuses: {
-          ...freshWorkflow.stageStatuses,
-          storyboard: "done",
-          video: "idle",
-        },
-        lastRun: {
-          ...(isRecord(freshWorkflow.lastRun) ? freshWorkflow.lastRun : {}),
-          status: "clip-storyboard-planned",
-          stage: "storyboard",
-          clipId: clip.id,
-          completedAt: new Date().toISOString(),
-        },
-        updatedAt: new Date().toISOString(),
+    const textCharge = await chargeOnce(getPlatformContext(req), {
+      action: "loohii_text",
+      jobId: newChargeJobId("txt"),
+      meta: { kind: "storyboard-plan", projectId: project.id, clipId: clip.id },
+    });
+    try {
+      const authority = await workflowAuthorityContext(project, currentWorkflow.sourceText);
+      const modelResult = await callWorkflowTextModel(
+        "Clip故事板推理",
+        [
+          {
+            role: "system",
+            content:
+              "You are a clip-level director storyboard planner for AI video production. Return only strict JSON. Do not wrap it in markdown.",
+          },
+          {
+            role: "user",
+            content: buildClipStoryboardPlanPrompt(project, currentWorkflow, clip, targetShots, authority, input),
+          },
+        ],
+        input.aiModelId,
+      );
+      const structured = await parseModelJsonWithRepair("Clip故事板推理", modelResult.rawText, input.aiModelId, clipStoryboardPlanJsonShape());
+      const continuity = clipStoryboardContinuityContext(currentWorkflow, clip, targetShots);
+      const plan = normalizeClipStoryboardPlan(structured, clip, targetShots, input, project.aspectRatio, currentWorkflow, authority);
+      const prompt = finalizeClipStoryboardImagePrompt(enforceClipStoryboardDialoguePrompt(
+        enforceClipStoryboardContinuityPrompt(plan.prompt, continuity),
+        targetShots,
+      ), plan.panelCount, project.aspectRatio);
+      const nextClip = {
+        ...clip,
+        storyboardPrompt: prompt,
+        storyboardPanelCount: plan.panelCount,
+        storyboardNotes: plan.notes || "",
+        seedancePrompt: "",
       };
-      const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(freshMetadata, freshNext);
-      const nextMetadata = writeWorkflowEpisode(freshMetadata, episodeId, freshNext, true);
-      await tx.project.update({
-        where: { id: project.id },
-        data: { metadata: nextMetadata as Prisma.InputJsonValue },
+      const savedMetadata = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.$queryRaw`SELECT id FROM "Project" WHERE id = ${project.id} FOR UPDATE`;
+        const currentProject = await tx.project.findUnique({
+          where: { id: project.id },
+          select: { metadata: true },
+        });
+        const freshMetadata = isRecord(currentProject?.metadata) ? currentProject.metadata : {};
+        const freshWorkflow = getWorkflowState(freshMetadata, requestEpisodeId);
+        const freshNext = {
+          ...freshWorkflow,
+          clips: freshWorkflow.clips.map((item) => (item.id === clip.id ? nextClip : item)),
+          stageStatuses: {
+            ...freshWorkflow.stageStatuses,
+            storyboard: "done",
+            video: "idle",
+          },
+          lastRun: {
+            ...(isRecord(freshWorkflow.lastRun) ? freshWorkflow.lastRun : {}),
+            status: "clip-storyboard-planned",
+            stage: "storyboard",
+            clipId: clip.id,
+            completedAt: new Date().toISOString(),
+          },
+          updatedAt: new Date().toISOString(),
+        };
+        const episodeId = requestEpisodeId || workflowEpisodeIdForWorkflow(freshMetadata, freshNext);
+        const nextMetadata = writeWorkflowEpisode(freshMetadata, episodeId, freshNext, true);
+        await tx.project.update({
+          where: { id: project.id },
+          data: { metadata: nextMetadata as Prisma.InputJsonValue },
+        });
+        return { nextMetadata, freshNext, episodeId };
       });
-      return { nextMetadata, freshNext, episodeId };
-    });
 
-    ok(res, {
-      ...plan,
-      prompt,
-      continuityCharacters: continuity.continuityCharacters,
-      model: modelResult.model,
-      workflow: { ...savedMetadata.freshNext, episodeId: savedMetadata.episodeId, episodes: getWorkflowEpisodeList(savedMetadata.nextMetadata) },
-      clip: nextClip,
-    });
+      ok(res, {
+        ...plan,
+        prompt,
+        continuityCharacters: continuity.continuityCharacters,
+        model: modelResult.model,
+        workflow: { ...savedMetadata.freshNext, episodeId: savedMetadata.episodeId, episodes: getWorkflowEpisodeList(savedMetadata.nextMetadata) },
+        clip: nextClip,
+      });
+    } catch (error) {
+      await refundOnceCharge(textCharge);
+      throw error;
+    }
   }),
 );
 
@@ -9938,11 +10113,16 @@ function runCanvasImageGenerationJob(input: {
   requestMetadata: Record<string, unknown>;
   count: number;
   generationLockKey: string;
+  charge?: GenerationCharge | null;
 }) {
   void (async () => {
     try {
       await completeCanvasImageGenerationJob(input);
     } catch (error) {
+      // 后台执行失败：退点（幂等）再置 FAILED
+      if (input.charge) {
+        await refundGeneration(input.charge.platformToken, input.generationId, input.charge);
+      }
       const message = formatImageGenerationFailure(error, "Canvas image generation failed.");
       await prisma.generation.update({
         where: { id: input.generationId },
@@ -9976,6 +10156,7 @@ async function completeCanvasImageGenerationJob(input: {
   requestParameters: Record<string, unknown>;
   requestMetadata: Record<string, unknown>;
   count: number;
+  charge?: GenerationCharge | null;
 }) {
   const result = await callConfiguredImageModel({
     prompt: input.prompt,
@@ -10032,11 +10213,13 @@ async function completeCanvasImageGenerationJob(input: {
       aiModelId: result.model.id,
       status: "SUCCEEDED",
       completedAt: new Date(),
+      ...(input.charge ? { creditCost: input.charge.points } : {}),
       parameters: {
         ...input.requestParameters,
         model: result.model,
         durationMs: result.durationMs,
         outputCount: persistedImages.length,
+        ...(input.charge ? { billing: billingRecordFor(input.charge) } : {}),
       },
     },
   });

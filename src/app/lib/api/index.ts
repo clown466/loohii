@@ -75,9 +75,8 @@ export const apiClient = {
   getToken,
   setToken,
 
-  // Auth
+  // Auth（全站只认 aijiekou 平台账号，无本地注册通道）
   signIn: authApi.signIn.bind(authApi),
-  signUp: authApi.signUp.bind(authApi),
   updateProfile: authApi.updateProfile.bind(authApi),
 
   // Projects

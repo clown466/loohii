@@ -18,7 +18,8 @@ export interface ApiRequestOptions {
   cache?: RequestCache
 }
 
-const API_TOKEN_KEY = 'loohii-api-token'
+// 全站只认 aijiekou 平台 JWT（契约 §2）：localStorage 存平台 token，旧 loohii-api-token 不再使用
+const API_TOKEN_KEY = 'loohii-cloud-token'
 export const API_AUTH_EXPIRED_EVENT = 'loohii:auth-expired'
 
 export function getApiBaseUrl(): string {
@@ -30,6 +31,9 @@ export function getApiBaseUrl(): string {
 export function getToken(): string | null {
   return localStorage.getItem(API_TOKEN_KEY)
 }
+
+// 旧版本地 JWT 一律作废（服务端已不再验旧密钥），加载时顺手清掉残留
+localStorage.removeItem('loohii-api-token')
 
 export function setToken(token?: string | null) {
   if (token) {
@@ -52,7 +56,9 @@ export async function request<T>(path: string, options: ApiRequestOptions = {}):
       method: options.method ?? 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(options.token ?? getToken() ? { Authorization: options.token ?? getToken() ?? '' } : {}),
+        ...(options.token ?? getToken()
+          ? { Authorization: `Bearer ${options.token ?? getToken() ?? ''}` }
+          : {}),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: options.signal,
