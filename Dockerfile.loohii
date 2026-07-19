@@ -6,6 +6,8 @@ RUN apk add --no-cache openssl libc6-compat ffmpeg
 
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
+# Web 部署不需要 Electron 桌面壳二进制，跳过其 ~100MB 下载（npm ci 仍会装上依赖本身）
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 RUN npm ci
 RUN npx prisma generate
 

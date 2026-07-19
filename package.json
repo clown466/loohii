@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "main": "dist-electron/main.mjs",
   "scripts": {
     "build": "vite build",
     "dev": "vite",
@@ -11,7 +12,42 @@
     "server:check": "tsc -p server/tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "dev:electron": "node scripts/dev-electron.mjs",
+    "build:electron": "npm run build && npm run electron:compile",
+    "dist:win": "npm run build:electron && electron-builder --win nsis && node scripts/verify-electron-build.mjs"
+  },
+  "build": {
+    "appId": "com.loohii.app",
+    "productName": "loohii",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-electron/**",
+      "dist/**",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://api.aijiekou.online/loohii"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "language": "2052",
+      "shortcutName": "loohii"
+    }
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1048.0",
@@ -59,6 +95,7 @@
     "cors": "^2.8.6",
     "date-fns": "3.6.0",
     "dotenv": "^17.4.2",
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "helmet": "^8.1.0",
     "input-otp": "1.4.2",
@@ -97,6 +134,9 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^25.8.0",
     "@vitejs/plugin-react": "4.7.0",
+    "concurrently": "^9.2.4",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "tailwindcss": "4.1.12",
     "tsx": "^4.22.1",
     "typescript": "^6.0.3",

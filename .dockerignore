@@ -7,3 +7,5 @@ dist
 !.env.example
 .claude
 docs/superpowers
+release
+dist-electron

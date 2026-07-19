@@ -37,6 +37,30 @@ npm run server:dev
 npm run dev
 ```
 
+## 桌面版（Electron 薄壳）
+
+薄壳架构：壳内只做原生窗口/菜单/单实例/自动更新，页面加载线上 https://loohii.com/app（本地不内嵌服务端和数据库）。
+
+```bash
+# 开发：一条命令起 vite + 编译主进程 + 起壳（壳加载 localhost:5173）
+npm run dev:electron
+
+# 仅编译主进程/preload（electron/*.mts|cts → dist-electron/）
+npm run electron:compile
+
+# 出 Windows NSIS 安装包（vite build + 主进程编译 + electron-builder + 产物校验）
+npm run dist:win
+# 产物：release/loohii Setup <version>.exe + latest.yml
+```
+
+要点：
+
+- **数据目录**：userData 固定 `%LocalAppData%\loohii`（非 Roaming，更新/重装不丢登录态与窗口状态）
+- **登录态**：Web 端 token 存 localStorage，Electron 持久分区（`persist:loohii`）天然持久，重启壳保持登录
+- **导航白名单**：壳内只允许 loohii.com / api.aijiekou.online（dev 加 localhost），外链一律弹系统浏览器
+- **自动更新**：electron-updater generic provider，manifest 默认 https://api.aijiekou.online/loohii/latest.yml（env `LOOHII_UPDATE_URL` 可覆盖）；未配置/检查失败安静降级，菜单「帮助 → 检查更新…」可手动触发
+- **冒烟**：`LOOHII_SMOKE_TEST=1` 运行壳可自验"加载成功 + 外链拦截"并自动退出
+
 ## 项目结构
 
 ```
